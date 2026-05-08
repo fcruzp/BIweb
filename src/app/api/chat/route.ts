@@ -509,7 +509,13 @@ Write a professional executive analysis using ONLY the column names listed above
         role: 'assistant',
         content: responseContent,
         sqlQuery: finalSQL,
-        queryResult: JSON.stringify(slicedData),
+        queryResult: JSON.stringify({
+          data: slicedData,
+          columns: queryResult.columns || (slicedData.length > 0 ? Object.keys(slicedData[0]) : []),
+          rowCount: queryResult.rowCount,
+          totalRowCount: queryResult.rowCount,
+          executionTime: queryResult.executionTime,
+        }),
         visualization: visualization ? JSON.stringify(visualization) : null,
       },
     });

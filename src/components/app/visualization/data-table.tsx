@@ -29,9 +29,12 @@ interface DataTableProps {
 export function DataTable({ data, columns }: DataTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
 
+  // Ensure columns is always a valid array
+  const safeColumns = Array.isArray(columns) ? columns : (Array.isArray(data) && data.length > 0 ? Object.keys(data[0]) : []);
+
   const tableColumns = useMemo<ColumnDef<Record<string, unknown>>[]>(
     () =>
-      columns.map((col) => ({
+      safeColumns.map((col) => ({
         accessorKey: col,
         header: ({ column }) => (
           <Button
@@ -52,7 +55,7 @@ export function DataTable({ data, columns }: DataTableProps) {
           return str.length > 100 ? str.slice(0, 100) + '...' : str;
         },
       })),
-    [columns]
+    [safeColumns]
   );
 
   const table = useReactTable({

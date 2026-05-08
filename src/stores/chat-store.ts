@@ -102,12 +102,29 @@ export const useChatStore = create<ChatState>((set) => ({
               const raw = typeof msg.queryResult === 'string'
                 ? JSON.parse(msg.queryResult)
                 : msg.queryResult;
-              // Ensure data is an array (could be double-encoded)
+
               if (raw && typeof raw === 'object') {
-                if (typeof raw.data === 'string') {
-                  raw.data = JSON.parse(raw.data);
+                // Handle old format: raw is a bare array of rows (no data/columns wrapper)
+                if (Array.isArray(raw)) {
+                  parsedQueryResult = {
+                    data: raw,
+                    columns: raw.length > 0 ? Object.keys(raw[0]) : [],
+                    rowCount: raw.length,
+                    totalRowCount: raw.length,
+                    executionTime: 0,
+                  };
+                } else {
+                  // New format: raw is a full QueryResult object
+                  // Ensure data is an array (could be double-encoded string)
+                  if (typeof raw.data === 'string') {
+                    try { raw.data = JSON.parse(raw.data); } catch { /* keep as-is */ }
+                  }
+                  // Ensure columns exists
+                  if (!raw.columns && Array.isArray(raw.data) && raw.data.length > 0) {
+                    raw.columns = Object.keys(raw.data[0]);
+                  }
+                  parsedQueryResult = raw as QueryResult;
                 }
-                parsedQueryResult = raw as QueryResult;
               }
             } catch {
               parsedQueryResult = null;
