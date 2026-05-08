@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { MapPin } from 'lucide-react';
-import { drawPath, stateCode } from '@react-map/dominican-republic/src/constants';
+import { drawPath, stateCode } from '@/lib/dr-map-constants';
 
 // ============================================================
 // Province name normalization
