@@ -1,0 +1,311 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useDashboardStore, type DashboardInfo } from '@/stores/dashboard-store';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
+import {
+  LayoutDashboard,
+  Plus,
+  Trash2,
+  Loader2,
+  BarChart3,
+  Table2,
+  Type,
+  Gauge,
+} from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
+
+export function DashboardView() {
+  const {
+    dashboards,
+    activeDashboard,
+    dashboardsLoading,
+    setDashboards,
+    setActiveDashboard,
+    setDashboardsLoading,
+    addDashboard,
+    removeDashboard,
+  } = useDashboardStore();
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newDescription, setNewDescription] = useState('');
+
+  useEffect(() => {
+    async function loadDashboards() {
+      setDashboardsLoading(true);
+      try {
+        const res = await fetch('/api/dashboards');
+        if (res.ok) {
+          const data = await res.json();
+          setDashboards(data.dashboards || []);
+        }
+      } catch (error) {
+        console.error('Failed to load dashboards:', error);
+      } finally {
+        setDashboardsLoading(false);
+      }
+    }
+    loadDashboards();
+  }, [setDashboards, setDashboardsLoading]);
+
+  const handleCreate = async () => {
+    if (!newName.trim()) {
+      toast.error('Please enter a dashboard name');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/dashboards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName, description: newDescription }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        addDashboard(data.dashboard);
+        setActiveDashboard(data.dashboard);
+        setNewName('');
+        setNewDescription('');
+        setCreateOpen(false);
+        toast.success('Dashboard created!');
+      } else {
+        toast.error('Failed to create dashboard');
+      }
+    } catch (error) {
+      toast.error('Failed to create dashboard');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      const res = await fetch(`/api/dashboards/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        removeDashboard(id);
+        toast.success('Dashboard deleted');
+      }
+    } catch (error) {
+      toast.error('Failed to delete dashboard');
+    }
+  };
+
+  const getWidgetIcon = (type: string) => {
+    switch (type) {
+      case 'chart': return <BarChart3 className="h-4 w-4" />;
+      case 'table': return <Table2 className="h-4 w-4" />;
+      case 'metric': return <Gauge className="h-4 w-4" />;
+      default: return <Type className="h-4 w-4" />;
+    }
+  };
+
+  if (dashboardsLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-6 w-6 animate-spin text-emerald-500" />
+      </div>
+    );
+  }
+
+  // Dashboard list view
+  if (!activeDashboard) {
+    return (
+      <ScrollArea className="h-full">
+        <div className="p-6 space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold">Dashboards</h2>
+              <p className="text-sm text-muted-foreground">Create and manage your data dashboards</p>
+            </div>
+            <Button className="bg-emerald-600 hover:bg-emerald-700 gap-2" onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4" />
+              New Dashboard
+            </Button>
+          </div>
+
+          {dashboards.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16">
+              <LayoutDashboard className="h-12 w-12 text-muted-foreground/50 mb-4" />
+              <h3 className="text-lg font-semibold text-muted-foreground">No Dashboards</h3>
+              <p className="text-sm text-muted-foreground mt-1 mb-4">
+                Create your first dashboard to visualize and organize your data insights.
+              </p>
+              <Button className="bg-emerald-600 hover:bg-emerald-700 gap-2" onClick={() => setCreateOpen(true)}>
+                <Plus className="h-4 w-4" />
+                Create Dashboard
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {dashboards.map((dashboard) => (
+                <Card
+                  key={dashboard.id}
+                  className="cursor-pointer hover:border-emerald-500/50 transition-colors"
+                  onClick={() => setActiveDashboard(dashboard)}
+                >
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between">
+                      <CardTitle className="text-base">{dashboard.name}</CardTitle>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Dashboard</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to delete &quot;{dashboard.name}&quot;?
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDelete(dashboard.id)}>
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {dashboard.description && (
+                      <p className="text-xs text-muted-foreground mb-2">{dashboard.description}</p>
+                    )}
+                    <div className="flex gap-2">
+                      <Badge variant="secondary" className="text-[10px] gap-1">
+                        {dashboard.widgets.length} widgets
+                      </Badge>
+                      <Badge variant="outline" className="text-[10px]">
+                        {new Date(dashboard.updatedAt).toLocaleDateString()}
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create Dashboard</DialogTitle>
+                <DialogDescription>
+                  Create a new dashboard to organize your data visualizations.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="dash-name">Name</Label>
+                  <Input
+                    id="dash-name"
+                    placeholder="My Dashboard"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="dash-desc">Description (optional)</Label>
+                  <Input
+                    id="dash-desc"
+                    placeholder="Description of the dashboard"
+                    value={newDescription}
+                    onChange={(e) => setNewDescription(e.target.value)}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
+                <Button onClick={handleCreate} className="bg-emerald-600 hover:bg-emerald-700">Create</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </ScrollArea>
+    );
+  }
+
+  // Active dashboard view
+  return (
+    <div className="h-full flex flex-col">
+      <div className="border-b border-border/50 px-6 py-3 flex items-center justify-between bg-background/80 backdrop-blur-sm">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" onClick={() => setActiveDashboard(null)}>
+            ← Back
+          </Button>
+          <div>
+            <h2 className="text-lg font-bold">{activeDashboard.name}</h2>
+            {activeDashboard.description && (
+              <p className="text-xs text-muted-foreground">{activeDashboard.description}</p>
+            )}
+          </div>
+        </div>
+        <Badge variant="secondary">{activeDashboard.widgets.length} widgets</Badge>
+      </div>
+
+      <ScrollArea className="flex-1">
+        <div className="p-6">
+          {activeDashboard.widgets.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16">
+              <LayoutDashboard className="h-12 w-12 text-muted-foreground/50 mb-4" />
+              <h3 className="text-lg font-semibold text-muted-foreground">Empty Dashboard</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Widgets from your chat queries will appear here when you add them to this dashboard.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {activeDashboard.widgets.map((widget) => (
+                <Card key={widget.id} className="border-border/50">
+                  <CardHeader className="pb-2 pt-3 px-4">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      {getWidgetIcon(widget.widgetType)}
+                      {widget.title}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-4 pb-3">
+                    <div className="h-48 flex items-center justify-center bg-muted/30 rounded-lg">
+                      <p className="text-xs text-muted-foreground">
+                        Widget preview (visualization will render here)
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+}
