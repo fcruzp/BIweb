@@ -2,6 +2,36 @@ import ZAI from 'z-ai-web-dev-sdk';
 import OpenAI from 'openai';
 
 // ============================================================
+// Helpers
+// ============================================================
+
+/**
+ * Extract JSON from a string that might be wrapped in markdown code blocks.
+ * Handles: ```json\n{...}\n```, ```{...}```, or raw JSON.
+ */
+function extractJSON(text: string): string {
+  // Try to find JSON inside markdown code blocks first
+  const codeBlockMatch = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+  if (codeBlockMatch) {
+    return codeBlockMatch[1].trim();
+  }
+
+  // Try to find a JSON object or array in the text
+  const objectMatch = text.match(/\{[\s\S]*\}/);
+  if (objectMatch) {
+    return objectMatch[0];
+  }
+
+  const arrayMatch = text.match(/\[[\s\S]*\]/);
+  if (arrayMatch) {
+    return arrayMatch[0];
+  }
+
+  // Return as-is and let JSON.parse fail naturally
+  return text.trim();
+}
+
+// ============================================================
 // Types
 // ============================================================
 
@@ -61,8 +91,20 @@ async function createZAICompletion(options: AICompletionOptions): Promise<AIComp
   });
 
   const content = completion.choices[0]?.message?.content || '';
+  const result: AICompletionResult = { content };
 
-  return { content };
+  // Parse JSON if requested
+  if (options.responseFormat === 'json' && content) {
+    try {
+      const jsonStr = extractJSON(content);
+      result.parsedJson = JSON.parse(jsonStr);
+    } catch (e) {
+      console.error('Failed to parse Z-AI JSON response:', e);
+      console.error('Raw content:', content.slice(0, 500));
+    }
+  }
+
+  return result;
 }
 
 // ============================================================
@@ -156,12 +198,25 @@ export async function createCompletion(options: AICompletionOptions): Promise<AI
   // Route to the appropriate provider
   const enrichedOptions = { ...options, provider, modelId, apiKey };
 
+  let result: AICompletionResult;
   if (provider === 'openrouter') {
-    return createOpenRouterCompletion(enrichedOptions);
+    result = await createOpenRouterCompletion(enrichedOptions);
+  } else {
+    result = await createZAICompletion(enrichedOptions);
   }
 
-  // Default: z-ai
-  return createZAICompletion(enrichedOptions);
+  // Ensure JSON is parsed for both providers when responseFormat is json
+  if (options.responseFormat === 'json' && !result.parsedJson && result.content) {
+    try {
+      const jsonStr = extractJSON(result.content);
+      result.parsedJson = JSON.parse(jsonStr);
+    } catch (e) {
+      console.error('Failed to parse AI JSON response:', e);
+      console.error('Raw content:', result.content.slice(0, 500));
+    }
+  }
+
+  return result;
 }
 
 // ============================================================
