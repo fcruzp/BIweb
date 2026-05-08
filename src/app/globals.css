@@ -121,6 +121,14 @@
   }
 }
 
+/* Pointer cursor on all links */
+@layer base {
+  a,
+  a[href] {
+    cursor: pointer;
+  }
+}
+
 /* Custom scrollbar styling */
 @layer base {
   ::-webkit-scrollbar {
