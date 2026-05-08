@@ -2,6 +2,108 @@ import ZAI from 'z-ai-web-dev-sdk';
 import OpenAI from 'openai';
 
 // ============================================================
+// Language Detection
+// ============================================================
+
+/**
+ * Detect the language of a given text based on common patterns.
+ * Returns a BCP 47 language tag (e.g., 'es', 'en', 'fr', 'pt').
+ * This is a simple heuristic — the AI will also be instructed to match language.
+ */
+export function detectLanguage(text: string): string {
+  const lower = text.toLowerCase();
+
+  // Spanish indicators
+  const spanishPatterns = [
+    /\b(qué|cuál|cuáles|cómo|cuándo|dónde|por qué|quién|quiénes)\b/i,
+    /\b(el|la|los|las|un|una|unos|unas)\b/g,
+    /\b(es|son|está|están|hay|tiene|tienen|puede|pueden)\b/g,
+    /\b(de|del|en|con|por|para|entre|sobre|sin|hasta|desde|hacia)\b/g,
+    /\b(muy|más|menos|también|además|siempre|nunca|todo|nada|algo)\b/g,
+    /\b(que|pero|porque|aunque|cuando|donde|como|sino|si)\b/g,
+    /\b(cuantos|cuantas|cuanto|cuanta|muestra|dime|dame|lista|total)\b/g,
+    /\b(provincia|provincias|región|regiones|ventas|clientes|productos|año|mes|día)\b/g,
+    /\b[áéíóúñü]/g,
+  ];
+
+  const spanishScore = spanishPatterns.reduce((score, pattern) => {
+    const matches = lower.match(pattern);
+    return score + (matches ? matches.length : 0);
+  }, 0);
+
+  // English indicators
+  const englishPatterns = [
+    /\b(what|which|how|when|where|why|who|whom)\b/g,
+    /\b(the|a|an|is|are|was|were|be|been|being)\b/g,
+    /\b(have|has|had|do|does|did|will|would|shall|should|can|could|may|might)\b/g,
+    /\b(of|in|to|for|with|on|at|from|by|about|into|through|during|before|after)\b/g,
+    /\b(very|more|less|also|always|never|every|some|any|many|much|few)\b/g,
+    /\b(show|tell|list|give|count|sum|average|total|display|find|get)\b/g,
+    /\b(province|provinces|region|regions|sales|customers|products|year|month|day)\b/g,
+  ];
+
+  const englishScore = englishPatterns.reduce((score, pattern) => {
+    const matches = lower.match(pattern);
+    return score + (matches ? matches.length : 0);
+  }, 0);
+
+  // Portuguese indicators
+  const portuguesePatterns = [
+    /\b(qual|quais|como|quando|onde|porque|quem)\b/g,
+    /\b(o|a|os|as|um|uma|uns|umas)\b/g,
+    /\b(é|são|está|estão|tem|têm|pode|podem)\b/g,
+    /\b(muito|mais|menos|também|sempre|nunca|tudo|nada|algo)\b/g,
+    /\b[ãõçâêîôû]/g,
+  ];
+
+  const portugueseScore = portuguesePatterns.reduce((score, pattern) => {
+    const matches = lower.match(pattern);
+    return score + (matches ? matches.length : 0);
+  }, 0);
+
+  // French indicators
+  const frenchPatterns = [
+    /\b(quel|quelle|quels|quelles|comment|quand|où|pourquoi|qui)\b/g,
+    /\b(le|la|les|un|une|des)\b/g,
+    /\b(est|sont|a|ont|peut|peuvent|fait|font)\b/g,
+    /\b[àâçéèêëîïôùûüÿœæ]/g,
+  ];
+
+  const frenchScore = frenchPatterns.reduce((score, pattern) => {
+    const matches = lower.match(pattern);
+    return score + (matches ? matches.length : 0);
+  }, 0);
+
+  const scores: Record<string, number> = {
+    es: spanishScore,
+    en: englishScore,
+    pt: portugueseScore,
+    fr: frenchScore,
+  };
+
+  // Return the language with the highest score, defaulting to 'en'
+  const maxLang = Object.entries(scores).reduce((a, b) => b[1] > a[1] ? b : a, ['en', 0]);
+  return maxLang[1] > 0 ? maxLang[0] : 'en';
+}
+
+/**
+ * Generate a language instruction string to append to AI prompts.
+ * Tells the AI to respond in the same language as the user's question.
+ */
+export function getLanguageInstruction(userMessage: string): string {
+  const lang = detectLanguage(userMessage);
+  const langNames: Record<string, string> = {
+    es: 'Spanish',
+    en: 'English',
+    pt: 'Portuguese',
+    fr: 'French',
+  };
+  const langName = langNames[lang] || 'English';
+
+  return `\nLANGUAGE RULE — CRITICAL:\nYou MUST respond in ${langName}. The user wrote their question in ${langName}, so your explanation, title, description, and all human-readable text MUST be in ${langName}. SQL keywords and column names remain in their original form, but everything else must be in ${langName}.`;
+}
+
+// ============================================================
 // Helpers
 // ============================================================
 
@@ -456,7 +558,7 @@ RESPONSE FORMAT - You must respond with valid JSON only:
   "confidence": 0.0-1.0
 }
 
-IMPORTANT: When type is "schema_question", do NOT generate any SQL. The system will use stored schema metadata to answer directly.`,
+IMPORTANT: When type is "schema_question", do NOT generate any SQL. The system will use stored schema metadata to answer directly.${getLanguageInstruction(naturalQuery)}`,
     userMessage: `DATABASE SCHEMA:
 ${schemaInfo}
 
@@ -543,7 +645,7 @@ RESPONSE FORMAT - You must respond with valid JSON only:
   "sql": "the corrected SELECT query",
   "explanation": "brief explanation of what was fixed and what the query does",
   "confidence": 0.0-1.0
-}`,
+}${getLanguageInstruction(naturalQuery)}`,
     userMessage: `USER QUESTION: ${naturalQuery}
 
 PREVIOUS FAILED SQL:
@@ -737,10 +839,23 @@ export async function suggestVisualization(
 
   // If this is a geographic query or data looks geographic, return heatmap
   if ((isGeoQuery || hasProvinceValues) && detectedProvinceCol && detectedValueCol) {
+    const lang = detectLanguage(naturalQuery);
+    const heatmapTitles: Record<string, string> = {
+      es: `Mapa de Calor — ${naturalQuery.slice(0, 60)}`,
+      en: `Heat Map — ${naturalQuery.slice(0, 60)}`,
+      pt: `Mapa de Calor — ${naturalQuery.slice(0, 60)}`,
+      fr: `Carte de Chaleur — ${naturalQuery.slice(0, 60)}`,
+    };
+    const heatmapDescs: Record<string, string> = {
+      es: `Mapa de calor de ${detectedProvinceCol} por ${detectedValueCol}`,
+      en: `Heat map of ${detectedProvinceCol} by ${detectedValueCol}`,
+      pt: `Mapa de calor de ${detectedProvinceCol} por ${detectedValueCol}`,
+      fr: `Carte de chaleur de ${detectedProvinceCol} par ${detectedValueCol}`,
+    };
     return {
       chartType: 'heatmap',
-      title: `Mapa de Calor — ${naturalQuery.slice(0, 60)}`,
-      description: `Heat map of ${detectedProvinceCol} by ${detectedValueCol}`,
+      title: heatmapTitles[lang] || heatmapTitles.en,
+      description: heatmapDescs[lang] || heatmapDescs.en,
       provinceColumn: detectedProvinceCol,
       valueColumn: detectedValueCol,
     };
@@ -769,7 +884,7 @@ Rules:
 - Use "area" for cumulative trends
 - Use "metric" when the result is a single aggregated value
 - Use "table" for detailed multi-column data that doesn't fit a chart
-- Pick the BEST chart type for the data, not just any chart`,
+- Pick the BEST chart type for the data, not just any chart${getLanguageInstruction(naturalQuery)}`,
     userMessage: `QUERY: ${sqlQuery}
 
 NATURAL LANGUAGE QUESTION: ${naturalQuery}

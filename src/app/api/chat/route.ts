@@ -1,8 +1,119 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { generateSQLFromNaturalLanguage, regenerateSQLWithFeedback, isRetryableExecutionError, suggestVisualization, createCompletion } from '@/lib/ai';
+import { generateSQLFromNaturalLanguage, regenerateSQLWithFeedback, isRetryableExecutionError, suggestVisualization, createCompletion, detectLanguage } from '@/lib/ai';
 import { executeSelectQuery, generateSchemaDescription } from '@/lib/sqlite';
 import { validateSQLQuery, sanitizeSQL } from '@/lib/sql-security';
+
+// ============================================================
+// Localized message helpers
+// ============================================================
+
+const i18n: Record<string, Record<string, string>> = {
+  es: {
+    schemaOverview: 'Esquema de la Base de Datos',
+    thisDatabaseContains: 'Esta base de datos contiene',
+    tables: 'tabla(s)',
+    rows: 'filas',
+    relationships: 'Relaciones',
+    businessGlossary: 'Glosario de Negocio',
+    unableToGenerate: 'No se pudo generar la consulta',
+    unableToGenerateDesc: 'No pude generar una consulta SQL para tu pregunta. Intenta reformularla.',
+    queryBlocked: 'Consulta bloqueada',
+    queryBlockedDesc: 'La consulta fue bloqueada por razones de seguridad:',
+    pleaseRephrase: 'Por favor, reformula tu pregunta.',
+    queryExecutionError: 'Error de ejecución de consulta',
+    retried: 'reintentado',
+    time: 'vez',
+    times: 'veces',
+    withAIFeedback: 'con retroalimentación de IA',
+    queryExecutedSuccessfully: 'Consulta ejecutada exitosamente',
+    autoCorrected: 'auto-corregido después de',
+    attempt: 'intento',
+    attempts: 'intentos',
+    queryResults: 'Resultados de la consulta',
+    queryReturned: 'La consulta devolvió',
+    rowsIn: 'filas en',
+  },
+  en: {
+    schemaOverview: 'Database Schema Overview',
+    thisDatabaseContains: 'This database contains',
+    tables: 'table(s)',
+    rows: 'rows',
+    relationships: 'Relationships',
+    businessGlossary: 'Business Glossary',
+    unableToGenerate: 'Unable to Generate Query',
+    unableToGenerateDesc: 'I could not generate a SQL query for your question. Please try rephrasing.',
+    queryBlocked: 'Query Blocked',
+    queryBlockedDesc: 'The generated query was blocked for security reasons:',
+    pleaseRephrase: 'Please rephrase your question.',
+    queryExecutionError: 'Query Execution Error',
+    retried: 'retried',
+    time: 'time',
+    times: 'times',
+    withAIFeedback: 'with AI feedback',
+    queryExecutedSuccessfully: 'Query executed successfully',
+    autoCorrected: 'auto-corrected after',
+    attempt: 'attempt',
+    attempts: 'attempts',
+    queryResults: 'Query Results',
+    queryReturned: 'Query returned',
+    rowsIn: 'rows in',
+  },
+  pt: {
+    schemaOverview: 'Esquema do Banco de Dados',
+    thisDatabaseContains: 'Este banco de dados contém',
+    tables: 'tabela(s)',
+    rows: 'linhas',
+    relationships: 'Relacionamentos',
+    businessGlossary: 'Glossário de Negócios',
+    unableToGenerate: 'Não foi possível gerar a consulta',
+    unableToGenerateDesc: 'Não consegui gerar uma consulta SQL para sua pergunta. Tente reformular.',
+    queryBlocked: 'Consulta bloqueada',
+    queryBlockedDesc: 'A consulta foi bloqueada por motivos de segurança:',
+    pleaseRephrase: 'Por favor, reformule sua pergunta.',
+    queryExecutionError: 'Erro de execução da consulta',
+    retried: 'tentado novamente',
+    time: 'vez',
+    times: 'vezes',
+    withAIFeedback: 'com feedback da IA',
+    queryExecutedSuccessfully: 'Consulta executada com sucesso',
+    autoCorrected: 'auto-corrigido após',
+    attempt: 'tentativa',
+    attempts: 'tentativas',
+    queryResults: 'Resultados da consulta',
+    queryReturned: 'A consulta retornou',
+    rowsIn: 'linhas em',
+  },
+  fr: {
+    schemaOverview: 'Schéma de la Base de Données',
+    thisDatabaseContains: 'Cette base de données contient',
+    tables: 'table(s)',
+    rows: 'lignes',
+    relationships: 'Relations',
+    businessGlossary: 'Glossaire Métier',
+    unableToGenerate: 'Impossible de générer la requête',
+    unableToGenerateDesc: 'Je n\'ai pas pu générer une requête SQL pour votre question. Veuillez la reformuler.',
+    queryBlocked: 'Requête bloquée',
+    queryBlockedDesc: 'La requête a été bloquée pour des raisons de sécurité :',
+    pleaseRephrase: 'Veuillez reformuler votre question.',
+    queryExecutionError: 'Erreur d\'exécution de la requête',
+    retried: 'relancée',
+    time: 'fois',
+    times: 'fois',
+    withAIFeedback: 'avec retour de l\'IA',
+    queryExecutedSuccessfully: 'Requête exécutée avec succès',
+    autoCorrected: 'auto-corrigé après',
+    attempt: 'tentative',
+    attempts: 'tentatives',
+    queryResults: 'Résultats de la requête',
+    queryReturned: 'La requête a renvoyé',
+    rowsIn: 'lignes en',
+  },
+};
+
+function t(lang: string, key: string): string {
+  return i18n[lang]?.[key] || i18n.en[key] || key;
+}
 
 // POST /api/chat - Process a natural language query
 export async function POST(request: NextRequest) {
@@ -82,6 +193,9 @@ export async function POST(request: NextRequest) {
       queryRowLimit
     );
 
+    // Detect user language for localized responses
+    const lang = detectLanguage(message);
+
     // Handle schema questions — build a rich response from stored metadata, no SQL execution
     if (sqlResult.type === 'schema_question') {
       const context = datasource.contexts[0];
@@ -104,7 +218,7 @@ export async function POST(request: NextRequest) {
             return `- \`${c.name}\` (${c.type})${flagStr}`;
           })
           .join('\n');
-        return `### ${s.tableName}\n**${s.rowCount.toLocaleString()}** rows\n\n${columnList}`;
+        return `### ${s.tableName}\n**${s.rowCount.toLocaleString()}** ${t(lang, 'rows')}\n\n${columnList}`;
       });
 
       // Build relationships section
@@ -118,7 +232,7 @@ export async function POST(request: NextRequest) {
             description: string;
           }>;
           if (relationships.length > 0) {
-            relationshipsSection = '\n\n### Relationships\n' + relationships
+            relationshipsSection = `\n\n### ${t(lang, 'relationships')}\n` + relationships
               .map((r) => `- \`${r.from}\` → \`${r.to}\` (${r.type}) — ${r.description}`)
               .join('\n');
           }
@@ -134,7 +248,7 @@ export async function POST(request: NextRequest) {
           const glossary = JSON.parse(context.businessGlossary) as Record<string, string>;
           const entries = Object.entries(glossary);
           if (entries.length > 0) {
-            glossarySection = '\n\n### Business Glossary\n' + entries
+            glossarySection = `\n\n### ${t(lang, 'businessGlossary')}\n` + entries
               .map(([term, def]) => `- **${term}**: ${def}`)
               .join('\n');
           }
@@ -148,7 +262,7 @@ export async function POST(request: NextRequest) {
         ? `\n\n> ${context.summary}`
         : '';
 
-      const schemaResponse = `## Database Schema Overview\n\nThis database contains **${datasource.schemas.length}** table${datasource.schemas.length > 1 ? 's' : ''}.${summarySection}\n\n${tableDetails.join('\n\n')}${relationshipsSection}${glossarySection}`;
+      const schemaResponse = `## ${t(lang, 'schemaOverview')}\n\n${t(lang, 'thisDatabaseContains')} **${datasource.schemas.length}** ${t(lang, 'tables')}.${summarySection}\n\n${tableDetails.join('\n\n')}${relationshipsSection}${glossarySection}`;
 
       // Save assistant message
       await db.chatMessage.create({
@@ -175,7 +289,7 @@ export async function POST(request: NextRequest) {
         data: {
           sessionId: chatSessionId,
           role: 'assistant',
-          content: `## Unable to Generate Query\n\n${sqlResult.explanation || 'I could not generate a SQL query for your question. Please try rephrasing.'}`,
+          content: `## ${t(lang, 'unableToGenerate')}\n\n${sqlResult.explanation || t(lang, 'unableToGenerateDesc')}`,
           sqlQuery: sqlResult.sql || null,
         },
       });
@@ -184,7 +298,7 @@ export async function POST(request: NextRequest) {
         sessionId: chatSessionId,
         message: {
           role: 'assistant',
-          content: `## Unable to Generate Query\n\n${sqlResult.explanation || 'I could not generate a SQL query for your question. Please try rephrasing.'}`,
+          content: `## ${t(lang, 'unableToGenerate')}\n\n${sqlResult.explanation || t(lang, 'unableToGenerateDesc')}`,
           sqlQuery: sqlResult.sql || null,
           confidence: sqlResult.confidence,
         },
@@ -198,7 +312,7 @@ export async function POST(request: NextRequest) {
         data: {
           sessionId: chatSessionId,
           role: 'assistant',
-          content: `## Query Blocked\n\nThe generated query was blocked for security reasons: ${validation.errors.join(', ')}. Please rephrase your question.`,
+          content: `## ${t(lang, 'queryBlocked')}\n\n${t(lang, 'queryBlockedDesc')} ${validation.errors.join(', ')}. ${t(lang, 'pleaseRephrase')}`,
           sqlQuery: sqlResult.sql,
         },
       });
@@ -207,7 +321,7 @@ export async function POST(request: NextRequest) {
         sessionId: chatSessionId,
         message: {
           role: 'assistant',
-          content: `## Query Blocked\n\nThe generated query was blocked for security reasons: ${validation.errors.join(', ')}. Please rephrase your question.`,
+          content: `## ${t(lang, 'queryBlocked')}\n\n${t(lang, 'queryBlockedDesc')} ${validation.errors.join(', ')}. ${t(lang, 'pleaseRephrase')}`,
           sqlQuery: sqlResult.sql,
           confidence: 0,
         },
@@ -271,12 +385,12 @@ export async function POST(request: NextRequest) {
 
     // If query still failed after retries
     if (!queryResult) {
-      const retryNote = retryCount > 0 ? ` (retried ${retryCount} time${retryCount > 1 ? 's' : ''} with AI feedback)` : '';
+      const errorRetryNote = retryCount > 0 ? ` (${t(lang, 'retried')} ${retryCount} ${retryCount > 1 ? t(lang, 'times') : t(lang, 'time')} ${t(lang, 'withAIFeedback')})` : '';
       await db.chatMessage.create({
         data: {
           sessionId: chatSessionId,
           role: 'assistant',
-          content: `## Query Execution Error${retryNote}\n\n${lastError}`,
+          content: `## ${t(lang, 'queryExecutionError')}${errorRetryNote}\n\n${lastError}`,
           sqlQuery: finalSQL,
         },
       });
@@ -300,7 +414,7 @@ export async function POST(request: NextRequest) {
         sessionId: chatSessionId,
         message: {
           role: 'assistant',
-          content: `## Query Execution Error${retryNote}\n\n${lastError}`,
+          content: `## ${t(lang, 'queryExecutionError')}${errorRetryNote}\n\n${lastError}`,
           sqlQuery: finalSQL,
           confidence: sqlResult.confidence,
         },
@@ -351,7 +465,10 @@ STYLE GUIDELINES:
 - Keep paragraphs to 2-3 sentences maximum
 - Use bold for key metrics and findings
 - Write section headers in Title Case
-- Be concise — the entire analysis should be scannable in under 30 seconds`,
+- Be concise — the entire analysis should be scannable in under 30 seconds
+
+LANGUAGE RULE — CRITICAL:
+You MUST respond in the SAME LANGUAGE as the user's question. If the user wrote in Spanish, write the entire analysis in Spanish. If in English, write in English. If in Portuguese, write in Portuguese. If in French, write in French. Section headers, bullet points, and ALL human-readable text must match the user's language. SQL keywords and column names remain in their original form.`,
         userMessage: `Analyze these SQL query results:
 
 Query: ${finalSQL}
@@ -369,14 +486,16 @@ Write a professional executive analysis using ONLY the column names listed above
       analysis = analysisResult.content;
     } catch (analysisError) {
       console.error('Error analyzing results:', analysisError);
-      analysis = `## Query Results\n\nQuery returned ${queryResult.rowCount} rows in ${queryResult.executionTime}ms.`;
+      analysis = `## ${t(lang, 'queryResults')}\n\n${t(lang, 'queryReturned')} ${queryResult.rowCount} ${t(lang, 'rows')} ${t(lang, 'rowsIn')} ${queryResult.executionTime}ms.`;
     }
 
     // Build the full response content — include retry note if applicable
     const retryNote = retryCount > 0
-      ? ` (auto-corrected after ${retryCount} attempt${retryCount > 1 ? 's' : ''})`
+      ? ` (${t(lang, 'autoCorrected')} ${retryCount} ${retryCount > 1 ? t(lang, 'attempts') : t(lang, 'attempt')})`
       : '';
-    const responseContent = `${analysis}\n\n📊 **Query executed successfully**${retryNote} (${queryResult.rowCount} rows, ${queryResult.executionTime}ms)`;
+    const successMsg = t(lang, 'queryExecutedSuccessfully');
+    const rowsWord = t(lang, 'rows');
+    const responseContent = `${analysis}\n\n📊 **${successMsg}**${retryNote} (${queryResult.rowCount} ${rowsWord}, ${queryResult.executionTime}ms)`;
 
     // Slice results based on configured limit (0 = no limit / send all)
     const slicedData = responseRowLimit > 0

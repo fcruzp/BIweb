@@ -222,21 +222,24 @@ function getMarkdownComponents(): Components {
 /**
  * Post-process the AI content to convert emoji markers into
  * structured markdown that our custom renderer can style.
+ * Handles localized success messages (English, Spanish, Portuguese, French).
  */
 function preprocessContent(content: string): string {
   let processed = content;
 
-  // Convert "📊 **Query executed successfully** (X rows, Yms)"
-  // → styled blockquote callout
+  // Language-agnostic pattern: 📊 **[any success message]** ([optional retry note]) (X rows/filas/linhas/lignes, Yms)
+  // This matches all localized variants of the success message
+
+  // Pattern with retry note: 📊 **[message]** ([retry note]) (N rows, Xms)
   processed = processed.replace(
-    /📊\s*\*\*Query executed successfully\*\*\s*\((\d+)\s*rows?,\s*(\d+)ms\)/g,
-    '---\n> ✅ **Query executed successfully** — $1 rows returned in $2ms'
+    /📊\s*\*\*([^*]+)\*\*\s*\(([^)]+)\)\s*\((\d+)\s*\S+,\s*(\d+)ms\)/g,
+    '---\n> ✅ **$1** ($2) — $3 rows in $4ms'
   );
 
-  // Convert auto-corrected version
+  // Pattern without retry note: 📊 **[message]** (N rows, Xms)
   processed = processed.replace(
-    /📊\s*\*\*Query executed successfully\*\*\s*\(auto-corrected after (\d+) attempts?\)\s*\((\d+)\s*rows?,\s*(\d+)ms\)/g,
-    '---\n> ✅ **Query executed successfully** (auto-corrected) — $2 rows returned in $3ms'
+    /📊\s*\*\*([^*]+)\*\*\s*\((\d+)\s*\S+,\s*(\d+)ms\)/g,
+    '---\n> ✅ **$1** — $2 rows in $3ms'
   );
 
   return processed;
