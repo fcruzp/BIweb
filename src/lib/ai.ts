@@ -349,6 +349,95 @@ First classify this question, then generate a response accordingly.`,
   };
 }
 
+/**
+ * Regenerate SQL with error feedback when the previous query failed.
+ * Feeds the execution error and correct schema back to the AI so it can fix the query.
+ */
+export async function regenerateSQLWithFeedback(
+  naturalQuery: string,
+  failedSQL: string,
+  executionError: string,
+  schemaInfo: string,
+  semanticContext: string,
+  queryRowLimit?: number
+): Promise<SQLGenerationResult> {
+  const result = await createCompletion({
+    systemPrompt: `You are an expert SQL analyst. A previous SQL query you generated FAILED when executed against the database. You must fix it.
+
+CRITICAL: The previous query referenced columns or tables that don't exist, or had another execution error. You MUST carefully review the CORRECT schema provided below and generate a query that ONLY uses columns and tables that actually exist.
+
+SECURITY RULES:
+- ONLY generate SELECT statements. Never generate INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, or any modifying SQL.
+${queryRowLimit !== undefined && queryRowLimit > 0 ? `- Always include a LIMIT clause with a maximum of ${queryRowLimit} rows unless the user specifically requests otherwise.` : queryRowLimit === 0 ? `- No LIMIT clause is required by default.` : `- Always include a LIMIT clause (default 500 rows) unless the user specifically requests otherwise.`}
+- Never use subqueries that modify data.
+- Never use PRAGMA statements.
+- Only reference tables and columns that EXIST in the provided schema.
+
+RESPONSE FORMAT - You must respond with valid JSON only:
+{
+  "type": "query",
+  "sql": "the corrected SELECT query",
+  "explanation": "brief explanation of what was fixed and what the query does",
+  "confidence": 0.0-1.0
+}`,
+    userMessage: `USER QUESTION: ${naturalQuery}
+
+PREVIOUS FAILED SQL:
+${failedSQL}
+
+EXECUTION ERROR:
+${executionError}
+
+CORRECT DATABASE SCHEMA (use ONLY these tables and columns):
+${schemaInfo}
+
+SEMANTIC CONTEXT:
+${semanticContext}
+
+Fix the SQL query so it only uses columns and tables that exist in the schema above. Pay close attention to column names — do not guess or invent column names.`,
+    responseFormat: 'json',
+    temperature: 0.1,
+  });
+
+  if (result.parsedJson) {
+    const parsed = result.parsedJson as Record<string, unknown>;
+    const type = (parsed.type === 'schema_question' ? 'schema_question' : 'query') as 'query' | 'schema_question';
+    return {
+      type,
+      sql: typeof parsed.sql === 'string' ? parsed.sql : '',
+      explanation: typeof parsed.explanation === 'string' ? parsed.explanation : '',
+      confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0,
+    };
+  }
+
+  return {
+    type: 'query',
+    sql: '',
+    explanation: 'Failed to regenerate SQL query after error. Please try rephrasing your question.',
+    confidence: 0,
+  };
+}
+
+/**
+ * Check if an execution error is retryable (schema-related, not logic-related).
+ * We only retry on errors that indicate the AI hallucinated columns/tables.
+ */
+export function isRetryableExecutionError(errorMessage: string): boolean {
+  const retryablePatterns = [
+    /no such column/i,
+    /no such table/i,
+    /table.*does not exist/i,
+    /column.*does not exist/i,
+    /has no column/i,
+    /ambiguous column/i,
+    /no column named/i,
+    /could not find column/i,
+    /unknown column/i,
+    /invalid column/i,
+  ];
+  return retryablePatterns.some(pattern => pattern.test(errorMessage));
+}
+
 export async function suggestVisualization(
   sqlQuery: string,
   resultData: Array<Record<string, unknown>>,

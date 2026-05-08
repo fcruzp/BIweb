@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { generateSQLFromNaturalLanguage, suggestVisualization, createCompletion } from '@/lib/ai';
+import { generateSQLFromNaturalLanguage, regenerateSQLWithFeedback, isRetryableExecutionError, suggestVisualization, createCompletion } from '@/lib/ai';
 import { executeSelectQuery, generateSchemaDescription } from '@/lib/sqlite';
 import { validateSQLQuery, sanitizeSQL } from '@/lib/sql-security';
-import { SYSTEM_PROMPTS } from '@/lib/prompts';
 
 // POST /api/chat - Process a natural language query
 export async function POST(request: NextRequest) {
@@ -218,19 +217,67 @@ export async function POST(request: NextRequest) {
     // Determine row limit for response slicing (0 = no limit)
     const responseRowLimit = typeof queryRowLimit === 'number' ? queryRowLimit : 500;
 
-    // Execute the query
-    const sanitizedSQL = sanitizeSQL(sqlResult.sql);
+    // Execute the query with retry loop for schema hallucinations
+    const MAX_RETRIES = 2;
     let queryResult;
-    try {
-      queryResult = executeSelectQuery(datasource.filePath, sanitizedSQL);
-    } catch (execError) {
-      const errorMessage = execError instanceof Error ? execError.message : 'Query execution failed';
+    let finalSQL = sanitizeSQL(sqlResult.sql);
+    let lastError = '';
+    let retryCount = 0;
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        queryResult = executeSelectQuery(datasource.filePath, finalSQL);
+        lastError = '';
+        break; // Success — exit retry loop
+      } catch (execError) {
+        lastError = execError instanceof Error ? execError.message : 'Query execution failed';
+
+        // Check if this is a retryable error (AI hallucinated a column/table name)
+        if (attempt < MAX_RETRIES && isRetryableExecutionError(lastError)) {
+          console.log(`[Chat] SQL execution failed (attempt ${attempt + 1}): ${lastError}. Retrying with feedback...`);
+
+          // Ask the AI to regenerate the SQL with error feedback
+          const retryResult = await regenerateSQLWithFeedback(
+            message,
+            finalSQL,
+            lastError,
+            schemaDescription,
+            semanticContext,
+            queryRowLimit
+          );
+
+          if (!retryResult.sql || retryResult.confidence === 0) {
+            // AI couldn't fix it — break and report error
+            console.log('[Chat] AI could not fix the SQL query on retry.');
+            break;
+          }
+
+          // Validate the regenerated SQL
+          const retryValidation = validateSQLQuery(retryResult.sql);
+          if (!retryValidation.isSafe) {
+            console.log(`[Chat] Regenerated SQL failed security check: ${retryValidation.errors.join(', ')}`);
+            break;
+          }
+
+          finalSQL = sanitizeSQL(retryResult.sql);
+          retryCount++;
+          // Continue loop to try the new query
+        } else {
+          // Non-retryable error or max retries exceeded
+          break;
+        }
+      }
+    }
+
+    // If query still failed after retries
+    if (!queryResult) {
+      const retryNote = retryCount > 0 ? ` (retried ${retryCount} time${retryCount > 1 ? 's' : ''} with AI feedback)` : '';
       await db.chatMessage.create({
         data: {
           sessionId: chatSessionId,
           role: 'assistant',
-          content: `Error executing query: ${errorMessage}`,
-          sqlQuery: sanitizedSQL,
+          content: `Error executing query${retryNote}: ${lastError}`,
+          sqlQuery: finalSQL,
         },
       });
 
@@ -240,12 +287,12 @@ export async function POST(request: NextRequest) {
           dataSourceId,
           sessionId: chatSessionId,
           naturalQuery: message,
-          sqlQuery: sanitizedSQL,
+          sqlQuery: finalSQL,
           resultData: '[]',
           rowCount: 0,
           executionTime: 0,
           status: 'error',
-          errorMessage,
+          errorMessage: lastError,
         },
       });
 
@@ -253,8 +300,8 @@ export async function POST(request: NextRequest) {
         sessionId: chatSessionId,
         message: {
           role: 'assistant',
-          content: `Error executing query: ${errorMessage}`,
-          sqlQuery: sanitizedSQL,
+          content: `Error executing query${retryNote}: ${lastError}`,
+          sqlQuery: finalSQL,
           confidence: sqlResult.confidence,
         },
       });
@@ -263,28 +310,39 @@ export async function POST(request: NextRequest) {
     // Get visualization suggestion
     let visualization = null;
     try {
-      visualization = await suggestVisualization(sanitizedSQL, queryResult.data, message);
+      visualization = await suggestVisualization(finalSQL, queryResult.data, message);
     } catch (vizError) {
       console.error('Error suggesting visualization:', vizError);
     }
 
-    // Analyze results with AI
+    // Analyze results with AI — include the actual column names so the AI doesn't hallucinate
     let analysis = '';
     try {
       const sampleResults = queryResult.data.slice(0, 10);
+      const resultColumns = queryResult.columns || (queryResult.data.length > 0 ? Object.keys(queryResult.data[0]) : []);
       const analysisResult = await createCompletion({
-        systemPrompt: SYSTEM_PROMPTS.resultAnalysis,
+        systemPrompt: `You are a data analyst. Analyze SQL query results and provide a clear, insightful summary.
+
+CRITICAL RULES:
+- ONLY reference column names that are listed in the "Result Columns" section below. Do NOT invent or assume any column names.
+- If you mention a value from the data, make sure the column name you use matches exactly.
+- Keep the explanation concise but informative.
+- Use bullet points for clarity.
+- Include relevant numbers and statistics from the results.
+- Suggest follow-up questions the user might want to ask.
+- Do NOT generate any SQL - only analyze the results and provide insights.`,
         userMessage: `Analyze these SQL query results:
 
-Query: ${sanitizedSQL}
+Query: ${finalSQL}
 Question: ${message}
+Result Columns: ${resultColumns.join(', ')}
 Total rows: ${queryResult.rowCount}
-Execution time: ${queryResult.executionTime}ms
+Execution time: ${queryResult.executionTime}ms${retryCount > 0 ? `\nNote: This query was auto-corrected after ${retryCount} attempt(s) due to column/table errors.` : ''}
 
 Sample results:
 ${JSON.stringify(sampleResults, null, 2)}
 
-Provide a concise analysis with key insights.`,
+Provide a concise analysis with key insights. ONLY use the column names listed above.`,
         temperature: 0.3,
       });
       analysis = analysisResult.content;
@@ -293,8 +351,11 @@ Provide a concise analysis with key insights.`,
       analysis = `Query returned ${queryResult.rowCount} rows in ${queryResult.executionTime}ms.`;
     }
 
-    // Build the full response content
-    const responseContent = `${analysis}\n\n📊 **Query executed successfully** (${queryResult.rowCount} rows, ${queryResult.executionTime}ms)`;
+    // Build the full response content — include retry note if applicable
+    const retryNote = retryCount > 0
+      ? ` (auto-corrected after ${retryCount} attempt${retryCount > 1 ? 's' : ''})`
+      : '';
+    const responseContent = `${analysis}\n\n📊 **Query executed successfully**${retryNote} (${queryResult.rowCount} rows, ${queryResult.executionTime}ms)`;
 
     // Slice results based on configured limit (0 = no limit / send all)
     const slicedData = responseRowLimit > 0
@@ -307,7 +368,7 @@ Provide a concise analysis with key insights.`,
         sessionId: chatSessionId,
         role: 'assistant',
         content: responseContent,
-        sqlQuery: sanitizedSQL,
+        sqlQuery: finalSQL,
         queryResult: JSON.stringify(slicedData),
         visualization: visualization ? JSON.stringify(visualization) : null,
       },
@@ -319,7 +380,7 @@ Provide a concise analysis with key insights.`,
         dataSourceId,
         sessionId: chatSessionId,
         naturalQuery: message,
-        sqlQuery: sanitizedSQL,
+        sqlQuery: finalSQL,
         resultData: JSON.stringify(slicedData),
         rowCount: queryResult.rowCount,
         executionTime: queryResult.executionTime,
@@ -332,7 +393,7 @@ Provide a concise analysis with key insights.`,
       message: {
         role: 'assistant',
         content: responseContent,
-        sqlQuery: sanitizedSQL,
+        sqlQuery: finalSQL,
         explanation: sqlResult.explanation,
         confidence: sqlResult.confidence,
         queryResult: {
