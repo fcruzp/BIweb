@@ -115,3 +115,66 @@ Stage Summary:
 - Application fully integrated and working
 - Sample database available for testing: data/sample_ecommerce.db (50 customers, 30 products, 100 orders, 241 order items)
 - Dev server running, API routes responding
+
+---
+Task ID: 8
+Agent: Code Agent
+Task: Add info icon next to each data source in sidebar that opens schema detail modal
+
+Work Log:
+- Created `src/components/app/sidebar/datasource-info-dialog.tsx` — new Dialog component that:
+  - Accepts `open`, `onOpenChange`, and `dataSourceId` props
+  - Fetches full data source details from `/api/datasources/[id]` on open
+  - Displays rich modal with: header (name, file info, status badge), AI Summary, Business Context, Tables (accordion with column details, PK/NOT NULL indicators), Relationships, Business Glossary
+  - Includes loading skeleton state and error state
+  - Uses shadcn/ui Dialog, Badge, ScrollArea, Separator, Skeleton, Accordion
+  - Uses Lucide icons: Info, Database, Table2, Key, Link2, BookOpen, FileDatabase, Hash
+  - Dark theme with emerald accents, max-w-2xl width, max-h-[80vh] scrollable content
+  - Parses JSON strings for columns, businessGlossary, relationships
+  - Formats file sizes nicely (e.g., "1.2 MB")
+- Modified `src/components/app/sidebar/datasource-list.tsx` to add:
+  - Info icon button next to each data source (before the delete button)
+  - Emerald hover color for info button (vs red for delete)
+  - Appears on hover with same opacity transition as delete button
+  - Opens DataSourceInfoDialog when clicked
+  - Added `infoDataSourceId` and `infoDialogOpen` state
+- Lint check: 0 errors, 1 pre-existing warning (TanStack Table)
+
+Stage Summary:
+- Info icon added to each data source in sidebar
+- Clicking opens rich modal with full schema details (tables, columns, relationships, glossary, AI summary)
+- Consistent dark theme with emerald accents
+
+---
+Task ID: 1 (current)
+Agent: Code Agent
+Task: Handle schema questions in chat — classify questions as query vs schema_question and respond with stored metadata instead of SQL
+
+Work Log:
+- Updated `src/lib/prompts.ts` — Rewrote `textToSQL` prompt to include classification instructions:
+  - AI must classify user questions as "query" (wants data) or "schema_question" (asking about database structure)
+  - Added explicit examples of schema questions in English and Spanish
+  - Added rule: NEVER query sqlite_master or system tables — classify as schema_question instead
+  - Updated response JSON format to include `type` field: "query" or "schema_question"
+  - When type is schema_question, AI should NOT generate SQL
+- Updated `src/lib/ai.ts` — Modified `generateSQLFromNaturalLanguage` function:
+  - Added `SQLGenerationResult` exported type with `type: 'query' | 'schema_question'` field
+  - Updated AI system prompt inline with classification instructions (mirrors prompts.ts)
+  - Added backward compatibility: if AI doesn't return `type` field, defaults to `'query'`
+  - Robust parsing of `parsedJson` with type-safe field extraction
+- Updated `src/app/api/chat/route.ts` — Added schema question handling:
+  - After calling `generateSQLFromNaturalLanguage`, checks if `sqlResult.type === 'schema_question'`
+  - If schema_question: builds rich response from stored schema/context data WITHOUT executing SQL
+  - Response includes: table list with columns/types/flags/row counts, AI summary, relationships, business glossary
+  - No SQL validation or execution needed for schema questions
+  - Still saves user and assistant messages to database
+  - Returns early with formatted schema info response
+- Fixed pre-existing JSX parsing error in `datasource-list.tsx` (missing `<SidebarMenu>` opening tag)
+- Lint check: 0 errors, 1 pre-existing warning (TanStack Table)
+
+Stage Summary:
+- Schema questions (e.g., "¿Cuáles tablas tenemos?") are now classified by AI and handled without SQL execution
+- AI prompt instructs classification as "query" vs "schema_question" with examples in multiple languages
+- Rich schema info response built from stored metadata: tables, columns, relationships, glossary, summary
+- Backward compatible — if AI doesn't return `type`, defaults to "query" behavior
+- No security validator blocking — schema questions bypass SQL validation entirely

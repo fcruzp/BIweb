@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAppStore } from '@/stores/app-store';
 import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { Database, Loader2, AlertCircle, CheckCircle2, Trash2 } from 'lucide-react';
+import { Database, Loader2, AlertCircle, CheckCircle2, Trash2, Info } from 'lucide-react';
+import { DataSourceInfoDialog } from './datasource-info-dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +31,9 @@ export function DataSourceList() {
     setActiveDataSource,
     removeDataSource,
   } = useAppStore();
+
+  const [infoDataSourceId, setInfoDataSourceId] = useState<string | null>(null);
+  const [infoDialogOpen, setInfoDialogOpen] = useState(false);
 
   useEffect(() => {
     async function loadDataSources() {
@@ -94,46 +98,64 @@ export function DataSourceList() {
   };
 
   return (
-    <SidebarMenu>
-      {dataSources.map((source) => (
-        <SidebarMenuItem key={source.id}>
-          <div className="flex items-center w-full group/menu-item">
-            <SidebarMenuButton
-              isActive={activeDataSourceId === source.id}
-              onClick={() => setActiveDataSource(source.id)}
-              className="flex-1 min-w-0"
-              tooltip={source.name}
-            >
-              {getStatusIcon(source.status)}
-              <span className="truncate text-xs">{source.name}</span>
-            </SidebarMenuButton>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <button
-                  className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive opacity-0 group-hover/menu-item:opacity-100 transition-opacity shrink-0 mr-1"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete Data Source</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Are you sure you want to delete &quot;{source.name}&quot;? This will also delete all associated schemas, contexts, and query history.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={(e) => handleDelete(source.id, e as unknown as React.MouseEvent)}>
-                    Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        </SidebarMenuItem>
-      ))}
-    </SidebarMenu>
+    <>
+      <SidebarMenu>
+        {dataSources.map((source) => (
+          <SidebarMenuItem key={source.id}>
+            <div className="flex items-center w-full group/menu-item">
+              <SidebarMenuButton
+                isActive={activeDataSourceId === source.id}
+                onClick={() => setActiveDataSource(source.id)}
+                className="flex-1 min-w-0"
+                tooltip={source.name}
+              >
+                {getStatusIcon(source.status)}
+                <span className="truncate text-xs">{source.name}</span>
+              </SidebarMenuButton>
+              <button
+                className="p-1 rounded hover:bg-emerald-500/10 text-muted-foreground hover:text-emerald-500 opacity-0 group-hover/menu-item:opacity-100 transition-opacity shrink-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setInfoDataSourceId(source.id);
+                  setInfoDialogOpen(true);
+                }}
+              >
+                <Info className="h-3 w-3" />
+              </button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <button
+                    className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive opacity-0 group-hover/menu-item:opacity-100 transition-opacity shrink-0 mr-1"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Data Source</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to delete &quot;{source.name}&quot;? This will also delete all associated schemas, contexts, and query history.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={(e) => handleDelete(source.id, e as unknown as React.MouseEvent)}>
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </SidebarMenuItem>
+        ))}
+      </SidebarMenu>
+
+      <DataSourceInfoDialog
+        open={infoDialogOpen}
+        onOpenChange={setInfoDialogOpen}
+        dataSourceId={infoDataSourceId}
+      />
+    </>
   );
 }

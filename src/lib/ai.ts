@@ -267,40 +267,53 @@ Respond with a JSON object with these fields:
   };
 }
 
+export type SQLGenerationResult = {
+  type: 'query' | 'schema_question';
+  sql: string;
+  explanation: string;
+  confidence: number;
+};
+
 export async function generateSQLFromNaturalLanguage(
   naturalQuery: string,
   schemaInfo: string,
   semanticContext: string,
   previousQueries?: Array<{ question: string; sql: string }>
-): Promise<{
-  sql: string;
-  explanation: string;
-  confidence: number;
-}> {
+): Promise<SQLGenerationResult> {
   const contextMessages = previousQueries?.map(q => [
     { role: 'user' as const, content: q.question },
     { role: 'assistant' as const, content: `Generated SQL: ${q.sql}` },
   ]).flat() || [];
 
   const result = await createCompletion({
-    systemPrompt: `You are an expert SQL analyst. Convert natural language questions to SQLite-compatible SQL queries.
+    systemPrompt: `You are an expert SQL analyst. Your job has TWO parts:
+
+1. CLASSIFY the user's question as either "query" or "schema_question"
+2. If it's a "query", generate a safe SQLite SELECT statement
+
+CLASSIFICATION RULES:
+- "schema_question": The user is asking ABOUT the database itself — its structure, tables, columns, relationships, schema, or metadata. They are NOT asking for data from the tables.
+  Examples: "What tables are in the database?", "¿Cuáles tablas tenemos?", "Describe the schema", "What columns does the X table have?", "How are the tables related?", "What does this database contain?"
+- "query": The user is asking for actual DATA — values, counts, aggregations, comparisons, trends.
 
 CRITICAL SECURITY RULES:
-- ONLY generate SELECT statements. Never generate INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, or any modifying SQL.
+- ONLY generate SELECT statements for "query" type. Never generate INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, or any modifying SQL.
 - Always include a LIMIT clause (max 1000 rows) unless the user specifically requests otherwise.
 - Never use subqueries that modify data.
 - Never use PRAGMA statements.
+- NEVER query sqlite_master or any system/catalog tables — if the user asks about the schema, classify as "schema_question" instead.
 - Only reference tables and columns that exist in the provided schema.
 - If the question cannot be answered with a SELECT query, respond with an explanation of why.
 
 RESPONSE FORMAT - You must respond with valid JSON only:
 {
-  "sql": "the SELECT query",
-  "explanation": "brief explanation of what the query does",
+  "type": "query" or "schema_question",
+  "sql": "the SELECT query (only if type=query, empty string if type=schema_question)",
+  "explanation": "brief explanation of what the query does or what schema info the user is asking about",
   "confidence": 0.0-1.0
 }
 
-If the query cannot be safely answered with a SELECT statement, set confidence to 0 and explain why.`,
+IMPORTANT: When type is "schema_question", do NOT generate any SQL. The system will use stored schema metadata to answer directly.`,
     userMessage: `DATABASE SCHEMA:
 ${schemaInfo}
 
@@ -309,21 +322,26 @@ ${semanticContext}
 
 USER QUESTION: ${naturalQuery}
 
-Generate a safe SQLite SELECT query to answer this question.`,
+First classify this question, then generate a response accordingly.`,
     contextMessages,
     responseFormat: 'json',
     temperature: 0.1,
   });
 
   if (result.parsedJson) {
-    return result.parsedJson as {
-      sql: string;
-      explanation: string;
-      confidence: number;
+    const parsed = result.parsedJson as Record<string, unknown>;
+    // Default to 'query' if type field is missing (backward compatibility)
+    const type = (parsed.type === 'schema_question' ? 'schema_question' : 'query') as 'query' | 'schema_question';
+    return {
+      type,
+      sql: typeof parsed.sql === 'string' ? parsed.sql : '',
+      explanation: typeof parsed.explanation === 'string' ? parsed.explanation : '',
+      confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0,
     };
   }
 
   return {
+    type: 'query',
     sql: '',
     explanation: 'Failed to generate SQL query. Please try rephrasing your question.',
     confidence: 0,
