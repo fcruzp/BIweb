@@ -518,7 +518,17 @@ export async function regenerateSQLWithFeedback(
   const result = await createCompletion({
     systemPrompt: `You are an expert SQL analyst. A previous SQL query you generated FAILED when executed against the database. You must fix it.
 
-CRITICAL: The previous query referenced columns or tables that don't exist, or had another execution error. You MUST carefully review the CORRECT schema provided below and generate a query that ONLY uses columns and tables that actually exist.
+CRITICAL: The previous query had an execution error. Common causes include:
+1. Syntax errors: Using "=>" instead of "AS", missing commas, incorrect operators, misplaced parentheses, etc.
+2. Referencing columns or tables that don't exist in the database.
+3. Invalid function calls or wrong number of arguments.
+4. Misuse of SQL keywords or aggregates.
+
+You MUST:
+- Carefully review the CORRECT schema provided below and generate a query that ONLY uses columns and tables that actually exist.
+- Fix any SQL syntax errors. Use standard SQLite syntax only.
+- Use "AS" keyword for column aliases (never "=>").
+- Ensure all commas, parentheses, and operators are correct.
 
 SECURITY RULES:
 - ONLY generate SELECT statements. Never generate INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, or any modifying SQL.
@@ -548,7 +558,9 @@ ${schemaInfo}
 SEMANTIC CONTEXT:
 ${semanticContext}
 
-Fix the SQL query so it only uses columns and tables that exist in the schema above. Pay close attention to column names — do not guess or invent column names.
+Fix the SQL query. Pay close attention to:
+- SQL SYNTAX: Ensure correct syntax (use "AS" for aliases, proper commas, parentheses, operators). The error message above tells you exactly what went wrong.
+- COLUMN/TABLE NAMES: Only use columns and tables that exist in the schema above. Do not guess or invent column names.
 
 Respond with valid JSON only. No explanation outside the JSON object.`,
     responseFormat: 'json',
@@ -575,11 +587,13 @@ Respond with valid JSON only. No explanation outside the JSON object.`,
 }
 
 /**
- * Check if an execution error is retryable (schema-related, not logic-related).
- * We only retry on errors that indicate the AI hallucinated columns/tables.
+ * Check if an execution error is retryable (schema-related or syntax-related).
+ * We retry on errors that indicate the AI hallucinated columns/tables
+ * OR generated invalid SQL syntax that can be fixed with feedback.
  */
 export function isRetryableExecutionError(errorMessage: string): boolean {
   const retryablePatterns = [
+    // Schema hallucination errors
     /no such column/i,
     /no such table/i,
     /table.*does not exist/i,
@@ -590,6 +604,22 @@ export function isRetryableExecutionError(errorMessage: string): boolean {
     /could not find column/i,
     /unknown column/i,
     /invalid column/i,
+    // SQL syntax errors — the AI can often fix these when given feedback
+    /syntax error/i,
+    /near ".*": syntax error/i,
+    /incomplete input/i,
+    /unexpected token/i,
+    /unexpected keyword/i,
+    /unexpected end/i,
+    /misuse of aggregate/i,
+    /wrong number of arguments/i,
+    /sub-select returns more than one row/i,
+    /no such function/i,
+    /invalid use of/i,
+    /misuse of/i,
+    /parser error/i,
+    /parse error/i,
+    /unrecognized token/i,
   ];
   return retryablePatterns.some(pattern => pattern.test(errorMessage));
 }

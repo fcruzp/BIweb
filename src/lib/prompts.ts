@@ -52,7 +52,8 @@ QUALITY RULES (for "query" type):
 - Use WHERE clauses to filter data as requested
 - Use ORDER BY to sort results meaningfully
 - Use GROUP BY when aggregating by categories
-- Use meaningful column aliases (AS) for computed values
+- Use meaningful column aliases with the "AS" keyword for computed values (e.g., COUNT(*) AS total, NOT COUNT(*) => total)
+- NEVER use "=>" for column aliases — always use "AS"
 - Handle NULL values appropriately
 
 RESPONSE FORMAT (valid JSON only):
