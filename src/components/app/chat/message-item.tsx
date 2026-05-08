@@ -71,11 +71,11 @@ export function MessageItem({ message }: MessageItemProps) {
         </div>
 
         {/* Query metadata strip */}
-        {message.queryResult && (
+        {message.queryResult && typeof message.queryResult.rowCount === 'number' && (
           <div className="flex flex-wrap items-center gap-2 px-1">
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground bg-muted/40 rounded-md px-2 py-1">
               <Database className="h-3 w-3 text-emerald-500/70" />
-              <span className="font-medium">{message.queryResult.rowCount.toLocaleString()}</span> rows
+              <span className="font-medium">{message.queryResult.rowCount?.toLocaleString()}</span> rows
             </div>
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground bg-muted/40 rounded-md px-2 py-1">
               <Clock className="h-3 w-3 text-emerald-500/70" />
@@ -197,10 +197,10 @@ export function MessageItem({ message }: MessageItemProps) {
         )}
 
         {/* If no visualization but has data, show table */}
-        {message.queryResult && !message.visualization && (
+        {message.queryResult?.data && !message.visualization && (
           <Card className="border-border/40 shadow-sm">
             <CardContent className="p-4">
-              <DataTable data={message.queryResult.data} columns={message.queryResult.columns} />
+              <DataTable data={message.queryResult.data} columns={message.queryResult.columns || []} />
             </CardContent>
           </Card>
         )}
