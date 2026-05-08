@@ -27,6 +27,8 @@ import {
   BookOpen,
   FileArchive,
   Hash,
+  Sparkles,
+  HardDrive,
 } from 'lucide-react';
 
 interface ColumnInfo {
@@ -108,17 +110,20 @@ function getStatusBadge(status: string) {
 
 function LoadingSkeleton() {
   return (
-    <div className="space-y-4 p-1">
-      <div className="space-y-2">
-        <Skeleton className="h-6 w-48" />
-        <Skeleton className="h-4 w-32" />
+    <div className="space-y-5 p-1">
+      <div className="flex gap-3">
+        <Skeleton className="h-9 w-9 rounded-lg" />
+        <div className="space-y-1.5 flex-1">
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="h-3 w-56" />
+        </div>
       </div>
-      <Skeleton className="h-16 w-full" />
-      <Skeleton className="h-24 w-full" />
+      <Skeleton className="h-14 w-full rounded-lg" />
       <div className="space-y-2">
-        <Skeleton className="h-5 w-24" />
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-5 w-20" />
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
       </div>
     </div>
   );
@@ -166,33 +171,50 @@ export function DataSourceInfoDialog({
 
   if (context) {
     try {
-      businessGlossary = JSON.parse(context.businessGlossary || '[]');
+      const parsed = JSON.parse(context.businessGlossary || '{}');
+      // Handle both object (Record<string, string>) and array formats
+      if (Array.isArray(parsed)) {
+        businessGlossary = parsed;
+      } else if (typeof parsed === 'object') {
+        businessGlossary = Object.entries(parsed).map(([term, definition]) => ({
+          term,
+          definition: String(definition),
+        }));
+      }
     } catch {
       businessGlossary = [];
     }
     try {
-      relationships = JSON.parse(context.relationships || '[]');
+      const parsed = JSON.parse(context.relationships || '[]');
+      if (Array.isArray(parsed)) {
+        relationships = parsed;
+      }
     } catch {
       relationships = [];
     }
   }
 
+  // Total row count across all tables
+  const totalRows = data?.schemas?.reduce((sum, s) => sum + s.rowCount, 0) ?? 0;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl p-0 gap-0">
-        <DialogHeader className="px-6 pt-6 pb-4">
-          <DialogTitle className="flex items-center gap-2">
-            <Info className="h-5 w-5 text-emerald-500" />
+      <DialogContent className="sm:max-w-2xl p-0 gap-0 overflow-hidden">
+        <DialogHeader className="px-6 pt-6 pb-3">
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
+              <Database className="h-4 w-4" />
+            </div>
             {loading ? 'Loading...' : data?.name ?? 'Data Source Info'}
           </DialogTitle>
-          <DialogDescription>
-            Detailed schema and context information for this data source.
+          <DialogDescription className="text-xs">
+            Schema and context information for this data source.
           </DialogDescription>
         </DialogHeader>
 
         <Separator />
 
-        <ScrollArea className="max-h-[80vh]">
+        <ScrollArea className="max-h-[70vh]">
           <div className="px-6 py-4 space-y-5">
             {loading && <LoadingSkeleton />}
 
@@ -205,206 +227,194 @@ export function DataSourceInfoDialog({
 
             {!loading && !error && data && (
               <>
-                {/* Header Section */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-lg font-semibold">{data.name}</h3>
-                    {getStatusBadge(data.status)}
+                {/* File Info Card */}
+                <div className="flex items-center gap-3 rounded-lg bg-muted/40 border border-border/40 p-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500 shrink-0">
+                    <HardDrive className="h-5 w-5" />
                   </div>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
-                    <span className="flex items-center gap-1.5">
-                      <FileArchive className="h-3.5 w-3.5" />
-                      {data.fileName}
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <Database className="h-3.5 w-3.5" />
-                      {formatFileSize(data.fileSize)}
-                    </span>
-                    <span className="uppercase text-xs tracking-wide">{data.fileType}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium truncate">{data.fileName}</span>
+                      {getStatusBadge(data.status)}
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                      <span className="flex items-center gap-1">
+                        <FileArchive className="h-3 w-3" />
+                        {formatFileSize(data.fileSize)}
+                      </span>
+                      <span className="uppercase tracking-wide">{data.fileType}</span>
+                      {data.schemas && (
+                        <>
+                          <span>{data.schemas.length} tables</span>
+                          <span>{totalRows.toLocaleString()} total rows</span>
+                        </>
+                      )}
+                    </div>
                   </div>
                   {data.errorMessage && (
-                    <div className="text-sm text-red-400 mt-1">
-                      Error: {data.errorMessage}
-                    </div>
+                    <div className="text-xs text-red-400 mt-1">{data.errorMessage}</div>
                   )}
                 </div>
 
-                {/* Summary Section */}
+                {/* AI Summary - Compact card */}
                 {context?.summary && (
-                  <>
-                    <Separator />
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-semibold flex items-center gap-1.5 text-emerald-400">
-                        <BookOpen className="h-4 w-4" />
-                        AI Summary
-                      </h4>
-                      <p className="text-sm text-muted-foreground leading-relaxed">
-                        {context.summary}
-                      </p>
+                  <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
+                      <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">AI Summary</span>
                     </div>
-                  </>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      {context.summary}
+                    </p>
+                  </div>
                 )}
 
-                {/* Business Context */}
-                {context?.semanticContext && (
-                  <>
-                    <Separator />
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-semibold flex items-center gap-1.5 text-emerald-400">
-                        <BookOpen className="h-4 w-4" />
-                        Business Context
-                      </h4>
-                      <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                        {context.semanticContext}
-                      </p>
+                {/* Business Context - Only show if meaningfully different from summary */}
+                {context?.semanticContext && context.semanticContext !== context?.summary && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <BookOpen className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Business Context</span>
                     </div>
-                  </>
+                    <p className="text-sm text-muted-foreground leading-relaxed pl-5">
+                      {context.semanticContext}
+                    </p>
+                  </div>
                 )}
 
                 {/* Tables Section */}
                 {data.schemas && data.schemas.length > 0 && (
-                  <>
-                    <Separator />
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-semibold flex items-center gap-1.5 text-emerald-400">
-                        <Table2 className="h-4 w-4" />
-                        Tables
-                        <Badge variant="outline" className="text-[10px] ml-1">
-                          {data.schemas.length}
-                        </Badge>
-                      </h4>
-                      <Accordion type="multiple" className="w-full">
-                        {data.schemas.map((schema) => {
-                          let columns: ColumnInfo[] = [];
-                          try {
-                            columns = JSON.parse(schema.columns);
-                          } catch {
-                            columns = [];
-                          }
-
-                          return (
-                            <AccordionItem key={schema.id} value={schema.tableName}>
-                              <AccordionTrigger className="hover:no-underline py-2">
-                                <div className="flex items-center gap-2">
-                                  <Table2 className="h-3.5 w-3.5 text-emerald-500" />
-                                  <span className="font-medium text-sm">{schema.tableName}</span>
-                                  <Badge variant="outline" className="text-[10px]">
-                                    {schema.rowCount} rows
-                                  </Badge>
-                                </div>
-                              </AccordionTrigger>
-                              <AccordionContent>
-                                <div className="space-y-1 pl-6">
-                                  {columns.map((col) => (
-                                    <div
-                                      key={col.name}
-                                      className="flex items-center gap-2 text-sm py-1 px-2 rounded hover:bg-muted/50"
-                                    >
-                                      {col.primaryKey ? (
-                                        <Key className="h-3 w-3 text-amber-500 shrink-0" />
-                                      ) : (
-                                        <Hash className="h-3 w-3 text-muted-foreground shrink-0" />
-                                      )}
-                                      <span className="font-mono text-xs">{col.name}</span>
-                                      <Badge variant="outline" className="text-[10px] ml-auto">
-                                        {col.type}
-                                      </Badge>
-                                      {col.primaryKey && (
-                                        <Badge className="text-[10px] bg-amber-500/15 text-amber-500 border-amber-500/25">
-                                          PK
-                                        </Badge>
-                                      )}
-                                      {col.notNull && (
-                                        <Badge variant="secondary" className="text-[10px]">
-                                          NOT NULL
-                                        </Badge>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              </AccordionContent>
-                            </AccordionItem>
-                          );
-                        })}
-                      </Accordion>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5">
+                      <Table2 className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tables</span>
+                      <Badge variant="outline" className="text-[10px] h-4 ml-1">
+                        {data.schemas.length}
+                      </Badge>
                     </div>
-                  </>
+                    <Accordion type="multiple" className="w-full">
+                      {data.schemas.map((schema) => {
+                        let columns: ColumnInfo[] = [];
+                        try {
+                          columns = JSON.parse(schema.columns);
+                        } catch {
+                          columns = [];
+                        }
+
+                        return (
+                          <AccordionItem key={schema.id} value={schema.tableName} className="border-border/40">
+                            <AccordionTrigger className="hover:no-underline py-2 px-2 hover:bg-muted/30 rounded-md transition-colors">
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <Table2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                                <span className="font-mono text-sm font-medium truncate">{schema.tableName}</span>
+                                <Badge variant="outline" className="text-[10px] h-4 shrink-0">
+                                  {schema.rowCount.toLocaleString()} rows
+                                </Badge>
+                                <span className="text-[10px] text-muted-foreground shrink-0">
+                                  {columns.length} cols
+                                </span>
+                              </div>
+                            </AccordionTrigger>
+                            <AccordionContent>
+                              <div className="space-y-0.5 pl-5 pr-1">
+                                {columns.map((col) => (
+                                  <div
+                                    key={col.name}
+                                    className="flex items-center gap-2 text-xs py-1 px-2 rounded hover:bg-muted/30"
+                                  >
+                                    {col.primaryKey ? (
+                                      <Key className="h-3 w-3 text-amber-500 shrink-0" />
+                                    ) : (
+                                      <Hash className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+                                    )}
+                                    <span className="font-mono text-xs min-w-0 truncate">{col.name}</span>
+                                    <span className="text-[10px] text-muted-foreground/70 ml-auto shrink-0 uppercase">
+                                      {col.type}
+                                    </span>
+                                    {col.primaryKey && (
+                                      <Badge className="text-[9px] h-3.5 px-1 bg-amber-500/15 text-amber-500 border-amber-500/25">
+                                        PK
+                                      </Badge>
+                                    )}
+                                    {col.notNull && !col.primaryKey && (
+                                      <Badge variant="secondary" className="text-[9px] h-3.5 px-1">
+                                        NN
+                                      </Badge>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </AccordionContent>
+                          </AccordionItem>
+                        );
+                      })}
+                    </Accordion>
+                  </div>
                 )}
 
                 {/* Relationships Section */}
                 {relationships.length > 0 && (
-                  <>
-                    <Separator />
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-semibold flex items-center gap-1.5 text-emerald-400">
-                        <Link2 className="h-4 w-4" />
-                        Relationships
-                        <Badge variant="outline" className="text-[10px] ml-1">
-                          {relationships.length}
-                        </Badge>
-                      </h4>
-                      <div className="space-y-2">
-                        {relationships.map((rel, idx) => (
-                          <div
-                            key={idx}
-                            className="flex items-center gap-2 text-sm py-1.5 px-3 rounded-md bg-muted/30 border border-border/50"
-                          >
-                            <Link2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                            <span className="font-mono text-xs text-emerald-300">{rel.from}</span>
-                            <span className="text-muted-foreground text-xs">→</span>
-                            <span className="font-mono text-xs text-emerald-300">{rel.to}</span>
-                            {rel.type && (
-                              <Badge variant="outline" className="text-[10px] ml-1">
-                                {rel.type}
-                              </Badge>
-                            )}
-                            {rel.description && (
-                              <span className="text-xs text-muted-foreground ml-auto truncate max-w-[200px]">
-                                {rel.description}
-                              </span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5">
+                      <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Relationships</span>
+                      <Badge variant="outline" className="text-[10px] h-4 ml-1">
+                        {relationships.length}
+                      </Badge>
                     </div>
-                  </>
+                    <div className="space-y-1.5 pl-1">
+                      {relationships.map((rel, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center gap-2 text-xs py-1.5 px-3 rounded-md bg-muted/30 border border-border/30"
+                        >
+                          <span className="font-mono text-emerald-400 truncate">{rel.from}</span>
+                          <span className="text-muted-foreground shrink-0">→</span>
+                          <span className="font-mono text-emerald-400 truncate">{rel.to}</span>
+                          {rel.type && (
+                            <Badge variant="outline" className="text-[9px] h-3.5 ml-1 shrink-0">
+                              {rel.type}
+                            </Badge>
+                          )}
+                          {rel.description && (
+                            <span className="text-muted-foreground ml-auto truncate max-w-[180px] shrink-0">
+                              {rel.description}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
 
                 {/* Business Glossary Section */}
                 {businessGlossary.length > 0 && (
-                  <>
-                    <Separator />
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-semibold flex items-center gap-1.5 text-emerald-400">
-                        <BookOpen className="h-4 w-4" />
-                        Business Glossary
-                        <Badge variant="outline" className="text-[10px] ml-1">
-                          {businessGlossary.length}
-                        </Badge>
-                      </h4>
-                      <div className="space-y-2">
-                        {businessGlossary.map((item, idx) => (
-                          <div
-                            key={idx}
-                            className="py-2 px-3 rounded-md bg-muted/30 border border-border/50"
-                          >
-                            <div className="text-sm font-medium text-emerald-300">
-                              {item.term}
-                            </div>
-                            <div className="text-xs text-muted-foreground mt-0.5">
-                              {item.definition}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5">
+                      <BookOpen className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Business Glossary</span>
+                      <Badge variant="outline" className="text-[10px] h-4 ml-1">
+                        {businessGlossary.length}
+                      </Badge>
                     </div>
-                  </>
+                    <div className="grid gap-1.5 pl-1">
+                      {businessGlossary.map((item, idx) => (
+                        <div
+                          key={idx}
+                          className="py-1.5 px-3 rounded-md bg-muted/30 border border-border/30"
+                        >
+                          <span className="text-xs font-medium text-emerald-400">{item.term}</span>
+                          <span className="text-xs text-muted-foreground ml-2">{item.definition}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
 
-                {/* Empty state when no schemas/contexts */}
+                {/* Empty state */}
                 {(!data.schemas || data.schemas.length === 0) &&
                   (!data.contexts || data.contexts.length === 0) && (
-                    <div className="text-center py-6 text-muted-foreground text-sm">
+                    <div className="text-center py-8 text-muted-foreground text-sm">
                       No schema or context information available yet.
                     </div>
                   )}
