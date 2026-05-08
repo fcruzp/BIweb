@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Send, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useI18n } from '@/hooks/use-i18n';
 
 export function MessageInput() {
   const [input, setInput] = useState('');
@@ -16,6 +17,7 @@ export function MessageInput() {
     useAppStore();
   const { addMessage, setLoading, setError, isLoading } = useChatStore();
   const { queryRowLimit } = useAIConfigStore();
+  const { t } = useI18n();
 
   const handleSubmit = async () => {
     if (!input.trim() || !activeDataSourceId || isLoading) return;
@@ -134,8 +136,8 @@ export function MessageInput() {
               onKeyDown={handleKeyDown}
               placeholder={
                 activeDataSourceId
-                  ? 'Ask a question about your data...'
-                  : 'Select a data source first...'
+                  ? t('typeQuestion')
+                  : t('selectDataSourceFirst')
               }
               disabled={!activeDataSourceId || isLoading}
               className="min-h-[44px] max-h-[200px] resize-none pr-4 bg-muted/30 border-border/50 focus-visible:ring-emerald-500/50"
@@ -156,7 +158,7 @@ export function MessageInput() {
           </Button>
         </div>
         <p className="text-[10px] text-muted-foreground mt-1.5 text-center">
-          DataMind generates safe SELECT queries only. Press Enter to send, Shift+Enter for new line.
+          {t('inputHint')}
         </p>
       </div>
     </div>

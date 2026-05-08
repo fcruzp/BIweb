@@ -22,6 +22,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
+import { useI18n } from '@/hooks/use-i18n';
 
 export function ChatSessionList() {
   const {
@@ -38,6 +39,7 @@ export function ChatSessionList() {
   } = useAppStore();
 
   const { loadMessages, clearMessages } = useChatStore();
+  const { t } = useI18n();
 
   // Inline rename state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -177,7 +179,7 @@ export function ChatSessionList() {
   if (!activeDataSourceId) {
     return (
       <div className="px-2 py-3 text-center text-[10px] text-muted-foreground group-data-[collapsible=icon]:hidden">
-        Select a data source to see chats
+        {t('selectDataSourceToSeeChats')}
       </div>
     );
   }
@@ -193,7 +195,7 @@ export function ChatSessionList() {
   if (chatSessions.length === 0) {
     return (
       <div className="px-2 py-3 text-center text-[10px] text-muted-foreground group-data-[collapsible=icon]:hidden">
-        No chats yet. Start a conversation!
+        {t('noChatsHint')}
       </div>
     );
   }
@@ -279,19 +281,17 @@ export function ChatSessionList() {
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Chat</AlertDialogTitle>
+                        <AlertDialogTitle>{t('deleteChat')}</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Are you sure you want to delete &quot;{session.title}
-                          &quot;? This will permanently remove the chat and all
-                          its messages.
+                          {t('deleteChatConfirm')}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
                         <AlertDialogAction
                           onClick={() => handleDelete(session.id)}
                         >
-                          Delete
+                          {t('delete')}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>

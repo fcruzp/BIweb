@@ -9,6 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { History, Clock, CheckCircle2, AlertCircle, Play, Copy, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useI18n } from '@/hooks/use-i18n';
 
 interface HistoryItem {
   id: string;
@@ -26,6 +27,7 @@ export function QueryHistory() {
   const { addMessage, setLoading } = useChatStore();
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [loading, setLoadingState] = useState(false);
+  const { t } = useI18n();
 
   useEffect(() => {
     if (!activeDataSourceId) {
@@ -101,9 +103,9 @@ export function QueryHistory() {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8">
         <History className="h-12 w-12 text-muted-foreground/50 mb-4" />
-        <h3 className="text-lg font-semibold text-muted-foreground">No Data Source Selected</h3>
+        <h3 className="text-lg font-semibold text-muted-foreground">{t('noDataSourceSelected')}</h3>
         <p className="text-sm text-muted-foreground mt-1">
-          Select a data source to view query history.
+          {t('selectDataSourceForHistory')}
         </p>
       </div>
     );
@@ -121,9 +123,9 @@ export function QueryHistory() {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8">
         <History className="h-12 w-12 text-muted-foreground/50 mb-4" />
-        <h3 className="text-lg font-semibold text-muted-foreground">No Query History</h3>
+        <h3 className="text-lg font-semibold text-muted-foreground">{t('noHistory')}</h3>
         <p className="text-sm text-muted-foreground mt-1">
-          Your query history will appear here after you start asking questions.
+          {t('noHistoryDesc')}
         </p>
       </div>
     );
@@ -133,8 +135,8 @@ export function QueryHistory() {
     <ScrollArea className="h-full">
       <div className="p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold">Query History</h2>
-          <Badge variant="secondary">{history.length} queries</Badge>
+          <h2 className="text-xl font-bold">{t('queryHistory')}</h2>
+          <Badge variant="secondary">{history.length} {t('queries')}</Badge>
         </div>
 
         <div className="space-y-3">
@@ -147,12 +149,12 @@ export function QueryHistory() {
                     {item.status === 'success' ? (
                       <Badge variant="secondary" className="text-emerald-500 gap-1 text-[10px]">
                         <CheckCircle2 className="h-3 w-3" />
-                        Success
+                        {t('success')}
                       </Badge>
                     ) : (
                       <Badge variant="secondary" className="text-red-500 gap-1 text-[10px]">
                         <AlertCircle className="h-3 w-3" />
-                        Error
+                        {t('error')}
                       </Badge>
                     )}
                   </div>
@@ -168,7 +170,7 @@ export function QueryHistory() {
                       <Clock className="h-3 w-3" />
                       {item.executionTime}ms
                     </span>
-                    <span>{item.rowCount} rows</span>
+                    <span>{item.rowCount} {t('rows')}</span>
                     <span>{new Date(item.createdAt).toLocaleString()}</span>
                   </div>
                   <div className="flex gap-1">
@@ -179,7 +181,7 @@ export function QueryHistory() {
                       onClick={() => copySQL(item.sqlQuery)}
                     >
                       <Copy className="h-3 w-3" />
-                      Copy
+                      {t('copy')}
                     </Button>
                     <Button
                       variant="ghost"
@@ -188,7 +190,7 @@ export function QueryHistory() {
                       onClick={() => handleReRun(item)}
                     >
                       <Play className="h-3 w-3" />
-                      Re-run
+                      {t('reRun')}
                     </Button>
                   </div>
                 </div>

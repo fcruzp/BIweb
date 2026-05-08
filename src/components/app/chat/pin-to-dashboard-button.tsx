@@ -15,6 +15,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Pin, Loader2, LayoutDashboard } from 'lucide-react';
 import { toast } from 'sonner';
+import { useI18n } from '@/hooks/use-i18n';
 
 interface PinToDashboardButtonProps {
   title: string;
@@ -34,6 +35,7 @@ export function PinToDashboardButton({
   const { dashboards, setDashboards, addWidget } = useDashboardStore();
   const [pinning, setPinning] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const { t } = useI18n();
 
   // Load dashboards if not already loaded
   useEffect(() => {
@@ -94,15 +96,15 @@ export function PinToDashboardButton({
           className="text-xs h-7 gap-1.5 text-muted-foreground hover:text-foreground"
         >
           <Pin className="h-3 w-3" />
-          Pin to Dashboard
+          {t('pinToDashboard')}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel>Select Dashboard</DropdownMenuLabel>
+        <DropdownMenuLabel>{t('selectDashboard')}</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {dashboards.length === 0 ? (
           <div className="px-2 py-3 text-xs text-muted-foreground text-center">
-            No dashboards yet. Create one from the Dashboard view.
+            {t('noDashboardsHint')}
           </div>
         ) : (
           dashboards.map((dashboard) => (
@@ -119,7 +121,7 @@ export function PinToDashboardButton({
               )}
               <span className="truncate">{dashboard.name}</span>
               <span className="ml-auto text-[10px] text-muted-foreground">
-                {dashboard.widgets.length} widgets
+                {dashboard.widgets.length} {t('widgets')}
               </span>
             </DropdownMenuItem>
           ))

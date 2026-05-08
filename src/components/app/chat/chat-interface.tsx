@@ -5,12 +5,24 @@ import { useChatStore } from '@/stores/chat-store';
 import { MessageList } from './message-list';
 import { MessageInput } from './message-input';
 import { WelcomeScreen } from './welcome-screen';
-import { Brain, MessageSquare } from 'lucide-react';
+import { ChatReport } from './chat-report';
+import { Brain, MessageSquare, FileText } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useState } from 'react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { useI18n } from '@/hooks/use-i18n';
 
 export function ChatInterface() {
   const { activeDataSourceId, dataSources, activeSessionId, chatSessions } =
     useAppStore();
-  const { isLoading } = useChatStore();
+  const { isLoading, messages } = useChatStore();
+  const [showReport, setShowReport] = useState(false);
+  const { t } = useI18n();
 
   const activeSource = dataSources.find((s) => s.id === activeDataSourceId);
   const activeChat = chatSessions.find((s) => s.id === activeSessionId);
@@ -19,6 +31,13 @@ export function ChatInterface() {
   if (!activeDataSourceId || !activeSource) {
     return <WelcomeScreen />;
   }
+
+  // Report overlay
+  if (showReport) {
+    return <ChatReport onClose={() => setShowReport(false)} />;
+  }
+
+  const hasMessages = messages.length > 0;
 
   return (
     <div className="flex flex-col h-full">
@@ -39,15 +58,35 @@ export function ChatInterface() {
             {activeChat
               ? activeSource.name
               : activeSource.status === 'ready'
-                ? 'Ready for queries'
+                ? t('readyForQueries')
                 : activeSource.status}
           </p>
         </div>
         {isLoading && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            Processing...
+            {t('processing')}
           </div>
+        )}
+        {hasMessages && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs h-7"
+                  onClick={() => setShowReport(true)}
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  {t('report')}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs">{t('generateReport')}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
       </div>
 

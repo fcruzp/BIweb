@@ -30,6 +30,7 @@ import {
   Sparkles,
   HardDrive,
 } from 'lucide-react';
+import { useI18n } from '@/hooks/use-i18n';
 
 interface ColumnInfo {
   name: string;
@@ -83,31 +84,6 @@ function formatFileSize(bytes: number): string {
   return `${size.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
 }
 
-function getStatusBadge(status: string) {
-  switch (status) {
-    case 'ready':
-      return (
-        <Badge className="bg-emerald-500/15 text-emerald-500 border-emerald-500/25 hover:bg-emerald-500/20">
-          Ready
-        </Badge>
-      );
-    case 'analyzing':
-      return (
-        <Badge className="bg-amber-500/15 text-amber-500 border-amber-500/25 hover:bg-amber-500/20">
-          Analyzing
-        </Badge>
-      );
-    case 'error':
-      return (
-        <Badge className="bg-red-500/15 text-red-500 border-red-500/25 hover:bg-red-500/20">
-          Error
-        </Badge>
-      );
-    default:
-      return <Badge variant="secondary">{status}</Badge>;
-  }
-}
-
 function LoadingSkeleton() {
   return (
     <div className="space-y-5 p-1">
@@ -137,6 +113,7 @@ export function DataSourceInfoDialog({
   const [data, setData] = useState<DataSourceDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useI18n();
 
   useEffect(() => {
     if (!open || !dataSourceId) {
@@ -197,6 +174,31 @@ export function DataSourceInfoDialog({
   // Total row count across all tables
   const totalRows = data?.schemas?.reduce((sum, s) => sum + s.rowCount, 0) ?? 0;
 
+  function getStatusBadge(status: string) {
+    switch (status) {
+      case 'ready':
+        return (
+          <Badge className="bg-emerald-500/15 text-emerald-500 border-emerald-500/25 hover:bg-emerald-500/20">
+            {t('ready')}
+          </Badge>
+        );
+      case 'analyzing':
+        return (
+          <Badge className="bg-amber-500/15 text-amber-500 border-amber-500/25 hover:bg-amber-500/20">
+            {t('analyzing')}
+          </Badge>
+        );
+      case 'error':
+        return (
+          <Badge className="bg-red-500/15 text-red-500 border-red-500/25 hover:bg-red-500/20">
+            {t('error')}
+          </Badge>
+        );
+      default:
+        return <Badge variant="secondary">{status}</Badge>;
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl p-0 gap-0 overflow-hidden">
@@ -205,10 +207,10 @@ export function DataSourceInfoDialog({
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
               <Database className="h-4 w-4" />
             </div>
-            {loading ? 'Loading...' : data?.name ?? 'Data Source Info'}
+            {loading ? t('loading') : data?.name ?? t('dataSourceInfo')}
           </DialogTitle>
           <DialogDescription className="text-xs">
-            Schema and context information for this data source.
+            {t('dataSourceInfoDesc')}
           </DialogDescription>
         </DialogHeader>
 
@@ -220,7 +222,7 @@ export function DataSourceInfoDialog({
 
             {error && (
               <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-4 text-sm text-red-400">
-                <p className="font-medium">Failed to load data source</p>
+                <p className="font-medium">{t('failedToLoad')}</p>
                 <p className="text-red-400/80 mt-1">{error}</p>
               </div>
             )}
@@ -245,8 +247,8 @@ export function DataSourceInfoDialog({
                       <span className="uppercase tracking-wide">{data.fileType}</span>
                       {data.schemas && (
                         <>
-                          <span>{data.schemas.length} tables</span>
-                          <span>{totalRows.toLocaleString()} total rows</span>
+                          <span>{data.schemas.length} {t('tables').toLowerCase()}</span>
+                          <span>{totalRows.toLocaleString()} {t('totalRows')}</span>
                         </>
                       )}
                     </div>
@@ -261,7 +263,7 @@ export function DataSourceInfoDialog({
                   <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
                     <div className="flex items-center gap-1.5 mb-1.5">
                       <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
-                      <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">AI Summary</span>
+                      <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">{t('aiSummary')}</span>
                     </div>
                     <p className="text-sm text-muted-foreground leading-relaxed">
                       {context.summary}
@@ -274,7 +276,7 @@ export function DataSourceInfoDialog({
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-1.5">
                       <BookOpen className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Business Context</span>
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('businessContext')}</span>
                     </div>
                     <p className="text-sm text-muted-foreground leading-relaxed pl-5">
                       {context.semanticContext}
@@ -287,7 +289,7 @@ export function DataSourceInfoDialog({
                   <div className="space-y-2">
                     <div className="flex items-center gap-1.5">
                       <Table2 className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tables</span>
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('tables')}</span>
                       <Badge variant="outline" className="text-[10px] h-4 ml-1">
                         {data.schemas.length}
                       </Badge>
@@ -308,10 +310,10 @@ export function DataSourceInfoDialog({
                                 <Table2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
                                 <span className="font-mono text-sm font-medium truncate">{schema.tableName}</span>
                                 <Badge variant="outline" className="text-[10px] h-4 shrink-0">
-                                  {schema.rowCount.toLocaleString()} rows
+                                  {schema.rowCount.toLocaleString()} {t('rows')}
                                 </Badge>
                                 <span className="text-[10px] text-muted-foreground shrink-0">
-                                  {columns.length} cols
+                                  {columns.length} {t('cols')}
                                 </span>
                               </div>
                             </AccordionTrigger>
@@ -357,7 +359,7 @@ export function DataSourceInfoDialog({
                   <div className="space-y-2">
                     <div className="flex items-center gap-1.5">
                       <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Relationships</span>
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('relationships')}</span>
                       <Badge variant="outline" className="text-[10px] h-4 ml-1">
                         {relationships.length}
                       </Badge>
@@ -369,7 +371,7 @@ export function DataSourceInfoDialog({
                           className="flex items-center gap-2 text-xs py-1.5 px-3 rounded-md bg-muted/30 border border-border/30"
                         >
                           <span className="font-mono text-emerald-400 truncate">{rel.from}</span>
-                          <span className="text-muted-foreground shrink-0">→</span>
+                          <span className="text-muted-foreground shrink-0">\u2192</span>
                           <span className="font-mono text-emerald-400 truncate">{rel.to}</span>
                           {rel.type && (
                             <Badge variant="outline" className="text-[9px] h-3.5 ml-1 shrink-0">
@@ -392,7 +394,7 @@ export function DataSourceInfoDialog({
                   <div className="space-y-2">
                     <div className="flex items-center gap-1.5">
                       <BookOpen className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Business Glossary</span>
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('businessGlossary')}</span>
                       <Badge variant="outline" className="text-[10px] h-4 ml-1">
                         {businessGlossary.length}
                       </Badge>
@@ -415,7 +417,7 @@ export function DataSourceInfoDialog({
                 {(!data.schemas || data.schemas.length === 0) &&
                   (!data.contexts || data.contexts.length === 0) && (
                     <div className="text-center py-8 text-muted-foreground text-sm">
-                      No schema or context information available yet.
+                      {t('noSchemaContext')}
                     </div>
                   )}
               </>

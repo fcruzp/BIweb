@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Upload, Loader2, Database, AlertCircle } from 'lucide-react';
 import { useAppStore } from '@/stores/app-store';
 import { toast } from 'sonner';
+import { useI18n } from '@/hooks/use-i18n';
 
 interface DataSourceUploadProps {
   open: boolean;
@@ -27,6 +28,7 @@ export function DataSourceUpload({ open, onOpenChange }: DataSourceUploadProps) 
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const { addDataSource } = useAppStore();
+  const { t } = useI18n();
 
   const handleUpload = async () => {
     if (!file) {
@@ -93,19 +95,19 @@ export function DataSourceUpload({ open, onOpenChange }: DataSourceUploadProps) 
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Database className="h-5 w-5 text-emerald-500" />
-            Upload Data Source
+            {t('uploadDataSourceTitle')}
           </DialogTitle>
           <DialogDescription>
-            Upload a SQLite database file. The AI will automatically analyze the schema and generate semantic context.
+            {t('uploadDesc')}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
+            <Label htmlFor="name">{t('uploadName')}</Label>
             <Input
               id="name"
-              placeholder="My Database"
+              placeholder={t('uploadNamePlaceholder')}
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
@@ -138,10 +140,10 @@ export function DataSourceUpload({ open, onOpenChange }: DataSourceUploadProps) 
               <div>
                 <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                 <p className="text-sm text-muted-foreground">
-                  Drag & drop a SQLite file here, or click to browse
+                  {t('dragDrop')}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Supports .db, .sqlite, .sqlite3 files
+                  {t('uploadSupported')}
                 </p>
               </div>
             )}
@@ -164,33 +166,32 @@ export function DataSourceUpload({ open, onOpenChange }: DataSourceUploadProps) 
               className="mt-2"
               onClick={() => document.getElementById('file-input')?.click()}
             >
-              Browse Files
+              {t('browseFiles')}
             </Button>
           </div>
 
           <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
             <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
             <span>
-              The file will be analyzed by AI to generate semantic context, business glossary, and inferred relationships.
-              Only SQLite files are supported at this time.
+              {t('uploadAnalyzeNote')}
             </span>
           </div>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={uploading}>
-            Cancel
+            {t('cancel')}
           </Button>
           <Button onClick={handleUpload} disabled={!file || uploading} className="bg-emerald-600 hover:bg-emerald-700">
             {uploading ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Uploading & Analyzing...
+                {t('uploadingAnalyzing')}
               </>
             ) : (
               <>
                 <Upload className="h-4 w-4 mr-2" />
-                Upload
+                {t('uploadBtn')}
               </>
             )}
           </Button>

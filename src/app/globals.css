@@ -171,3 +171,69 @@ button:not(:disabled),
   --chart-5: oklch(0.645 0.246 16.439);
   --sidebar-primary: oklch(0.696 0.17 162.48);
 }
+
+/* ============================================================
+   Print styles for Chat Report
+   ============================================================ */
+@media print {
+  /* Hide everything except the report */
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 11pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Hide non-report elements */
+  nav,
+  aside,
+  [data-sidebar],
+  .print\:hidden,
+  button:not(.print-keep),
+  [role="dialog"]:not(.print-keep) {
+    display: none !important;
+  }
+
+  /* Report-specific styles */
+  .report-message {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Clean borders for print */
+  .report-message > div {
+    border-color: #e5e7eb !important;
+  }
+
+  /* Ensure charts are visible */
+  svg {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  /* Table styling for print */
+  table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  th, td {
+    border: 1px solid #e5e7eb;
+    padding: 4px 8px;
+  }
+
+  th {
+    background-color: #f3f4f6 !important;
+  }
+
+  /* Remove shadows */
+  * {
+    box-shadow: none !important;
+  }
+
+  /* Ensure proper margins */
+  @page {
+    margin: 1.5cm;
+  }
+}

@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Table2, Key, Loader2, Database, Hash, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useI18n } from '@/hooks/use-i18n';
 
 interface ColumnInfo {
   name: string;
@@ -52,10 +53,10 @@ function formatCellValue(value: unknown): string {
   if (typeof value === 'boolean') return value ? 'true' : 'false';
   if (typeof value === 'number') return value.toLocaleString();
   if (typeof value === 'string') {
-    return value.length > 200 ? value.substring(0, 200) + '…' : value;
+    return value.length > 200 ? value.substring(0, 200) + '\u2026' : value;
   }
   const str = String(value);
-  return str.length > 200 ? str.substring(0, 200) + '…' : str;
+  return str.length > 200 ? str.substring(0, 200) + '\u2026' : str;
 }
 
 function cellValueClass(value: unknown): string {
@@ -76,6 +77,7 @@ function TableDataPreview({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const { t } = useI18n();
 
   const fetchData = useCallback(
     async (page: number) => {
@@ -126,7 +128,7 @@ function TableDataPreview({
     return (
       <div className="flex items-center justify-center py-8">
         <Loader2 className="h-5 w-5 animate-spin text-emerald-500" />
-        <span className="ml-2 text-sm text-muted-foreground">Loading data…</span>
+        <span className="ml-2 text-sm text-muted-foreground">{t('loadingData')}</span>
       </div>
     );
   }
@@ -141,7 +143,7 @@ function TableDataPreview({
           className="mt-2"
           onClick={() => fetchData(1)}
         >
-          Retry
+          {t('retry')}
         </Button>
       </div>
     );
@@ -150,7 +152,7 @@ function TableDataPreview({
   if (!data || data.data.length === 0) {
     return (
       <div className="py-4 text-center text-sm text-muted-foreground">
-        No data in this table
+        {t('noDataInTable')}
       </div>
     );
   }
@@ -193,7 +195,7 @@ function TableDataPreview({
       {/* Pagination controls */}
       <div className="flex items-center justify-between px-1">
         <span className="text-xs text-muted-foreground">
-          {data.totalRows} row{data.totalRows !== 1 ? 's' : ''} total
+          {t('rowsTotal', { count: String(data.totalRows) })}
         </span>
         <div className="flex items-center gap-2">
           <Button
@@ -206,7 +208,7 @@ function TableDataPreview({
             <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
           <span className="text-xs text-muted-foreground min-w-[80px] text-center">
-            Page {currentPage} of {data.totalPages}
+            {t('pageOf', { current: String(currentPage), total: String(data.totalPages) })}
           </span>
           <Button
             variant="outline"
@@ -234,6 +236,7 @@ export function SchemaExplorer() {
   const [schemas, setSchemas] = useState<TableSchemaInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [context, setContext] = useState<string>('');
+  const { t } = useI18n();
 
   const activeSource = dataSources.find((s) => s.id === activeDataSourceId);
 
@@ -267,9 +270,9 @@ export function SchemaExplorer() {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8 text-center">
         <Database className="h-12 w-12 text-muted-foreground/50 mb-4" />
-        <h3 className="text-lg font-semibold text-muted-foreground">No Data Source Selected</h3>
+        <h3 className="text-lg font-semibold text-muted-foreground">{t('noDataSourceSelected')}</h3>
         <p className="text-sm text-muted-foreground mt-1">
-          Select a data source from the sidebar to explore its schema.
+          {t('noDataSourceExplore')}
         </p>
       </div>
     );
@@ -296,7 +299,7 @@ export function SchemaExplorer() {
         <div className="flex gap-2 flex-wrap">
           <Badge variant="secondary" className="gap-1">
             <Table2 className="h-3 w-3" />
-            {schemas.length} tables
+            {schemas.length} {t('tables').toLowerCase()}
           </Badge>
           <Badge variant="secondary">
             {activeSource.fileName}
@@ -317,7 +320,7 @@ export function SchemaExplorer() {
                     <Table2 className="h-4 w-4 text-emerald-500" />
                     <span className="font-medium">{schema.tableName}</span>
                     <Badge variant="outline" className="text-[10px]">
-                      {schema.rowCount} rows
+                      {schema.rowCount} {t('rows')}
                     </Badge>
                   </div>
                 </AccordionTrigger>
@@ -325,10 +328,10 @@ export function SchemaExplorer() {
                   <Tabs defaultValue="columns" className="w-full">
                     <TabsList className="h-7">
                       <TabsTrigger value="columns" className="text-xs px-2.5 h-5">
-                        Columns
+                        {t('columns')}
                       </TabsTrigger>
                       <TabsTrigger value="data" className="text-xs px-2.5 h-5">
-                        Data
+                        {t('data')}
                       </TabsTrigger>
                     </TabsList>
 
@@ -350,7 +353,7 @@ export function SchemaExplorer() {
                             </Badge>
                             {col.notNull && (
                               <Badge variant="secondary" className="text-[10px]">
-                                NOT NULL
+                                {t('notNull')}
                               </Badge>
                             )}
                           </div>
@@ -366,7 +369,7 @@ export function SchemaExplorer() {
                         />
                       ) : (
                         <div className="py-4 text-center text-sm text-muted-foreground">
-                          No data source selected
+                          {t('noDataSourceSelected2')}
                         </div>
                       )}
                     </TabsContent>

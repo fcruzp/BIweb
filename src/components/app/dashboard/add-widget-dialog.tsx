@@ -27,6 +27,7 @@ import { ChartRenderer } from '@/components/app/visualization/chart-renderer';
 import { DataTable } from '@/components/app/visualization/data-table';
 import type { VisualizationConfig } from '@/stores/chat-store';
 import { toast } from 'sonner';
+import { useI18n } from '@/hooks/use-i18n';
 
 export type WidgetType = 'chart' | 'table' | 'metric' | 'text';
 
@@ -65,6 +66,7 @@ export function AddWidgetDialog({
   defaults,
 }: AddWidgetDialogProps) {
   const dataSources = useAppStore((s) => s.dataSources);
+  const { t } = useI18n();
 
   const [title, setTitle] = useState(defaults?.title || '');
   const [widgetType, setWidgetType] = useState<WidgetType>(defaults?.widgetType || 'chart');
@@ -206,23 +208,32 @@ export function AddWidgetDialog({
     }
   };
 
+  const widgetTypeLabel = (type: WidgetType) => {
+    switch (type) {
+      case 'chart': return t('widgetTypeChart');
+      case 'table': return t('widgetTypeTable');
+      case 'metric': return t('widgetTypeMetric');
+      case 'text': return t('widgetTypeText');
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) resetForm(); onOpenChange(v); }}>
       <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add Widget</DialogTitle>
+          <DialogTitle>{t('addWidget')}</DialogTitle>
           <DialogDescription>
-            Add a new visualization widget to your dashboard.
+            {t('addWidgetDesc')}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           {/* Title */}
           <div className="space-y-2">
-            <Label htmlFor="widget-title">Title</Label>
+            <Label htmlFor="widget-title">{t('dashboardName')}</Label>
             <Input
               id="widget-title"
-              placeholder="Widget title"
+              placeholder={t('widgetTitlePlaceholder')}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
@@ -230,7 +241,7 @@ export function AddWidgetDialog({
 
           {/* Widget Type */}
           <div className="space-y-2">
-            <Label>Widget Type</Label>
+            <Label>{t('widgetType')}</Label>
             <div className="grid grid-cols-4 gap-2">
               {(['chart', 'table', 'metric', 'text'] as WidgetType[]).map((type) => (
                 <Button
@@ -244,7 +255,7 @@ export function AddWidgetDialog({
                   onClick={() => setWidgetType(type)}
                 >
                   {widgetTypeIcon(type)}
-                  {type.charAt(0).toUpperCase() + type.slice(1)}
+                  {widgetTypeLabel(type)}
                 </Button>
               ))}
             </div>
@@ -254,10 +265,10 @@ export function AddWidgetDialog({
           {widgetType !== 'text' && (
             <>
               <div className="space-y-2">
-                <Label>Data Source</Label>
+                <Label>{t('dataSource')}</Label>
                 <Select value={dataSourceId} onValueChange={setDataSourceId}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select a data source" />
+                    <SelectValue placeholder={t('selectDataSource2')} />
                   </SelectTrigger>
                   <SelectContent>
                     {dataSources
@@ -273,7 +284,7 @@ export function AddWidgetDialog({
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="widget-sql">SQL Query</Label>
+                  <Label htmlFor="widget-sql">{t('sqlQuery2')}</Label>
                   <Button
                     variant="outline"
                     size="sm"
@@ -286,7 +297,7 @@ export function AddWidgetDialog({
                     ) : (
                       <Play className="h-3 w-3" />
                     )}
-                    Run Query
+                    {t('runQuery')}
                   </Button>
                 </div>
                 <Textarea
@@ -309,7 +320,7 @@ export function AddWidgetDialog({
               {previewData && (
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">
-                    Preview ({previewData.data.length} rows)
+                    {t('previewRows', { count: String(previewData.data.length) })}
                   </Label>
                   <div className="rounded-lg border border-border/50 bg-muted/20 p-3 max-h-[200px] overflow-auto">
                     {widgetType === 'chart' && visualization ? (
@@ -331,16 +342,16 @@ export function AddWidgetDialog({
           {/* Text content for text widgets */}
           {widgetType === 'text' && (
             <div className="space-y-2">
-              <Label htmlFor="widget-text">Markdown Content</Label>
+              <Label htmlFor="widget-text">{t('markdownContent')}</Label>
               <Textarea
                 id="widget-text"
-                placeholder="Enter markdown content for this widget..."
+                placeholder={t('markdownPlaceholder')}
                 className="min-h-[120px]"
                 value={markdownContent}
                 onChange={(e) => setMarkdownContent(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Supports basic markdown formatting.
+                {t('markdownSupport')}
               </p>
             </div>
           )}
@@ -348,7 +359,7 @@ export function AddWidgetDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => { resetForm(); onOpenChange(false); }}>
-            Cancel
+            {t('cancel')}
           </Button>
           <Button
             onClick={handleSave}
@@ -356,7 +367,7 @@ export function AddWidgetDialog({
             className="bg-emerald-600 hover:bg-emerald-700"
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-            Add Widget
+            {t('addWidget')}
           </Button>
         </DialogFooter>
       </DialogContent>

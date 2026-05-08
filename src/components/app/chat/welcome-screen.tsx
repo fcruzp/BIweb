@@ -4,28 +4,30 @@ import { Brain, Database, MessageSquare, BarChart3, Upload, ArrowRight } from 'l
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAppStore } from '@/stores/app-store';
-
-const features = [
-  {
-    icon: <Database className="h-5 w-5" />,
-    title: 'Upload Data',
-    description: 'Upload SQLite databases and let AI analyze the schema automatically',
-  },
-  {
-    icon: <MessageSquare className="h-5 w-5" />,
-    title: 'Ask Questions',
-    description: 'Chat in natural language and get SQL queries generated automatically',
-  },
-  {
-    icon: <BarChart3 className="h-5 w-5" />,
-    title: 'Visualize Results',
-    description: 'AI-powered chart recommendations and interactive visualizations',
-  },
-];
+import { useI18n } from '@/hooks/use-i18n';
 
 export function WelcomeScreen() {
   const { dataSources } = useAppStore();
   const hasDataSources = dataSources.length > 0;
+  const { t } = useI18n();
+
+  const features = [
+    {
+      icon: <Database className="h-5 w-5" />,
+      title: t('welcomeFeature1Title'),
+      description: t('welcomeFeature1Desc'),
+    },
+    {
+      icon: <MessageSquare className="h-5 w-5" />,
+      title: t('welcomeFeature2Title'),
+      description: t('welcomeFeature2Desc'),
+    },
+    {
+      icon: <BarChart3 className="h-5 w-5" />,
+      title: t('welcomeFeature3Title'),
+      description: t('welcomeFeature3Desc'),
+    },
+  ];
 
   return (
     <div className="flex flex-col items-center justify-center h-full p-8 max-w-2xl mx-auto">
@@ -34,10 +36,10 @@ export function WelcomeScreen() {
       </div>
 
       <h1 className="text-2xl font-bold text-center mb-2">
-        Welcome to DataMind
+        {t('welcomeTitle')}
       </h1>
       <p className="text-muted-foreground text-center mb-8 max-w-md">
-        Your AI-powered Business Intelligence assistant. Upload a database, ask questions in natural language, and get instant insights with visualizations.
+        {t('welcomeSubtitle')}
       </p>
 
       <div className="grid gap-4 w-full mb-8">
@@ -61,7 +63,7 @@ export function WelcomeScreen() {
       {hasDataSources ? (
         <div className="text-center">
           <p className="text-sm text-muted-foreground mb-3">
-            Select a data source from the sidebar to start querying
+            {t('selectDataSourceSidebar')}
           </p>
           <ArrowRight className="h-5 w-5 text-emerald-500 mx-auto animate-pulse" />
         </div>
@@ -77,7 +79,7 @@ export function WelcomeScreen() {
           }}
         >
           <Upload className="h-4 w-4" />
-          Upload Your First Database
+          {t('uploadFirstDatabase')}
         </Button>
       )}
     </div>

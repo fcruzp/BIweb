@@ -10,6 +10,7 @@ import { AlertTriangle, Database, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useI18n } from '@/hooks/use-i18n';
 
 interface WidgetRendererProps {
   widget: WidgetConfig;
@@ -20,6 +21,7 @@ export function WidgetRenderer({ widget }: WidgetRendererProps) {
     widget.dataSourceId,
     widget.sqlQuery
   );
+  const { t } = useI18n();
 
   // Text widgets — no data fetching needed
   if (widget.widgetType === 'text') {
@@ -52,7 +54,7 @@ export function WidgetRenderer({ widget }: WidgetRendererProps) {
           onClick={refetch}
         >
           <RefreshCw className="h-3 w-3" />
-          Retry
+          {t('retry')}
         </Button>
       </div>
     );
@@ -63,7 +65,7 @@ export function WidgetRenderer({ widget }: WidgetRendererProps) {
     return (
       <div className="flex flex-col items-center justify-center h-40 gap-2 p-4">
         <Database className="h-6 w-6 text-muted-foreground/50" />
-        <p className="text-xs text-muted-foreground">No data source configured</p>
+        <p className="text-xs text-muted-foreground">{t('noDataConfigured')}</p>
       </div>
     );
   }
@@ -72,7 +74,7 @@ export function WidgetRenderer({ widget }: WidgetRendererProps) {
   if (!result) {
     return (
       <div className="flex flex-col items-center justify-center h-40 gap-2 p-4">
-        <p className="text-xs text-muted-foreground">No data</p>
+        <p className="text-xs text-muted-foreground">{t('noData')}</p>
       </div>
     );
   }
@@ -135,6 +137,8 @@ export function WidgetRenderer({ widget }: WidgetRendererProps) {
 }
 
 function TextWidgetRenderer({ widget }: { widget: WidgetConfig }) {
+  const { t } = useI18n();
+
   // Parse config to get markdown content
   let markdownContent = '';
   try {
@@ -147,7 +151,7 @@ function TextWidgetRenderer({ widget }: { widget: WidgetConfig }) {
   if (!markdownContent) {
     return (
       <div className="flex items-center justify-center h-32 p-4">
-        <p className="text-xs text-muted-foreground">No text content configured</p>
+        <p className="text-xs text-muted-foreground">{t('noTextContent')}</p>
       </div>
     );
   }

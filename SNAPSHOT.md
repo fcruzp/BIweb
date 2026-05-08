@@ -1,5 +1,5 @@
 # DataMind BI — Project State Snapshot
-> Generated: 2025-06-27 | Version: v1.0-stable  
+> Generated: 2025-06-27 | Version: v1.1-stable  
 > Purpose: Context offset for AI agent session continuity
 
 ---
@@ -75,6 +75,8 @@ src/
 │   │   ├── chat/sessions/[id]/messages/route.ts (GET messages)
 │   │   ├── dashboards/route.ts               (GET list, POST create)
 │   │   ├── dashboards/[id]/route.ts          (GET, PUT, DELETE)
+│   │   ├── dashboards/widgets/route.ts       (★ POST create, GET list)
+│   │   ├── dashboards/widgets/[id]/route.ts  (★ PUT update, DELETE)
 │   │   ├── datasources/route.ts              (GET list, POST upload)
 │   │   ├── datasources/[id]/route.ts         (GET, DELETE)
 │   │   ├── datasources/[id]/analyze/route.ts (POST re-analyze)
@@ -90,17 +92,22 @@ src/
 │   │   ├── app-layout.tsx                    (Root layout)
 │   │   ├── chat/
 │   │   │   ├── chat-interface.tsx            (Chat orchestrator)
+│   │   │   ├── chat-report.tsx               (★ Printable report generator)
 │   │   │   ├── message-input.tsx             (Text input + send)
-│   │   │   ├── message-item.tsx              (Message bubble + viz)
+│   │   │   ├── message-item.tsx              (Message bubble + viz + copy)
 │   │   │   ├── message-list.tsx              (Scrollable list)
+│   │   │   ├── pin-to-dashboard-button.tsx   (★ Pin viz to dashboard)
 │   │   │   ├── report-markdown.tsx           (Markdown renderer)
 │   │   │   └── welcome-screen.tsx            (Empty state)
 │   │   ├── dashboard/
-│   │   │   └── dashboard-view.tsx            (Dashboard + widgets)
+│   │   │   ├── add-widget-dialog.tsx        (★ Widget creation dialog)
+│   │   │   ├── dashboard-view.tsx            (Dashboard + widgets)
+│   │   │   └── widget-renderer.tsx           (★ Widget type renderer)
 │   │   ├── history/
 │   │   │   └── query-history.tsx             (Query history list)
 │   │   ├── settings/
-│   │   │   └── ai-settings-dialog.tsx        (AI config panel)
+│   │   │   └── ai-settings-dialog.tsx        (AI config + language selector)
+│   │   ├── locale-switcher.tsx               (★ Language dropdown EN/ES)
 │   │   ├── sidebar/
 │   │   │   ├── app-sidebar.tsx               (Main sidebar)
 │   │   │   ├── chat-session-list.tsx         (Session list per DS)
@@ -115,12 +122,15 @@ src/
 │   └── ui/                                   (50 shadcn/ui components)
 ├── hooks/
 │   ├── use-mobile.ts
-│   └── use-toast.ts
+│   ├── use-toast.ts
+│   ├── use-i18n.ts                           (i18n translation hook)
+│   └── use-widget-data.ts                    (Widget data fetch with cache)
 ├── lib/
 │   ├── ai.ts                                 (★ AI service + language detection)
 │   ├── db.ts                                 (Prisma client singleton)
 │   ├── dr-map-constants.ts                   (DR map SVG path data)
 │   ├── dr-map-data.json                      (DR province data)
+│   ├── i18n.ts                               (★ Translation dictionaries EN/ES)
 │   ├── prompts.ts                            (Prompt templates)
 │   ├── sql-security.ts                       (SQL validation/sanitization)
 │   ├── sqlite.ts                             (Schema extraction, query exec)
@@ -129,7 +139,8 @@ src/
     ├── ai-config-store.ts                    (AI provider/model config)
     ├── app-store.ts                          (App state + navigation)
     ├── chat-store.ts                         (★ Chat messages + parsing)
-    └── dashboard-store.ts                    (Dashboard state)
+    ├── dashboard-store.ts                    (Dashboard state)
+    └── locale-store.ts                       (★ UI language preference)
 ```
 
 ---
@@ -175,6 +186,35 @@ src/
 - Schema explorer view with table/column browsing
 - Paginated table data preview
 - Re-analyze option
+
+### 7. Dashboard Widget System
+- Full widget lifecycle: Create → Render → Delete
+- Widget types: chart (ChartRenderer), table (DataTable), metric (big numbers), text (Markdown)
+- Add Widget dialog: title, type, data source, SQL query, run preview, auto-suggest viz
+- Widget data fetching with 5-min cache via `useWidgetData` hook
+- Pin-to-dashboard from chat: one-click pin any visualization to any dashboard
+- Widget API: POST/GET/PUT/DELETE at /api/dashboards/widgets
+
+### 8. Chat Report Generation
+- "Report" button in chat header (appears when messages exist)
+- Full-screen report view rendering all messages as print-ready HTML
+- Includes: header with branding, questions, AI analysis, SQL, charts, data tables
+- Print/Save PDF via browser print dialog (window.print())
+- Professional print CSS: page breaks, clean typography, hidden interactive elements
+
+### 9. Copy to Clipboard
+- User messages: copy button appears on hover (copies plain text)
+- Assistant messages: copy button appears on hover in top-right of report card (copies as Markdown)
+- SQL code blocks: existing copy button preserved
+- Visual feedback: icon changes to checkmark for 2 seconds
+
+### 10. UI Internationalization (i18n)
+- Full EN/ES support with `useI18n()` hook and `t('key')` function
+- `src/stores/locale-store.ts` — Zustand store, persisted to localStorage
+- `src/lib/i18n.ts` — ~130 translation keys in both languages
+- LocaleSwitcher component in sidebar footer AND settings dialog
+- Default language: ES (Spanish)
+- Parameterized translations: `{count}`, `{current}`, `{total}` for dynamic text
 
 ---
 
@@ -255,13 +295,12 @@ All prompts in `src/lib/ai.ts`:
 
 ## Features NOT Yet Implemented (Backlog)
 
-1. **UI Internationalization** — Full i18n for buttons, labels, navigation (next-intl is installed but not configured)
-2. **Multiple chats per datasource** — Currently limited session management
-3. **Delete/rename chats** — Delete works, rename partially implemented
-4. **Schema table record preview** — With pagination (API exists at /api/schema/table-data)
-5. **Dashboard widgets** — API routes exist but widget rendering is basic
-6. **Chat export/share** — Not implemented
-7. **Query bookmarks/pins** — Not implemented
+1. **Dashboard widget editing** — Update widget SQL/title/type after creation
+2. **Dashboard layout management** — Drag-and-drop widget positioning, resize
+3. **Chat rename** — Patch endpoint exists but UI button missing
+4. **Chat export/share** — Not implemented
+5. **Query bookmarks/pins** — Not implemented
+6. **Additional locales** — Portuguese and French UI translations (AI responses already support them)
 
 ---
 

@@ -32,8 +32,10 @@ import { DataSourceList } from './datasource-list';
 import { DataSourceUpload } from './datasource-upload';
 import { ChatSessionList } from './chat-session-list';
 import { AISettingsDialog } from '@/components/app/settings/ai-settings-dialog';
+import { LocaleSwitcher } from '@/components/app/locale-switcher';
 import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
+import { useI18n } from '@/hooks/use-i18n';
 
 export function AppSidebar() {
   const { currentView, setCurrentView, activeDataSourceId, setActiveSession, addChatSession } =
@@ -42,12 +44,13 @@ export function AppSidebar() {
   const { provider, isConfigured } = useAIConfigStore();
   const [uploadOpen, setUploadOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const { t } = useI18n();
 
   const navItems: Array<{ view: AppView; icon: React.ReactNode; label: string }> = [
-    { view: 'chat', icon: <MessageSquare className="h-4 w-4" />, label: 'Chat' },
-    { view: 'dashboard', icon: <LayoutDashboard className="h-4 w-4" />, label: 'Dashboards' },
-    { view: 'history', icon: <History className="h-4 w-4" />, label: 'History' },
-    { view: 'schema', icon: <Table2 className="h-4 w-4" />, label: 'Schema' },
+    { view: 'chat', icon: <MessageSquare className="h-4 w-4" />, label: t('chat') },
+    { view: 'dashboard', icon: <LayoutDashboard className="h-4 w-4" />, label: t('dashboards') },
+    { view: 'history', icon: <History className="h-4 w-4" />, label: t('history') },
+    { view: 'schema', icon: <Table2 className="h-4 w-4" />, label: t('schema') },
   ];
 
   const currentProviderLabel = provider === 'z-ai' ? 'Z-AI' : 'OpenRouter';
@@ -87,7 +90,7 @@ export function AppSidebar() {
           </div>
           <div className="flex flex-col group-data-[collapsible=icon]:hidden">
             <span className="text-sm font-bold">DataMind</span>
-            <span className="text-[10px] text-muted-foreground">AI-Powered BI</span>
+            <span className="text-[10px] text-muted-foreground">{t('appSubtitle')}</span>
           </div>
         </div>
       </SidebarHeader>
@@ -97,7 +100,7 @@ export function AppSidebar() {
       <SidebarContent>
         {/* Navigation */}
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel>{t('navigation')}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => (
@@ -120,8 +123,8 @@ export function AppSidebar() {
 
         {/* Data Sources */}
         <SidebarGroup>
-          <SidebarGroupLabel>Data Sources</SidebarGroupLabel>
-          <SidebarGroupAction onClick={() => setUploadOpen(true)} title="Upload Data Source">
+          <SidebarGroupLabel>{t('datasources')}</SidebarGroupLabel>
+          <SidebarGroupAction onClick={() => setUploadOpen(true)} title={t('uploadDataSource')}>
             <Plus className="h-4 w-4" />
           </SidebarGroupAction>
           <SidebarGroupContent>
@@ -134,8 +137,8 @@ export function AppSidebar() {
         {/* Chat Sessions */}
         {activeDataSourceId && (
           <SidebarGroup>
-            <SidebarGroupLabel>Chats</SidebarGroupLabel>
-            <SidebarGroupAction onClick={handleNewChat} title="New Chat">
+            <SidebarGroupLabel>{t('chats')}</SidebarGroupLabel>
+            <SidebarGroupAction onClick={handleNewChat} title={t('newChat')}>
               <Plus className="h-4 w-4" />
             </SidebarGroupAction>
             <SidebarGroupContent>
@@ -150,7 +153,7 @@ export function AppSidebar() {
           {/* AI Config indicator */}
           <SidebarMenuItem>
             <SidebarMenuButton
-              tooltip="AI Settings"
+              tooltip={t('aiSettings')}
               onClick={() => setSettingsOpen(true)}
               className="group/ai-btn"
             >
@@ -172,12 +175,17 @@ export function AppSidebar() {
 
           {/* Settings */}
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Settings" onClick={() => setSettingsOpen(true)}>
+            <SidebarMenuButton tooltip={t('settings')} onClick={() => setSettingsOpen(true)}>
               <Settings className="h-4 w-4" />
-              <span>Settings</span>
+              <span>{t('settings')}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
+
+        {/* Locale Switcher */}
+        <div className="px-2 pt-2 border-t border-border/50 group-data-[collapsible=icon]:hidden">
+          <LocaleSwitcher />
+        </div>
       </SidebarFooter>
 
       <DataSourceUpload open={uploadOpen} onOpenChange={setUploadOpen} />

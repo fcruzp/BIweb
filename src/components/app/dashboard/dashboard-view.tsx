@@ -41,6 +41,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { AddWidgetDialog, type WidgetType } from './add-widget-dialog';
 import { WidgetRenderer } from './widget-renderer';
+import { useI18n } from '@/hooks/use-i18n';
 
 export function DashboardView() {
   const {
@@ -61,6 +62,7 @@ export function DashboardView() {
   const [newDescription, setNewDescription] = useState('');
   const [addWidgetOpen, setAddWidgetOpen] = useState(false);
   const [deletingWidgetId, setDeletingWidgetId] = useState<string | null>(null);
+  const { t } = useI18n();
 
   useEffect(() => {
     async function loadDashboards() {
@@ -168,25 +170,25 @@ export function DashboardView() {
         <div className="p-6 space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-bold">Dashboards</h2>
-              <p className="text-sm text-muted-foreground">Create and manage your data dashboards</p>
+              <h2 className="text-xl font-bold">{t('dashboards')}</h2>
+              <p className="text-sm text-muted-foreground">{t('manageDashboards')}</p>
             </div>
             <Button className="bg-emerald-600 hover:bg-emerald-700 gap-2" onClick={() => setCreateOpen(true)}>
               <Plus className="h-4 w-4" />
-              New Dashboard
+              {t('newDashboard')}
             </Button>
           </div>
 
           {dashboards.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16">
               <LayoutDashboard className="h-12 w-12 text-muted-foreground/50 mb-4" />
-              <h3 className="text-lg font-semibold text-muted-foreground">No Dashboards</h3>
+              <h3 className="text-lg font-semibold text-muted-foreground">{t('noDashboards')}</h3>
               <p className="text-sm text-muted-foreground mt-1 mb-4">
-                Create your first dashboard to visualize and organize your data insights.
+                {t('noDashboardsDesc')}
               </p>
               <Button className="bg-emerald-600 hover:bg-emerald-700 gap-2" onClick={() => setCreateOpen(true)}>
                 <Plus className="h-4 w-4" />
-                Create Dashboard
+                {t('createDashboard')}
               </Button>
             </div>
           ) : (
@@ -213,15 +215,15 @@ export function DashboardView() {
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Dashboard</AlertDialogTitle>
+                            <AlertDialogTitle>{t('deleteDashboard')}</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Are you sure you want to delete &quot;{dashboard.name}&quot;?
+                              {t('deleteDashboardConfirm')}
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
                             <AlertDialogAction onClick={() => handleDelete(dashboard.id)}>
-                              Delete
+                              {t('delete')}
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
@@ -234,7 +236,7 @@ export function DashboardView() {
                     )}
                     <div className="flex gap-2">
                       <Badge variant="secondary" className="text-[10px] gap-1">
-                        {dashboard.widgets.length} widgets
+                        {dashboard.widgets.length} {t('widgets')}
                       </Badge>
                       <Badge variant="outline" className="text-[10px]">
                         {new Date(dashboard.updatedAt).toLocaleDateString()}
@@ -249,34 +251,34 @@ export function DashboardView() {
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Create Dashboard</DialogTitle>
+                <DialogTitle>{t('createDashboard')}</DialogTitle>
                 <DialogDescription>
-                  Create a new dashboard to organize your data visualizations.
+                  {t('createDashboardDesc')}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="dash-name">Name</Label>
+                  <Label htmlFor="dash-name">{t('dashboardName')}</Label>
                   <Input
                     id="dash-name"
-                    placeholder="My Dashboard"
+                    placeholder={t('dashboardNamePlaceholder')}
                     value={newName}
                     onChange={(e) => setNewName(e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="dash-desc">Description (optional)</Label>
+                  <Label htmlFor="dash-desc">{t('dashboardDescription')}</Label>
                   <Input
                     id="dash-desc"
-                    placeholder="Description of the dashboard"
+                    placeholder={t('dashboardDescriptionPlaceholder')}
                     value={newDescription}
                     onChange={(e) => setNewDescription(e.target.value)}
                   />
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-                <Button onClick={handleCreate} className="bg-emerald-600 hover:bg-emerald-700">Create</Button>
+                <Button variant="outline" onClick={() => setCreateOpen(false)}>{t('cancel')}</Button>
+                <Button onClick={handleCreate} className="bg-emerald-600 hover:bg-emerald-700">{t('create')}</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -291,7 +293,7 @@ export function DashboardView() {
       <div className="border-b border-border/50 px-6 py-3 flex items-center justify-between bg-background/80 backdrop-blur-sm">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => setActiveDashboard(null)}>
-            ← Back
+            {t('back')}
           </Button>
           <div>
             <h2 className="text-lg font-bold">{activeDashboard.name}</h2>
@@ -301,13 +303,13 @@ export function DashboardView() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="secondary">{activeDashboard.widgets.length} widgets</Badge>
+          <Badge variant="secondary">{activeDashboard.widgets.length} {t('widgets')}</Badge>
           <Button
             className="bg-emerald-600 hover:bg-emerald-700 gap-1.5 h-8 text-xs"
             onClick={() => setAddWidgetOpen(true)}
           >
             <Plus className="h-3.5 w-3.5" />
-            Add Widget
+            {t('addWidget')}
           </Button>
         </div>
       </div>
@@ -317,16 +319,16 @@ export function DashboardView() {
           {activeDashboard.widgets.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16">
               <LayoutDashboard className="h-12 w-12 text-muted-foreground/50 mb-4" />
-              <h3 className="text-lg font-semibold text-muted-foreground">Empty Dashboard</h3>
+              <h3 className="text-lg font-semibold text-muted-foreground">{t('emptyDashboard')}</h3>
               <p className="text-sm text-muted-foreground mt-1 mb-4">
-                Add widgets to visualize your data, or pin results from chat.
+                {t('addWidgetsHint')}
               </p>
               <Button
                 className="bg-emerald-600 hover:bg-emerald-700 gap-2"
                 onClick={() => setAddWidgetOpen(true)}
               >
                 <Plus className="h-4 w-4" />
-                Add Widget
+                {t('addWidget')}
               </Button>
             </div>
           ) : (

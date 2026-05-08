@@ -27,9 +27,6 @@ import {
   Brain,
   Key,
   Zap,
-  ChevronRight,
-  Eye,
-  EyeOff,
   CheckCircle2,
   AlertTriangle,
   Sparkles,
@@ -40,7 +37,9 @@ import {
   AVAILABLE_MODELS,
   type AIProvider,
 } from '@/stores/ai-config-store';
+import { LocaleSwitcher } from '@/components/app/locale-switcher';
 import { toast } from 'sonner';
+import { useI18n } from '@/hooks/use-i18n';
 
 interface AISettingsDialogProps {
   open: boolean;
@@ -71,6 +70,7 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
 
   const [showKey, setShowKey] = useState(false);
   const [testing, setTesting] = useState(false);
+  const { t } = useI18n();
 
   const currentModel = AVAILABLE_MODELS.find((m) => m.id === modelId);
   const providerModels = AVAILABLE_MODELS.filter((m) => m.provider === provider);
@@ -112,17 +112,17 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Brain className="h-5 w-5 text-emerald-500" />
-            AI Configuration
+            {t('aiConfiguration')}
           </DialogTitle>
           <DialogDescription>
-            Configure the AI provider and model for DataMind. Changes are saved automatically.
+            {t('aiConfigurationDesc')}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
           {/* Provider Selection */}
           <div className="space-y-3">
-            <Label className="text-sm font-semibold">AI Provider</Label>
+            <Label className="text-sm font-semibold">{t('aiProvider')}</Label>
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => setProvider('z-ai')}
@@ -134,10 +134,10 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
               >
                 <div className="flex items-center gap-2">
                   <Zap className="h-4 w-4 text-emerald-500" />
-                  <span className="text-sm font-medium">Z-AI (Built-in)</span>
+                  <span className="text-sm font-medium">{t('zaiBuiltIn')}</span>
                 </div>
                 <span className="text-[10px] text-muted-foreground">
-                  Works out of the box. No API key needed.
+                  {t('zaiBuiltInDesc')}
                 </span>
                 {provider === 'z-ai' && (
                   <CheckCircle2 className="absolute top-2 right-2 h-4 w-4 text-emerald-500" />
@@ -157,7 +157,7 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
                   <span className="text-sm font-medium">OpenRouter</span>
                 </div>
                 <span className="text-[10px] text-muted-foreground">
-                  Use any model. Requires API key.
+                  {t('openRouterDesc')}
                 </span>
                 {provider === 'openrouter' && (
                   <CheckCircle2 className="absolute top-2 right-2 h-4 w-4 text-emerald-500" />
@@ -173,7 +173,7 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
             <div className="space-y-3">
               <Label className="text-sm font-semibold flex items-center gap-2">
                 <Key className="h-4 w-4" />
-                OpenRouter API Key
+                {t('openRouterApiKey')}
               </Label>
               <div className="flex gap-2">
                 <div className="relative flex-1">
@@ -188,12 +188,16 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     onClick={() => setShowKey(!showKey)}
                   >
-                    {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showKey ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    )}
                   </button>
                 </div>
               </div>
               <p className="text-[10px] text-muted-foreground">
-                Get your API key at{' '}
+                {t('getApiKey')}{' '}
                 <a
                   href="https://openrouter.ai/keys"
                   target="_blank"
@@ -202,13 +206,13 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
                 >
                   openrouter.ai/keys
                 </a>
-                . The key is stored locally in your browser.
+                . {t('apiKeyStoredLocally')}
               </p>
 
               {!openrouterApiKey && (
                 <div className="flex items-center gap-2 text-amber-500 text-xs bg-amber-500/5 border border-amber-500/20 rounded-lg p-2">
                   <AlertTriangle className="h-4 w-4 shrink-0" />
-                  <span>An API key is required to use OpenRouter.</span>
+                  <span>{t('apiKeyRequired')}</span>
                 </div>
               )}
             </div>
@@ -220,14 +224,14 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
           <div className="space-y-3">
             <Label className="text-sm font-semibold flex items-center gap-2">
               <Sparkles className="h-4 w-4" />
-              Model
+              {t('model')}
             </Label>
 
             {provider === 'z-ai' ? (
               <div className="bg-muted/30 rounded-lg p-3">
-                <p className="text-sm font-medium">Auto (Built-in)</p>
+                <p className="text-sm font-medium">{t('autoBuiltIn')}</p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">
-                  The default Z-AI model is used automatically. No configuration needed.
+                  {t('autoBuiltInDesc')}
                 </p>
               </div>
             ) : (
@@ -239,7 +243,7 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
                     id="custom-model-toggle"
                   />
                   <Label htmlFor="custom-model-toggle" className="text-xs text-muted-foreground">
-                    Use custom model ID
+                    {t('useCustomModelId')}
                   </Label>
                 </div>
 
@@ -291,12 +295,12 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
 
           {/* Advanced Settings */}
           <div className="space-y-4">
-            <Label className="text-sm font-semibold">Advanced Settings</Label>
+            <Label className="text-sm font-semibold">{t('advancedSettings')}</Label>
 
             {/* Temperature */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-xs text-muted-foreground">Temperature</Label>
+                <Label className="text-xs text-muted-foreground">{t('temperature')}</Label>
                 <span className="text-xs font-mono text-emerald-500">{temperature.toFixed(1)}</span>
               </div>
               <Slider
@@ -308,15 +312,15 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
                 className="w-full"
               />
               <div className="flex justify-between text-[10px] text-muted-foreground">
-                <span>Precise (0)</span>
-                <span>Creative (1)</span>
+                <span>{t('precise')}</span>
+                <span>{t('creative')}</span>
               </div>
             </div>
 
             {/* Max Tokens */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-xs text-muted-foreground">Max Tokens</Label>
+                <Label className="text-xs text-muted-foreground">{t('maxTokens')}</Label>
                 <span className="text-xs font-mono text-emerald-500">{maxTokens}</span>
               </div>
               <Slider
@@ -328,8 +332,8 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
                 className="w-full"
               />
               <div className="flex justify-between text-[10px] text-muted-foreground">
-                <span>Short (256)</span>
-                <span>Long (16K)</span>
+                <span>{t('shortTokens')}</span>
+                <span>{t('longTokens')}</span>
               </div>
             </div>
 
@@ -338,10 +342,10 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
               <div className="flex items-center justify-between">
                 <Label className="text-xs text-muted-foreground flex items-center gap-1">
                   <Rows3 className="h-3 w-3" />
-                  Query Row Limit
+                  {t('queryRowLimit')}
                 </Label>
                 <span className="text-xs font-mono text-emerald-500">
-                  {queryRowLimit === 0 ? 'No limit' : queryRowLimit}
+                  {queryRowLimit === 0 ? t('noLimit') : queryRowLimit}
                 </span>
               </div>
               <Select
@@ -352,18 +356,27 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="0">No limit (⚠️ may be slow on large tables)</SelectItem>
+                  <SelectItem value="0">{t('noLimitWarning')}</SelectItem>
                   <SelectItem value="100">100 rows</SelectItem>
-                  <SelectItem value="500">500 rows (default)</SelectItem>
+                  <SelectItem value="500">500 rows</SelectItem>
                   <SelectItem value="1000">1,000 rows</SelectItem>
                   <SelectItem value="5000">5,000 rows</SelectItem>
                   <SelectItem value="10000">10,000 rows</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-[10px] text-muted-foreground">
-                Controls the maximum number of rows returned by queries. The AI will also use this as the LIMIT in generated SQL.
+                {t('rowLimitHint')}
               </p>
             </div>
+          </div>
+
+          <Separator />
+
+          {/* Language */}
+          <div className="space-y-3">
+            <Label className="text-sm font-semibold">{t('language')}</Label>
+            <p className="text-xs text-muted-foreground">{t('languageDesc')}</p>
+            <LocaleSwitcher />
           </div>
 
           <Separator />
@@ -372,16 +385,16 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">Status:</span>
+                <span className="text-xs text-muted-foreground">{t('status')}:</span>
                 {isConfigured() ? (
                   <Badge variant="secondary" className="text-emerald-500 gap-1 text-[10px]">
                     <CheckCircle2 className="h-3 w-3" />
-                    Ready
+                    {t('ready')}
                   </Badge>
                 ) : (
                   <Badge variant="secondary" className="text-amber-500 gap-1 text-[10px]">
                     <AlertTriangle className="h-3 w-3" />
-                    Needs API Key
+                    {t('needsApiKey')}
                   </Badge>
                 )}
               </div>
@@ -392,27 +405,27 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
                 onClick={handleTestConnection}
                 disabled={!isConfigured() || testing}
               >
-                {testing ? 'Testing...' : 'Test Connection'}
+                {testing ? t('testing') : t('testConnection')}
               </Button>
             </div>
 
             {/* Current Config Summary */}
             <div className="bg-muted/30 rounded-lg p-3 text-xs space-y-1">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Provider:</span>
+                <span className="text-muted-foreground">{t('provider')}:</span>
                 <span className="font-medium">{provider === 'z-ai' ? 'Z-AI (Built-in)' : 'OpenRouter'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Model:</span>
+                <span className="text-muted-foreground">{t('model')}:</span>
                 <span className="font-medium font-mono">{getEffectiveModelId()}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Row Limit:</span>
-                <span className="font-medium font-mono">{queryRowLimit === 0 ? 'No limit' : queryRowLimit}</span>
+                <span className="text-muted-foreground">{t('rowLimit')}:</span>
+                <span className="font-medium font-mono">{queryRowLimit === 0 ? t('noLimit') : queryRowLimit}</span>
               </div>
               {provider === 'openrouter' && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">API Key:</span>
+                  <span className="text-muted-foreground">{t('apiKey')}:</span>
                   <span className="font-mono">{maskedKey}</span>
                 </div>
               )}
@@ -422,7 +435,7 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Close
+            {t('close')}
           </Button>
         </DialogFooter>
       </DialogContent>

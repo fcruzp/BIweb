@@ -20,6 +20,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { useI18n } from '@/hooks/use-i18n';
 
 export function DataSourceList() {
   const {
@@ -34,6 +35,7 @@ export function DataSourceList() {
 
   const [infoDataSourceId, setInfoDataSourceId] = useState<string | null>(null);
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
+  const { t } = useI18n();
 
   useEffect(() => {
     async function loadDataSources() {
@@ -79,7 +81,7 @@ export function DataSourceList() {
   if (dataSources.length === 0) {
     return (
       <div className="px-2 py-4 text-center text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-        No data sources yet. Upload a SQLite file to get started.
+        {t('noDataSourcesHint')}
       </div>
     );
   }
@@ -133,15 +135,15 @@ export function DataSourceList() {
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Delete Data Source</AlertDialogTitle>
+                    <AlertDialogTitle>{t('deleteDataSource')}</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Are you sure you want to delete &quot;{source.name}&quot;? This will also delete all associated schemas, contexts, and query history.
+                      {t('deleteDataSourceConfirm')}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
                     <AlertDialogAction onClick={(e) => handleDelete(source.id, e as unknown as React.MouseEvent)}>
-                      Delete
+                      {t('delete')}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
