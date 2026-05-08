@@ -94,19 +94,49 @@ export const useChatStore = create<ChatState>((set) => ({
           queryResult?: string | null;
           visualization?: string | null;
           createdAt: string;
-        }) => ({
-          id: msg.id,
-          role: msg.role as 'user' | 'assistant' | 'system',
-          content: msg.content,
-          sqlQuery: msg.sqlQuery || null,
-          queryResult: msg.queryResult
-            ? (JSON.parse(msg.queryResult) as QueryResult)
-            : null,
-          visualization: msg.visualization
-            ? (JSON.parse(msg.visualization) as VisualizationConfig)
-            : null,
-          timestamp: new Date(msg.createdAt),
-        })
+        }) => {
+          // Parse queryResult — may be a JSON string from DB or already an object from API
+          let parsedQueryResult: QueryResult | null = null;
+          if (msg.queryResult) {
+            try {
+              const raw = typeof msg.queryResult === 'string'
+                ? JSON.parse(msg.queryResult)
+                : msg.queryResult;
+              // Ensure data is an array (could be double-encoded)
+              if (raw && typeof raw === 'object') {
+                if (typeof raw.data === 'string') {
+                  raw.data = JSON.parse(raw.data);
+                }
+                parsedQueryResult = raw as QueryResult;
+              }
+            } catch {
+              parsedQueryResult = null;
+            }
+          }
+
+          // Parse visualization — same defensive approach
+          let parsedVisualization: VisualizationConfig | null = null;
+          if (msg.visualization) {
+            try {
+              const raw = typeof msg.visualization === 'string'
+                ? JSON.parse(msg.visualization)
+                : msg.visualization;
+              parsedVisualization = raw as VisualizationConfig;
+            } catch {
+              parsedVisualization = null;
+            }
+          }
+
+          return {
+            id: msg.id,
+            role: msg.role as 'user' | 'assistant' | 'system',
+            content: msg.content,
+            sqlQuery: msg.sqlQuery || null,
+            queryResult: parsedQueryResult,
+            visualization: parsedVisualization,
+            timestamp: new Date(msg.createdAt),
+          };
+        }
       );
       set({
         messages: loadedMessages,

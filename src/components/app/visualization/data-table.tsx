@@ -68,7 +68,7 @@ export function DataTable({ data, columns }: DataTableProps) {
     },
   });
 
-  if (!data || data.length === 0) {
+  if (!data || !Array.isArray(data) || data.length === 0) {
     return (
       <div className="flex items-center justify-center h-24 rounded-lg bg-muted/30">
         <p className="text-sm text-muted-foreground">No data to display</p>

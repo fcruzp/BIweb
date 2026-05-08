@@ -192,6 +192,7 @@ export function DRHeatMap({ data, provinceColumn, valueColumn, title }: DRMapPro
   // Build province value map from data
   const provinceValues = useMemo(() => {
     const map: Record<string, number> = {};
+    if (!Array.isArray(data)) return map;
     for (const row of data) {
       const rawProvince = String(row[provinceColumn] ?? '');
       const normalized = normalizeProvinceName(rawProvince);
