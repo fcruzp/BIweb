@@ -27,14 +27,18 @@ import {
 } from 'lucide-react';
 import { useAppStore, type AppView } from '@/stores/app-store';
 import { useAIConfigStore } from '@/stores/ai-config-store';
+import { useChatStore } from '@/stores/chat-store';
 import { DataSourceList } from './datasource-list';
 import { DataSourceUpload } from './datasource-upload';
+import { ChatSessionList } from './chat-session-list';
 import { AISettingsDialog } from '@/components/app/settings/ai-settings-dialog';
-import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
+import { useState } from 'react';
 
 export function AppSidebar() {
-  const { currentView, setCurrentView } = useAppStore();
+  const { currentView, setCurrentView, activeDataSourceId, setActiveSession, addChatSession } =
+    useAppStore();
+  const { clearMessages } = useChatStore();
   const { provider, isConfigured } = useAIConfigStore();
   const [uploadOpen, setUploadOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -48,6 +52,31 @@ export function AppSidebar() {
 
   const currentProviderLabel = provider === 'z-ai' ? 'Z-AI' : 'OpenRouter';
   const currentProviderIcon = provider === 'z-ai' ? <Zap className="h-3 w-3" /> : <Key className="h-3 w-3" />;
+
+  const handleNewChat = async () => {
+    if (!activeDataSourceId) return;
+    try {
+      const res = await fetch('/api/chat/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dataSourceId: activeDataSourceId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setActiveSession(data.session.id);
+        addChatSession({
+          id: data.session.id,
+          title: data.session.title,
+          dataSourceId: data.session.dataSourceId,
+          createdAt: data.session.createdAt,
+          updatedAt: data.session.updatedAt,
+        });
+        clearMessages();
+      }
+    } catch (error) {
+      console.error('Failed to create chat:', error);
+    }
+  };
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border/50">
@@ -99,6 +128,21 @@ export function AppSidebar() {
             <DataSourceList />
           </SidebarGroupContent>
         </SidebarGroup>
+
+        <SidebarSeparator />
+
+        {/* Chat Sessions */}
+        {activeDataSourceId && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Chats</SidebarGroupLabel>
+            <SidebarGroupAction onClick={handleNewChat} title="New Chat">
+              <Plus className="h-4 w-4" />
+            </SidebarGroupAction>
+            <SidebarGroupContent>
+              <ChatSessionList />
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarFooter>

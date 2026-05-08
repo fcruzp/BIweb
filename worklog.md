@@ -178,3 +178,94 @@ Stage Summary:
 - Rich schema info response built from stored metadata: tables, columns, relationships, glossary, summary
 - Backward compatible — if AI doesn't return `type`, defaults to "query" behavior
 - No security validator blocking — schema questions bypass SQL validation entirely
+
+---
+Task ID: 2
+Agent: Code Agent
+Task: Add paginated table data preview to Schema Explorer
+
+Work Log:
+- Created `src/app/api/schema/table-data/route.ts` — New GET endpoint:
+  - Accepts query params: `dataSourceId`, `tableName`, `page` (1-based), `pageSize` (default 10)
+  - Validates `tableName` with regex `^[a-zA-Z0-9_-]+$` to prevent SQL injection
+  - Looks up datasource filePath from Prisma DB
+  - Uses `better-sqlite3` with `{ readonly: true }` directly (not `executeSelectQuery` which adds its own LIMIT)
+  - Executes `SELECT COUNT(*)` for total row count, then `SELECT * FROM "tableName" LIMIT ? OFFSET ?` for paginated data
+  - Returns: `{ data, columns, totalRows, page, pageSize, totalPages }`
+  - Proper error handling: 400 for missing/invalid params, 404 for unknown datasource, 500 for server errors
+  - Closes DB connection in `finally` block
+- Rewrote `src/components/app/sidebar/schema-explorer.tsx` — Major enhancement:
+  - Added `TableDataPreview` inner component for paginated data display
+  - Each expanded table now shows shadcn/ui Tabs with two tabs: "Columns" and "Data"
+  - "Columns" tab preserves existing column info display (name, type, PK indicator, NOT NULL badge)
+  - "Data" tab auto-loads page 1 when selected via `useEffect` + `useCallback`
+  - Data grid uses shadcn/ui Table components (Table, TableHeader, TableBody, TableRow, TableHead, TableCell)
+  - Horizontally scrollable for wide tables (overflow-x-auto on container)
+  - Cell values: `text-xs font-mono`, max 200 char truncation, color-coded (emerald for numbers, amber for booleans, italic muted for NULL)
+  - Pagination controls: Previous/Next icon buttons, "Page X of Y" indicator, total row count
+  - Loading state with spinner, error state with retry button, empty state message
+  - Dark theme with emerald accents maintained throughout
+- Lint check: 0 errors, 1 pre-existing warning (TanStack Table)
+
+Stage Summary:
+- Schema Explorer now has two tabs per table: Columns (existing) and Data (new paginated preview)
+- Backend API `/api/schema/table-data` returns paginated rows with SQL injection protection
+- Clean, compact data grid with proper pagination controls
+- Horizontally scrollable for tables with many columns
+
+---
+Task ID: 1 (current)
+Agent: Code Agent
+Task: Multiple chats per datasource + remember last selected datasource, chat management (delete/rename)
+
+Work Log:
+- **Backend API — `/api/chat/sessions/route.ts`**: Added POST handler to create new chat sessions
+  - Accepts `{ dataSourceId, title? }`, creates ChatSession in DB
+  - Verifies data source exists before creating
+  - Returns `{ session }` with 201 status
+  - Also optimized GET handler to use `select` instead of `include` for lighter responses
+- **Backend API — `/api/chat/sessions/[id]/route.ts`**: New file with PATCH and DELETE
+  - PATCH: Accepts `{ title }`, updates session title with validation
+  - DELETE: Deletes session with cascade (messages and query history)
+  - Uses Next.js 16 async params pattern (`params: Promise<{ id: string }>`)
+- **Backend API — `/api/chat/sessions/[id]/messages/route.ts`**: New file with GET
+  - Returns all messages for a session ordered by `createdAt` asc
+  - Verifies session exists before querying messages
+- **Store — `app-store.ts`**: Major update
+  - Added `ChatSessionInfo` interface and `chatSessions`/`chatSessionsLoading` state
+  - Added actions: `setChatSessions`, `setChatSessionsLoading`, `addChatSession`, `removeChatSession`, `updateChatSession`
+  - Added `persist` middleware from Zustand to persist `activeDataSourceId` to localStorage
+  - `removeChatSession` auto-clears `activeSessionId` if the deleted session was active
+  - `setActiveDataSource` clears `activeSessionId` and `chatSessions` when switching data sources
+- **Store — `chat-store.ts`**: Added `loadMessages(sessionId)` async action
+  - Fetches messages from `/api/chat/sessions/[id]/messages`
+  - Parses JSON strings for `queryResult` and `visualization` fields
+  - Sets loading/error states appropriately
+- **Frontend — `app-sidebar.tsx`**: Added "Chats" section
+  - Shows only when a data source is active
+  - "+" button creates new chat session via API and adds to store
+  - Imports and renders `ChatSessionList` component
+- **Frontend — `chat-session-list.tsx`**: New component
+  - Fetches sessions from API on mount / when `activeDataSourceId` changes
+  - Lists sessions with MessageSquare icon, clickable to switch
+  - Pencil icon for rename — shows inline Input with Check/X confirm/cancel
+  - Trash icon for delete — shows AlertDialog confirmation
+  - Double-click on session item also triggers rename
+  - Creating/deleting/renaming updates the store optimistically
+  - Empty state and loading state handled
+- **Frontend — `chat-interface.tsx`**: Updated header
+  - Shows active chat title as primary heading, data source name as subtitle
+  - Shows MessageSquare icon when a chat is active, Brain icon otherwise
+- **Frontend — `message-input.tsx`**: Updated submit flow
+  - If no `activeSessionId`, first creates a session via `/api/chat/sessions` POST
+  - Uses the new session ID for the chat message
+  - Adds new session to store so sidebar updates immediately
+- Lint check: 0 errors, 1 pre-existing warning (TanStack Table)
+
+Stage Summary:
+- Multiple chat sessions per data source fully implemented
+- Chat list in sidebar with create, rename (inline edit), delete (confirmation dialog)
+- Last selected data source persisted in localStorage via Zustand persist middleware
+- Switching chats loads messages from DB via `loadMessages` action
+- Message input auto-creates session if none is active
+- All API routes use Next.js 16 async params pattern

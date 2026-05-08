@@ -47,6 +47,7 @@ interface ChatState {
   setCurrentVisualization: (viz: VisualizationConfig | null) => void;
   setCurrentQueryResult: (result: QueryResult | null) => void;
   setCurrentSQL: (sql: string | null) => void;
+  loadMessages: (sessionId: string) => Promise<void>;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
@@ -72,4 +73,48 @@ export const useChatStore = create<ChatState>((set) => ({
   setCurrentVisualization: (viz) => set({ currentVisualization: viz }),
   setCurrentQueryResult: (result) => set({ currentQueryResult: result }),
   setCurrentSQL: (sql) => set({ currentSQL: sql }),
+  loadMessages: async (sessionId: string) => {
+    try {
+      set({ isLoading: true, error: null });
+      const res = await fetch(`/api/chat/sessions/${sessionId}/messages`);
+      if (!res.ok) {
+        throw new Error('Failed to load messages');
+      }
+      const data = await res.json();
+      const loadedMessages: ChatMessage[] = data.messages.map(
+        (msg: {
+          id: string;
+          role: string;
+          content: string;
+          sqlQuery?: string | null;
+          queryResult?: string | null;
+          visualization?: string | null;
+          createdAt: string;
+        }) => ({
+          id: msg.id,
+          role: msg.role as 'user' | 'assistant' | 'system',
+          content: msg.content,
+          sqlQuery: msg.sqlQuery || null,
+          queryResult: msg.queryResult
+            ? (JSON.parse(msg.queryResult) as QueryResult)
+            : null,
+          visualization: msg.visualization
+            ? (JSON.parse(msg.visualization) as VisualizationConfig)
+            : null,
+          timestamp: new Date(msg.createdAt),
+        })
+      );
+      set({
+        messages: loadedMessages,
+        currentVisualization: null,
+        currentQueryResult: null,
+        currentSQL: null,
+        isLoading: false,
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to load messages';
+      set({ error: errorMessage, isLoading: false });
+    }
+  },
 }));

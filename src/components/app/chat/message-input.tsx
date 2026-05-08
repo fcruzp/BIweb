@@ -11,7 +11,8 @@ import { toast } from 'sonner';
 export function MessageInput() {
   const [input, setInput] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { activeDataSourceId, activeSessionId, setActiveSession } = useAppStore();
+  const { activeDataSourceId, activeSessionId, setActiveSession, addChatSession } =
+    useAppStore();
   const { addMessage, setLoading, setError, isLoading } = useChatStore();
 
   const handleSubmit = async () => {
@@ -32,13 +33,39 @@ export function MessageInput() {
     setError(null);
 
     try {
+      // If no active session, create one first
+      let sessionId = activeSessionId;
+      if (!sessionId) {
+        const sessionRes = await fetch('/api/chat/sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            dataSourceId: activeDataSourceId,
+            title: userMessage.slice(0, 50),
+          }),
+        });
+        if (!sessionRes.ok) {
+          throw new Error('Failed to create chat session');
+        }
+        const sessionData = await sessionRes.json();
+        sessionId = sessionData.session.id;
+        setActiveSession(sessionId);
+        addChatSession({
+          id: sessionData.session.id,
+          title: sessionData.session.title,
+          dataSourceId: sessionData.session.dataSourceId,
+          createdAt: sessionData.session.createdAt,
+          updatedAt: sessionData.session.updatedAt,
+        });
+      }
+
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: userMessage,
           dataSourceId: activeDataSourceId,
-          sessionId: activeSessionId,
+          sessionId: sessionId,
         }),
       });
 
@@ -48,11 +75,6 @@ export function MessageInput() {
       }
 
       const data = await res.json();
-
-      // Update session ID if new
-      if (data.sessionId && !activeSessionId) {
-        setActiveSession(data.sessionId);
-      }
 
       // Add assistant message
       addMessage({
