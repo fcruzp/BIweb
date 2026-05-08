@@ -25,7 +25,7 @@ import {
   Key,
   Link2,
   BookOpen,
-  FileDatabase,
+  FileArchive,
   Hash,
 } from 'lucide-react';
 
@@ -213,7 +213,7 @@ export function DataSourceInfoDialog({
                   </div>
                   <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
                     <span className="flex items-center gap-1.5">
-                      <FileDatabase className="h-3.5 w-3.5" />
+                      <FileArchive className="h-3.5 w-3.5" />
                       {data.fileName}
                     </span>
                     <span className="flex items-center gap-1.5">
