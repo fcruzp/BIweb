@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useDashboardStore, type DashboardInfo } from '@/stores/dashboard-store';
+import { useDashboardStore, type DashboardInfo, type WidgetConfig } from '@/stores/dashboard-store';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +16,7 @@ import {
   Table2,
   Type,
   Gauge,
+  X,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -38,6 +39,8 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { AddWidgetDialog, type WidgetType } from './add-widget-dialog';
+import { WidgetRenderer } from './widget-renderer';
 
 export function DashboardView() {
   const {
@@ -49,11 +52,15 @@ export function DashboardView() {
     setDashboardsLoading,
     addDashboard,
     removeDashboard,
+    addWidget,
+    removeWidget,
   } = useDashboardStore();
 
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDescription, setNewDescription] = useState('');
+  const [addWidgetOpen, setAddWidgetOpen] = useState(false);
+  const [deletingWidgetId, setDeletingWidgetId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadDashboards() {
@@ -111,6 +118,29 @@ export function DashboardView() {
       }
     } catch (error) {
       toast.error('Failed to delete dashboard');
+    }
+  };
+
+  const handleDeleteWidget = async (dashboardId: string, widgetId: string) => {
+    setDeletingWidgetId(widgetId);
+    try {
+      const res = await fetch(`/api/dashboards/widgets/${widgetId}`, { method: 'DELETE' });
+      if (res.ok) {
+        removeWidget(dashboardId, widgetId);
+        toast.success('Widget removed');
+      } else {
+        toast.error('Failed to delete widget');
+      }
+    } catch (error) {
+      toast.error('Failed to delete widget');
+    } finally {
+      setDeletingWidgetId(null);
+    }
+  };
+
+  const handleWidgetCreated = (widget: WidgetConfig) => {
+    if (activeDashboard) {
+      addWidget(activeDashboard.id, widget);
     }
   };
 
@@ -270,7 +300,16 @@ export function DashboardView() {
             )}
           </div>
         </div>
-        <Badge variant="secondary">{activeDashboard.widgets.length} widgets</Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary">{activeDashboard.widgets.length} widgets</Badge>
+          <Button
+            className="bg-emerald-600 hover:bg-emerald-700 gap-1.5 h-8 text-xs"
+            onClick={() => setAddWidgetOpen(true)}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add Widget
+          </Button>
+        </div>
       </div>
 
       <ScrollArea className="flex-1">
@@ -279,26 +318,42 @@ export function DashboardView() {
             <div className="flex flex-col items-center justify-center py-16">
               <LayoutDashboard className="h-12 w-12 text-muted-foreground/50 mb-4" />
               <h3 className="text-lg font-semibold text-muted-foreground">Empty Dashboard</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Widgets from your chat queries will appear here when you add them to this dashboard.
+              <p className="text-sm text-muted-foreground mt-1 mb-4">
+                Add widgets to visualize your data, or pin results from chat.
               </p>
+              <Button
+                className="bg-emerald-600 hover:bg-emerald-700 gap-2"
+                onClick={() => setAddWidgetOpen(true)}
+              >
+                <Plus className="h-4 w-4" />
+                Add Widget
+              </Button>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {activeDashboard.widgets.map((widget) => (
-                <Card key={widget.id} className="border-border/50">
-                  <CardHeader className="pb-2 pt-3 px-4">
+                <Card key={widget.id} className="border-border/50 group relative">
+                  <CardHeader className="pb-2 pt-3 px-4 flex-row items-center justify-between space-y-0">
                     <CardTitle className="text-sm flex items-center gap-2">
                       {getWidgetIcon(widget.widgetType)}
                       {widget.title}
                     </CardTitle>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                      disabled={deletingWidgetId === widget.id}
+                      onClick={() => handleDeleteWidget(activeDashboard.id, widget.id)}
+                    >
+                      {deletingWidgetId === widget.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <X className="h-3 w-3" />
+                      )}
+                    </Button>
                   </CardHeader>
                   <CardContent className="px-4 pb-3">
-                    <div className="h-48 flex items-center justify-center bg-muted/30 rounded-lg">
-                      <p className="text-xs text-muted-foreground">
-                        Widget preview (visualization will render here)
-                      </p>
-                    </div>
+                    <WidgetRenderer widget={widget} />
                   </CardContent>
                 </Card>
               ))}
@@ -306,6 +361,16 @@ export function DashboardView() {
           )}
         </div>
       </ScrollArea>
+
+      {/* Add Widget Dialog */}
+      {activeDashboard && (
+        <AddWidgetDialog
+          open={addWidgetOpen}
+          onOpenChange={setAddWidgetOpen}
+          dashboardId={activeDashboard.id}
+          onWidgetCreated={handleWidgetCreated}
+        />
+      )}
     </div>
   );
 }

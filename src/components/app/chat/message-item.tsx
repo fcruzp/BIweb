@@ -1,6 +1,7 @@
 'use client';
 
 import type { ChatMessage } from '@/stores/chat-store';
+import { useAppStore } from '@/stores/app-store';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -24,6 +25,7 @@ import { ReportMarkdown } from './report-markdown';
 import { ChartRenderer } from '../visualization/chart-renderer';
 import { DRHeatMap } from '../visualization/dr-map';
 import { DataTable } from '../visualization/data-table';
+import { PinToDashboardButton } from './pin-to-dashboard-button';
 
 interface MessageItemProps {
   message: ChatMessage;
@@ -34,6 +36,7 @@ export function MessageItem({ message }: MessageItemProps) {
   const [sqlOpen, setSqlOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showTable, setShowTable] = useState(false);
+  const activeDataSourceId = useAppStore((s) => s.activeDataSourceId);
 
   const copySQL = () => {
     if (message.sqlQuery) {
@@ -178,15 +181,26 @@ export function MessageItem({ message }: MessageItemProps) {
               )}
 
               <Separator className="my-3 bg-border/30" />
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-xs h-7 gap-1.5 text-muted-foreground hover:text-foreground"
-                onClick={() => setShowTable(!showTable)}
-              >
-                <Table2 className="h-3 w-3" />
-                {showTable ? 'Hide Raw Data' : 'Show Raw Data'}
-              </Button>
+              <div className="flex items-center gap-1 flex-wrap">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs h-7 gap-1.5 text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowTable(!showTable)}
+                >
+                  <Table2 className="h-3 w-3" />
+                  {showTable ? 'Hide Raw Data' : 'Show Raw Data'}
+                </Button>
+                {message.sqlQuery && (
+                  <PinToDashboardButton
+                    title={message.visualization.title || 'Pinned Chart'}
+                    widgetType={message.visualization.chartType === 'metric' ? 'metric' : 'chart'}
+                    dataSourceId={activeDataSourceId || ''}
+                    sqlQuery={message.sqlQuery}
+                    visualization={message.visualization}
+                  />
+                )}
+              </div>
               {showTable && (
                 <div className="mt-2">
                   <DataTable data={message.queryResult.data} columns={message.queryResult.columns} />
@@ -201,6 +215,16 @@ export function MessageItem({ message }: MessageItemProps) {
           <Card className="border-border/40 shadow-sm">
             <CardContent className="p-4">
               <DataTable data={message.queryResult.data} columns={message.queryResult.columns || []} />
+              {message.sqlQuery && (
+                <div className="mt-3 pt-3 border-t border-border/30">
+                  <PinToDashboardButton
+                    title="Pinned Table"
+                    widgetType="table"
+                    dataSourceId={activeDataSourceId || ''}
+                    sqlQuery={message.sqlQuery}
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

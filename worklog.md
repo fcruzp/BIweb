@@ -90,3 +90,60 @@ Stage Summary:
 - Created `/home/z/my-project/SNAPSHOT.md` — comprehensive project state document
 - Can be used as context offset when conversation resets
 - Covers: architecture, stack, all files, features, known bugs/fixes, store schema, AI prompts, backlog
+
+---
+Task ID: 1
+Agent: main
+Task: Implement full dashboard widget system
+
+Work Log:
+- Created Widget API routes:
+  - `src/app/api/dashboards/widgets/route.ts` — POST (create widget) and GET (list widgets by dashboardId)
+  - `src/app/api/dashboards/widgets/[id]/route.ts` — PUT (update widget) and DELETE (delete widget)
+  - All routes use Prisma db for persistence with proper validation
+- Created `src/hooks/use-widget-data.ts` — custom hook for widget data fetching:
+  - `useWidgetData(dataSourceId, sqlQuery)` — React hook with caching (5-min TTL), loading/error states, abort control
+  - `executeWidgetQuery(dataSourceId, sqlQuery)` — standalone async function for one-shot query execution (used in preview)
+  - In-memory cache prevents re-fetching on re-render; auto-refetches after cache expiry
+- Created `src/components/app/dashboard/add-widget-dialog.tsx`:
+  - Full Add Widget dialog with: title input, widget type selector (chart/table/metric/text), data source dropdown, SQL textarea, "Run Query" preview button
+  - Auto-suggests visualization config based on query results (detects numeric/string columns for chart axes, generates metrics for metric type)
+  - Shows preview of chart/table/metric after running query
+  - Text widget type shows markdown textarea
+  - Saves to API and adds to dashboard store
+- Created `src/components/app/dashboard/widget-renderer.tsx`:
+  - `WidgetRenderer` component renders widgets based on type:
+    - chart → ChartRenderer with stored visualization config
+    - table → DataTable component
+    - metric → ChartRenderer with metric visualization (big number cards)
+    - text → ReactMarkdown with remarkGfm
+  - Loading skeleton while fetching data
+  - Error state with retry button
+  - Fallback auto-visualization when no stored viz config exists
+- Updated `src/components/app/dashboard/dashboard-view.tsx`:
+  - Added "Add Widget" button next to widgets badge in active dashboard header
+  - Integrated AddWidgetDialog component
+  - Replaced "Widget preview" placeholder with real WidgetRenderer
+  - Added per-widget delete button (X icon, visible on hover) with API call
+  - Empty state shows "Add Widget" CTA
+- Created `src/components/app/chat/pin-to-dashboard-button.tsx`:
+  - Dropdown menu showing all available dashboards
+  - Click a dashboard → creates widget via API with current message's SQL, visualization, dataSourceId
+  - Auto-loads dashboards if store is empty
+  - Shows loading spinner while pinning, toast on success
+- Updated `src/components/app/chat/message-item.tsx`:
+  - Added "Pin to Dashboard" button on visualization cards (next to "Show Raw Data")
+  - Added "Pin to Dashboard" button on data-only tables (no visualization)
+  - Uses activeDataSourceId from useAppStore
+- Updated `src/stores/dashboard-store.ts`:
+  - Added `updateWidget(dashboardId, widgetId, updates)` action for future widget editing
+  - Existing addWidget/removeWidget actions work with new API integration
+
+Stage Summary:
+- Full widget lifecycle: create (dialog/API) → render (ChartRenderer/DataTable/metrics/markdown) → delete (API)
+- Widget data fetching with caching via useWidgetData hook
+- Pin-to-dashboard from chat: visualization cards → select dashboard → widget created with SQL+viz
+- Auto-suggests visualization when running query preview in Add Widget dialog
+- Files created: widgets API routes, use-widget-data.ts, add-widget-dialog.tsx, widget-renderer.tsx, pin-to-dashboard-button.tsx
+- Files modified: dashboard-view.tsx, message-item.tsx, dashboard-store.ts
+- All lint checks pass (0 errors, 1 pre-existing warning from TanStack Table)
