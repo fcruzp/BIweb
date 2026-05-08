@@ -649,16 +649,17 @@ export async function suggestVisualization(
       const values = resultData.slice(0, 30).map(r => String(r[col] ?? ''));
       const drProvinceNames = [
         'Distrito Nacional', 'Azua', 'Baoruco', 'Barahona', 'Dajabón', 'Duarte',
-        'Elías Piña', 'El Seibo', 'Espaillat', 'Hato Mayor', 'Hermanas Mirabal',
-        'Independencia', 'La Altagracia', 'La Romana', 'La Vega',
+        'El Seibo', 'Espaillat', 'Hato Mayor', 'Hermanas Mirabal',
+        'Independencia', 'La Altagracia', 'La Estrelleta', 'Elías Piña', 'La Romana', 'La Vega',
         'María Trinidad Sánchez', 'Monseñor Nouel', 'Monte Cristi', 'Monte Plata',
         'Pedernales', 'Peravia', 'Puerto Plata', 'Samaná', 'Sánchez Ramírez',
         'San Cristóbal', 'San José de Ocoa', 'San Juan', 'San Pedro de Macorís',
         'Santiago', 'Santiago Rodríguez', 'Santo Domingo', 'Valverde',
       ];
-      const matchCount = values.filter(v =>
-        drProvinceNames.some(p => p.toLowerCase() === v.toLowerCase().trim())
-      ).length;
+      const matchCount = values.filter(v => {
+        const vLower = v.toLowerCase().trim();
+        return drProvinceNames.some(p => p.toLowerCase() === vLower);
+      }).length;
 
       if (matchCount >= Math.max(2, values.length * 0.25)) {
         hasProvinceValues = true;
@@ -680,8 +681,8 @@ export async function suggestVisualization(
   if (!hasProvinceValues) {
     const drProvinceNames = [
       'Distrito Nacional', 'Azua', 'Baoruco', 'Barahona', 'Dajabón', 'Duarte',
-      'Elías Piña', 'El Seibo', 'Espaillat', 'Hato Mayor', 'Hermanas Mirabal',
-      'Independencia', 'La Altagracia', 'La Romana', 'La Vega',
+      'El Seibo', 'Espaillat', 'Hato Mayor', 'Hermanas Mirabal',
+      'Independencia', 'La Altagracia', 'La Estrelleta', 'Elías Piña', 'La Romana', 'La Vega',
       'María Trinidad Sánchez', 'Monseñor Nouel', 'Monte Cristi', 'Monte Plata',
       'Pedernales', 'Peravia', 'Puerto Plata', 'Samaná', 'Sánchez Ramírez',
       'San Cristóbal', 'San José de Ocoa', 'San Juan', 'San Pedro de Macorís',

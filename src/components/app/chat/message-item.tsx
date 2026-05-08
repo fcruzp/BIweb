@@ -147,11 +147,15 @@ export function MessageItem({ message }: MessageItemProps) {
               {/* For heatmap: show both a bar chart AND the map, stacked vertically */}
               {isHeatmap ? (
                 <div className="space-y-4">
-                  {/* Standard chart (bar chart by default) */}
+                  {/* Standard chart (bar chart) — use province/value columns for axes */}
                   <ChartRenderer
                     visualization={{
                       ...message.visualization,
                       chartType: 'bar',
+                      xAxis: message.visualization.provinceColumn || message.visualization.xAxis,
+                      yAxis: message.visualization.valueColumn
+                        ? [message.visualization.valueColumn]
+                        : message.visualization.yAxis,
                     }}
                     data={message.queryResult.data}
                   />
