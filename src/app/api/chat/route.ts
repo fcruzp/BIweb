@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
     if (sqlResult.type === 'schema_question') {
       const context = datasource.contexts[0];
 
-      // Build table details
+      // Build table details with H3 sub-sections
       const tableDetails = datasource.schemas.map((s) => {
         const cols = JSON.parse(s.columns) as Array<{
           name: string;
@@ -101,10 +101,10 @@ export async function POST(request: NextRequest) {
             if (c.primaryKey) flags.push('PK');
             if (c.notNull) flags.push('NOT NULL');
             const flagStr = flags.length > 0 ? ` [${flags.join(', ')}]` : '';
-            return `  • \`${c.name}\` (${c.type})${flagStr}`;
+            return `- \`${c.name}\` (${c.type})${flagStr}`;
           })
           .join('\n');
-        return `**${s.tableName}** (${s.rowCount} rows)\n${columnList}`;
+        return `### ${s.tableName}\n**${s.rowCount.toLocaleString()}** rows\n\n${columnList}`;
       });
 
       // Build relationships section
@@ -118,8 +118,8 @@ export async function POST(request: NextRequest) {
             description: string;
           }>;
           if (relationships.length > 0) {
-            relationshipsSection = '\n\n**Relationships:**\n' + relationships
-              .map((r) => `  • \`${r.from}\` → \`${r.to}\` (${r.type}) — ${r.description}`)
+            relationshipsSection = '\n\n### Relationships\n' + relationships
+              .map((r) => `- \`${r.from}\` → \`${r.to}\` (${r.type}) — ${r.description}`)
               .join('\n');
           }
         } catch {
@@ -134,8 +134,8 @@ export async function POST(request: NextRequest) {
           const glossary = JSON.parse(context.businessGlossary) as Record<string, string>;
           const entries = Object.entries(glossary);
           if (entries.length > 0) {
-            glossarySection = '\n\n**Business Glossary:**\n' + entries
-              .map(([term, def]) => `  • **${term}**: ${def}`)
+            glossarySection = '\n\n### Business Glossary\n' + entries
+              .map(([term, def]) => `- **${term}**: ${def}`)
               .join('\n');
           }
         } catch {
@@ -145,10 +145,10 @@ export async function POST(request: NextRequest) {
 
       // Build summary section
       const summarySection = context?.summary
-        ? `\n\n**Summary:** ${context.summary}`
+        ? `\n\n> ${context.summary}`
         : '';
 
-      const schemaResponse = `📋 **Database Schema Information**\n\n${tableDetails.join('\n\n')}${summarySection}${relationshipsSection}${glossarySection}`;
+      const schemaResponse = `## Database Schema Overview\n\nThis database contains **${datasource.schemas.length}** table${datasource.schemas.length > 1 ? 's' : ''}.${summarySection}\n\n${tableDetails.join('\n\n')}${relationshipsSection}${glossarySection}`;
 
       // Save assistant message
       await db.chatMessage.create({
@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
         data: {
           sessionId: chatSessionId,
           role: 'assistant',
-          content: sqlResult.explanation || 'I could not generate a SQL query for your question. Please try rephrasing.',
+          content: `## Unable to Generate Query\n\n${sqlResult.explanation || 'I could not generate a SQL query for your question. Please try rephrasing.'}`,
           sqlQuery: sqlResult.sql || null,
         },
       });
@@ -184,7 +184,7 @@ export async function POST(request: NextRequest) {
         sessionId: chatSessionId,
         message: {
           role: 'assistant',
-          content: sqlResult.explanation || 'I could not generate a SQL query for your question. Please try rephrasing.',
+          content: `## Unable to Generate Query\n\n${sqlResult.explanation || 'I could not generate a SQL query for your question. Please try rephrasing.'}`,
           sqlQuery: sqlResult.sql || null,
           confidence: sqlResult.confidence,
         },
@@ -198,7 +198,7 @@ export async function POST(request: NextRequest) {
         data: {
           sessionId: chatSessionId,
           role: 'assistant',
-          content: `The generated query was blocked for security reasons: ${validation.errors.join(', ')}. Please rephrase your question.`,
+          content: `## Query Blocked\n\nThe generated query was blocked for security reasons: ${validation.errors.join(', ')}. Please rephrase your question.`,
           sqlQuery: sqlResult.sql,
         },
       });
@@ -207,7 +207,7 @@ export async function POST(request: NextRequest) {
         sessionId: chatSessionId,
         message: {
           role: 'assistant',
-          content: `The generated query was blocked for security reasons: ${validation.errors.join(', ')}. Please rephrase your question.`,
+          content: `## Query Blocked\n\nThe generated query was blocked for security reasons: ${validation.errors.join(', ')}. Please rephrase your question.`,
           sqlQuery: sqlResult.sql,
           confidence: 0,
         },
@@ -276,7 +276,7 @@ export async function POST(request: NextRequest) {
         data: {
           sessionId: chatSessionId,
           role: 'assistant',
-          content: `Error executing query${retryNote}: ${lastError}`,
+          content: `## Query Execution Error${retryNote}\n\n${lastError}`,
           sqlQuery: finalSQL,
         },
       });
@@ -300,7 +300,7 @@ export async function POST(request: NextRequest) {
         sessionId: chatSessionId,
         message: {
           role: 'assistant',
-          content: `Error executing query${retryNote}: ${lastError}`,
+          content: `## Query Execution Error${retryNote}\n\n${lastError}`,
           sqlQuery: finalSQL,
           confidence: sqlResult.confidence,
         },
@@ -321,16 +321,37 @@ export async function POST(request: NextRequest) {
       const sampleResults = queryResult.data.slice(0, 10);
       const resultColumns = queryResult.columns || (queryResult.data.length > 0 ? Object.keys(queryResult.data[0]) : []);
       const analysisResult = await createCompletion({
-        systemPrompt: `You are a data analyst. Analyze SQL query results and provide a clear, insightful summary.
+        systemPrompt: `You are a senior business intelligence analyst writing a concise executive report. Analyze SQL query results and present insights in a professional, well-structured format.
 
 CRITICAL RULES:
 - ONLY reference column names that are listed in the "Result Columns" section below. Do NOT invent or assume any column names.
 - If you mention a value from the data, make sure the column name you use matches exactly.
-- Keep the explanation concise but informative.
-- Use bullet points for clarity.
-- Include relevant numbers and statistics from the results.
-- Suggest follow-up questions the user might want to ask.
-- Do NOT generate any SQL - only analyze the results and provide insights.`,
+- Do NOT generate any SQL - only analyze the results and provide insights.
+
+OUTPUT FORMAT — Use this structure:
+## [Descriptive Title in Title Case]
+Write a 1-2 sentence executive summary paragraph.
+
+### Key Findings
+- **[Metric Name]**: [Value with context]
+- **[Metric Name]**: [Value with context]
+- **[Metric Name]**: [Value with context]
+
+### [Additional Section if warranted — trends, anomalies, breakdowns]
+Write a brief analytical paragraph with data-driven insights.
+
+### Recommended Follow-up
+- [Specific, actionable question the user could ask next]
+- [Specific, actionable question the user could ask next]
+
+STYLE GUIDELINES:
+- Use professional, confident language suitable for a C-suite audience
+- Quantify insights with specific numbers and percentages from the data
+- Highlight patterns, outliers, and business implications
+- Keep paragraphs to 2-3 sentences maximum
+- Use bold for key metrics and findings
+- Write section headers in Title Case
+- Be concise — the entire analysis should be scannable in under 30 seconds`,
         userMessage: `Analyze these SQL query results:
 
 Query: ${finalSQL}
@@ -342,13 +363,13 @@ Execution time: ${queryResult.executionTime}ms${retryCount > 0 ? `\nNote: This q
 Sample results:
 ${JSON.stringify(sampleResults, null, 2)}
 
-Provide a concise analysis with key insights. ONLY use the column names listed above.`,
+Write a professional executive analysis using ONLY the column names listed above.`,
         temperature: 0.3,
       });
       analysis = analysisResult.content;
     } catch (analysisError) {
       console.error('Error analyzing results:', analysisError);
-      analysis = `Query returned ${queryResult.rowCount} rows in ${queryResult.executionTime}ms.`;
+      analysis = `## Query Results\n\nQuery returned ${queryResult.rowCount} rows in ${queryResult.executionTime}ms.`;
     }
 
     // Build the full response content — include retry note if applicable

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Separator } from '@/components/ui/separator';
 import {
   User,
   Brain,
@@ -16,9 +17,12 @@ import {
   Rows3,
   Table2,
   BarChart3,
+  Zap,
+  Database,
+  ShieldCheck,
 } from 'lucide-react';
 import { useState } from 'react';
-import ReactMarkdown from 'react-markdown';
+import { ReportMarkdown } from './report-markdown';
 import { ChartRenderer } from '../visualization/chart-renderer';
 import { DataTable } from '../visualization/data-table';
 
@@ -53,26 +57,52 @@ export function MessageItem({ message }: MessageItemProps) {
     );
   }
 
-  // Assistant message
+  // Assistant message — report style
   return (
     <div className="flex gap-3">
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-600/10 text-emerald-500">
         <Brain className="h-4 w-4" />
       </div>
       <div className="flex-1 min-w-0 space-y-3 max-w-[90%]">
-        {/* Analysis text */}
-        <div className="text-sm prose prose-sm max-w-none dark:prose-invert">
-          <ReactMarkdown>{message.content}</ReactMarkdown>
+        {/* Report content — styled card */}
+        <div className="rounded-xl bg-muted/20 border border-border/30 p-5 shadow-sm">
+          <ReportMarkdown content={message.content} />
         </div>
 
-        {/* SQL Code Block */}
+        {/* Query metadata strip */}
+        {message.queryResult && (
+          <div className="flex flex-wrap items-center gap-2 px-1">
+            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground bg-muted/40 rounded-md px-2 py-1">
+              <Database className="h-3 w-3 text-emerald-500/70" />
+              <span className="font-medium">{message.queryResult.rowCount.toLocaleString()}</span> rows
+            </div>
+            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground bg-muted/40 rounded-md px-2 py-1">
+              <Clock className="h-3 w-3 text-emerald-500/70" />
+              <span className="font-medium">{message.queryResult.executionTime}</span>ms
+            </div>
+            {message.confidence !== undefined && (
+              <div className={`flex items-center gap-1.5 text-[11px] rounded-md px-2 py-1 ${
+                message.confidence > 0.7
+                  ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10'
+                  : message.confidence > 0.4
+                    ? 'text-amber-600 dark:text-amber-400 bg-amber-500/10'
+                    : 'text-red-600 dark:text-red-400 bg-red-500/10'
+              }`}>
+                <ShieldCheck className="h-3 w-3" />
+                <span className="font-medium">{Math.round(message.confidence * 100)}%</span> confidence
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* SQL Code Block — collapsible */}
         {message.sqlQuery && (
           <Collapsible open={sqlOpen} onOpenChange={setSqlOpen}>
             <CollapsibleTrigger asChild>
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1 text-xs h-7 border-border/50"
+                className="gap-1.5 text-[11px] h-7 border-border/50 text-muted-foreground hover:text-foreground"
               >
                 <Code2 className="h-3 w-3" />
                 SQL Query
@@ -80,14 +110,14 @@ export function MessageItem({ message }: MessageItemProps) {
               </Button>
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <div className="mt-2 relative">
-                <pre className="bg-muted/50 border border-border/50 rounded-lg p-3 text-xs font-mono overflow-x-auto">
-                  <code>{message.sqlQuery}</code>
+              <div className="mt-2 relative group">
+                <pre className="bg-muted/30 border border-border/40 rounded-lg p-3 text-xs font-mono overflow-x-auto">
+                  <code className="text-foreground/70">{message.sqlQuery}</code>
                 </pre>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="absolute top-2 right-2 h-6 w-6 p-0"
+                  className="absolute top-2 right-2 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
                   onClick={copySQL}
                 >
                   {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
@@ -97,53 +127,30 @@ export function MessageItem({ message }: MessageItemProps) {
           </Collapsible>
         )}
 
-        {/* Query result metadata */}
-        {message.queryResult && (
-          <div className="flex flex-wrap gap-2 text-xs">
-            <Badge variant="secondary" className="gap-1">
-              <Rows3 className="h-3 w-3" />
-              {message.queryResult.rowCount} rows
-            </Badge>
-            <Badge variant="secondary" className="gap-1">
-              <Clock className="h-3 w-3" />
-              {message.queryResult.executionTime}ms
-            </Badge>
-            {message.confidence !== undefined && (
-              <Badge
-                variant="secondary"
-                className={message.confidence > 0.7 ? 'text-emerald-500' : message.confidence > 0.4 ? 'text-amber-500' : 'text-red-500'}
-              >
-                {Math.round(message.confidence * 100)}% confidence
-              </Badge>
-            )}
-          </div>
-        )}
-
-        {/* Visualization */}
+        {/* Visualization card */}
         {message.visualization && message.queryResult && (
-          <Card className="border-border/50">
-            <CardHeader className="pb-2 pt-3 px-4">
+          <Card className="border-border/40 shadow-sm overflow-hidden">
+            <CardHeader className="pb-2 pt-3 px-4 bg-muted/20 border-b border-border/30">
               <CardTitle className="text-sm flex items-center gap-2">
                 <BarChart3 className="h-4 w-4 text-emerald-500" />
                 {message.visualization.title}
               </CardTitle>
             </CardHeader>
-            <CardContent className="px-4 pb-3">
+            <CardContent className="px-4 pb-3 pt-3">
               <ChartRenderer
                 visualization={message.visualization}
                 data={message.queryResult.data}
               />
-              <div className="mt-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-xs h-7 gap-1"
-                  onClick={() => setShowTable(!showTable)}
-                >
-                  <Table2 className="h-3 w-3" />
-                  {showTable ? 'Hide Table' : 'Show Raw Data'}
-                </Button>
-              </div>
+              <Separator className="my-3 bg-border/30" />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs h-7 gap-1.5 text-muted-foreground hover:text-foreground"
+                onClick={() => setShowTable(!showTable)}
+              >
+                <Table2 className="h-3 w-3" />
+                {showTable ? 'Hide Raw Data' : 'Show Raw Data'}
+              </Button>
               {showTable && (
                 <div className="mt-2">
                   <DataTable data={message.queryResult.data} columns={message.queryResult.columns} />
@@ -155,7 +162,7 @@ export function MessageItem({ message }: MessageItemProps) {
 
         {/* If no visualization but has data, show table */}
         {message.queryResult && !message.visualization && (
-          <Card className="border-border/50">
+          <Card className="border-border/40 shadow-sm">
             <CardContent className="p-4">
               <DataTable data={message.queryResult.data} columns={message.queryResult.columns} />
             </CardContent>
