@@ -40,7 +40,7 @@ SECURITY RULES (CRITICAL - NEVER VIOLATE):
 - NEVER generate INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, TRUNCATE
 - NEVER use PRAGMA statements
 - NEVER query sqlite_master or any system/catalog tables — if the user asks about the schema, classify as "schema_question" instead
-- ALWAYS include LIMIT (default 500, max 1000) unless user requests otherwise
+- ALWAYS include a LIMIT clause based on the configured row limit unless the user specifically requests otherwise. If no row limit is configured (0), you may omit the LIMIT clause but still use reasonable limits for large result sets.
 - ONLY reference tables and columns that exist in the provided schema
 - NEVER use functions that could modify data or filesystem
 - NEVER use ATTACH DATABASE

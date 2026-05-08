@@ -9,7 +9,7 @@ import { SYSTEM_PROMPTS } from '@/lib/prompts';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { message, dataSourceId, sessionId } = body;
+    const { message, dataSourceId, sessionId, queryRowLimit } = body;
 
     if (!message || !dataSourceId) {
       return NextResponse.json({ error: 'Message and dataSourceId are required' }, { status: 400 });
@@ -79,7 +79,8 @@ export async function POST(request: NextRequest) {
       message,
       schemaDescription,
       semanticContext,
-      previousQueries
+      previousQueries,
+      queryRowLimit
     );
 
     // Handle schema questions — build a rich response from stored metadata, no SQL execution
@@ -214,6 +215,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Determine row limit for response slicing (0 = no limit)
+    const responseRowLimit = typeof queryRowLimit === 'number' ? queryRowLimit : 500;
+
     // Execute the query
     const sanitizedSQL = sanitizeSQL(sqlResult.sql);
     let queryResult;
@@ -292,6 +296,11 @@ Provide a concise analysis with key insights.`,
     // Build the full response content
     const responseContent = `${analysis}\n\n📊 **Query executed successfully** (${queryResult.rowCount} rows, ${queryResult.executionTime}ms)`;
 
+    // Slice results based on configured limit (0 = no limit / send all)
+    const slicedData = responseRowLimit > 0
+      ? queryResult.data.slice(0, responseRowLimit)
+      : queryResult.data;
+
     // Save assistant message
     await db.chatMessage.create({
       data: {
@@ -299,7 +308,7 @@ Provide a concise analysis with key insights.`,
         role: 'assistant',
         content: responseContent,
         sqlQuery: sanitizedSQL,
-        queryResult: JSON.stringify(queryResult.data.slice(0, 100)),
+        queryResult: JSON.stringify(slicedData),
         visualization: visualization ? JSON.stringify(visualization) : null,
       },
     });
@@ -311,7 +320,7 @@ Provide a concise analysis with key insights.`,
         sessionId: chatSessionId,
         naturalQuery: message,
         sqlQuery: sanitizedSQL,
-        resultData: JSON.stringify(queryResult.data.slice(0, 100)),
+        resultData: JSON.stringify(slicedData),
         rowCount: queryResult.rowCount,
         executionTime: queryResult.executionTime,
         status: 'success',
@@ -327,7 +336,7 @@ Provide a concise analysis with key insights.`,
         explanation: sqlResult.explanation,
         confidence: sqlResult.confidence,
         queryResult: {
-          data: queryResult.data.slice(0, 100), // Limit to 100 rows in response
+          data: slicedData,
           columns: queryResult.columns,
           rowCount: queryResult.rowCount,
           totalRowCount: queryResult.rowCount,

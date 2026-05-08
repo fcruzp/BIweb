@@ -278,7 +278,8 @@ export async function generateSQLFromNaturalLanguage(
   naturalQuery: string,
   schemaInfo: string,
   semanticContext: string,
-  previousQueries?: Array<{ question: string; sql: string }>
+  previousQueries?: Array<{ question: string; sql: string }>,
+  queryRowLimit?: number
 ): Promise<SQLGenerationResult> {
   const contextMessages = previousQueries?.map(q => [
     { role: 'user' as const, content: q.question },
@@ -298,7 +299,7 @@ CLASSIFICATION RULES:
 
 CRITICAL SECURITY RULES:
 - ONLY generate SELECT statements for "query" type. Never generate INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, or any modifying SQL.
-- Always include a LIMIT clause (max 1000 rows) unless the user specifically requests otherwise.
+${queryRowLimit !== undefined && queryRowLimit > 0 ? `- Always include a LIMIT clause with a maximum of ${queryRowLimit} rows unless the user specifically requests otherwise.` : queryRowLimit === 0 ? `- No LIMIT clause is required by default. You may omit the LIMIT clause, but still use reasonable limits for very large result sets to avoid performance issues.` : `- Always include a LIMIT clause (default 500 rows) unless the user specifically requests otherwise.`}
 - Never use subqueries that modify data.
 - Never use PRAGMA statements.
 - NEVER query sqlite_master or any system/catalog tables — if the user asks about the schema, classify as "schema_question" instead.

@@ -6,7 +6,7 @@ import { validateSQLQuery, sanitizeSQL } from '@/lib/sql-security';
 // POST /api/query/execute - Execute a validated SQL query directly
 export async function POST(request: NextRequest) {
   try {
-    const { sql, dataSourceId } = await request.json();
+    const { sql, dataSourceId, queryRowLimit } = await request.json();
 
     if (!sql || !dataSourceId) {
       return NextResponse.json({ error: 'SQL and dataSourceId are required' }, { status: 400 });
@@ -34,8 +34,14 @@ export async function POST(request: NextRequest) {
     const sanitizedSQL = sanitizeSQL(sql);
     const result = executeSelectQuery(datasource.filePath, sanitizedSQL);
 
+    // Determine row limit for response slicing (0 = no limit)
+    const responseRowLimit = typeof queryRowLimit === 'number' ? queryRowLimit : 500;
+    const slicedData = responseRowLimit > 0
+      ? result.data.slice(0, responseRowLimit)
+      : result.data;
+
     return NextResponse.json({
-      data: result.data.slice(0, 100),
+      data: slicedData,
       columns: result.columns,
       rowCount: result.rowCount,
       executionTime: result.executionTime,

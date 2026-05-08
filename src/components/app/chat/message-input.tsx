@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAppStore } from '@/stores/app-store';
 import { useChatStore } from '@/stores/chat-store';
+import { useAIConfigStore } from '@/stores/ai-config-store';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Send, Loader2 } from 'lucide-react';
@@ -14,6 +15,7 @@ export function MessageInput() {
   const { activeDataSourceId, activeSessionId, setActiveSession, addChatSession } =
     useAppStore();
   const { addMessage, setLoading, setError, isLoading } = useChatStore();
+  const { queryRowLimit } = useAIConfigStore();
 
   const handleSubmit = async () => {
     if (!input.trim() || !activeDataSourceId || isLoading) return;
@@ -66,6 +68,7 @@ export function MessageInput() {
           message: userMessage,
           dataSourceId: activeDataSourceId,
           sessionId: sessionId,
+          queryRowLimit: queryRowLimit,
         }),
       });
 

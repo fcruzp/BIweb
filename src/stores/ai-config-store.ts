@@ -63,6 +63,9 @@ export interface AIConfigState {
   /** Max tokens for responses */
   maxTokens: number;
 
+  /** Max rows returned by SQL queries (0 = no limit, AI won't add LIMIT clause) */
+  queryRowLimit: number;
+
   // Actions
   setProvider: (provider: AIProvider) => void;
   setOpenRouterApiKey: (key: string) => void;
@@ -71,6 +74,7 @@ export interface AIConfigState {
   setUseCustomModel: (use: boolean) => void;
   setTemperature: (temp: number) => void;
   setMaxTokens: (tokens: number) => void;
+  setQueryRowLimit: (limit: number) => void;
   getEffectiveModelId: () => string;
   isConfigured: () => boolean;
 }
@@ -85,6 +89,7 @@ export const useAIConfigStore = create<AIConfigState>()(
       useCustomModel: false,
       temperature: 0.3,
       maxTokens: 4096,
+      queryRowLimit: 500,
 
       setProvider: (provider) =>
         set({
@@ -104,6 +109,8 @@ export const useAIConfigStore = create<AIConfigState>()(
       setTemperature: (temp) => set({ temperature: temp }),
 
       setMaxTokens: (tokens) => set({ maxTokens: tokens }),
+
+      setQueryRowLimit: (limit) => set({ queryRowLimit: limit }),
 
       getEffectiveModelId: () => {
         const state = get();
@@ -131,6 +138,7 @@ export const useAIConfigStore = create<AIConfigState>()(
         useCustomModel: state.useCustomModel,
         temperature: state.temperature,
         maxTokens: state.maxTokens,
+        queryRowLimit: state.queryRowLimit,
       }),
     }
   )

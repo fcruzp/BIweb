@@ -33,6 +33,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   Sparkles,
+  Rows3,
 } from 'lucide-react';
 import {
   useAIConfigStore,
@@ -55,6 +56,7 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
     useCustomModel,
     temperature,
     maxTokens,
+    queryRowLimit,
     setProvider,
     setOpenRouterApiKey,
     setModelId,
@@ -62,6 +64,7 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
     setUseCustomModel,
     setTemperature,
     setMaxTokens,
+    setQueryRowLimit,
     isConfigured,
     getEffectiveModelId,
   } = useAIConfigStore();
@@ -329,6 +332,38 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
                 <span>Long (16K)</span>
               </div>
             </div>
+
+            {/* Query Row Limit */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Rows3 className="h-3 w-3" />
+                  Query Row Limit
+                </Label>
+                <span className="text-xs font-mono text-emerald-500">
+                  {queryRowLimit === 0 ? 'No limit' : queryRowLimit}
+                </span>
+              </div>
+              <Select
+                value={String(queryRowLimit)}
+                onValueChange={(v) => setQueryRowLimit(Number(v))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">No limit (⚠️ may be slow on large tables)</SelectItem>
+                  <SelectItem value="100">100 rows</SelectItem>
+                  <SelectItem value="500">500 rows (default)</SelectItem>
+                  <SelectItem value="1000">1,000 rows</SelectItem>
+                  <SelectItem value="5000">5,000 rows</SelectItem>
+                  <SelectItem value="10000">10,000 rows</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground">
+                Controls the maximum number of rows returned by queries. The AI will also use this as the LIMIT in generated SQL.
+              </p>
+            </div>
           </div>
 
           <Separator />
@@ -370,6 +405,10 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Model:</span>
                 <span className="font-medium font-mono">{getEffectiveModelId()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Row Limit:</span>
+                <span className="font-medium font-mono">{queryRowLimit === 0 ? 'No limit' : queryRowLimit}</span>
               </div>
               {provider === 'openrouter' && (
                 <div className="flex justify-between">
