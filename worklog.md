@@ -55,3 +55,38 @@ Stage Summary:
 - Also supports Portuguese and French for future internationalization
 - Files modified: `src/lib/ai.ts`, `src/app/api/chat/route.ts`, `src/components/app/chat/report-markdown.tsx`
 - No new files created
+
+---
+Task ID: 4
+Agent: main
+Task: Fix bugs — queryResult loading crashes and empty charts on chat reload
+
+Work Log:
+- Fixed `toLocaleString()` crash: added `typeof message.queryResult.rowCount === 'number'` guard in message-item.tsx
+- Fixed `data is not iterable` in DRHeatMap: added `Array.isArray(data)` guard before `for...of` loop
+- Fixed `Cannot read properties of undefined (reading 'map')` in DataTable: added `safeColumns` fallback that infers columns from data keys
+- Added `Array.isArray(data)` guards in ChartRenderer and DataTable
+- **ROOT CAUSE**: `queryResult` was stored as `JSON.stringify(slicedData)` (bare array) instead of full QueryResult object — changed to `JSON.stringify({ data, columns, rowCount, executionTime })`
+- Rewrote `loadMessages` parsing in chat-store.ts to handle both old format (bare array) and new format (full QueryResult object)
+- Defensive JSON parsing with try/catch, double-encoding detection, type checking
+
+Stage Summary:
+- Chats now load correctly with all charts, maps, and data tables populated
+- Backward compatible with old messages stored in bare array format
+- Files modified: `message-item.tsx`, `dr-map.tsx`, `chart-renderer.tsx`, `data-table.tsx`, `route.ts`, `chat-store.ts`
+
+---
+Task ID: 5
+Agent: main
+Task: Create comprehensive project state snapshot for context offset
+
+Work Log:
+- Explored entire codebase structure (file tree, API routes, stores, components, lib)
+- Read prisma schema, package.json, all store files
+- Created SNAPSHOT.md with complete project documentation
+- Includes: architecture diagram, tech stack, file structure, features, bugs fixed, store details, AI prompts, backlog
+
+Stage Summary:
+- Created `/home/z/my-project/SNAPSHOT.md` — comprehensive project state document
+- Can be used as context offset when conversation resets
+- Covers: architecture, stack, all files, features, known bugs/fixes, store schema, AI prompts, backlog
