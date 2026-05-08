@@ -283,7 +283,7 @@ export async function generateSQLFromNaturalLanguage(
 ): Promise<SQLGenerationResult> {
   const contextMessages = previousQueries?.map(q => [
     { role: 'user' as const, content: q.question },
-    { role: 'assistant' as const, content: `Generated SQL: ${q.sql}` },
+    { role: 'assistant' as const, content: JSON.stringify({ type: 'query', sql: q.sql, explanation: 'Previous query', confidence: 0.9 }) },
   ]).flat() || [];
 
   const result = await createCompletion({
@@ -323,7 +323,7 @@ ${semanticContext}
 
 USER QUESTION: ${naturalQuery}
 
-First classify this question, then generate a response accordingly.`,
+Respond with valid JSON only. No explanation outside the JSON object.`,
     contextMessages,
     responseFormat: 'json',
     temperature: 0.1,
@@ -338,6 +338,18 @@ First classify this question, then generate a response accordingly.`,
       sql: typeof parsed.sql === 'string' ? parsed.sql : '',
       explanation: typeof parsed.explanation === 'string' ? parsed.explanation : '',
       confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0,
+    };
+  }
+
+  // Fallback: If JSON parsing failed but the response contains a SQL SELECT statement,
+  // try to extract it directly (in case the AI responded in plain text format)
+  const sqlMatch = result.content.match(/(?:SELECT|select)[\s\S]*?(?:;|$)/);
+  if (sqlMatch) {
+    return {
+      type: 'query',
+      sql: sqlMatch[0].trim().replace(/;$/, ''),
+      explanation: 'Generated SQL query from natural language.',
+      confidence: 0.5,
     };
   }
 
@@ -394,7 +406,9 @@ ${schemaInfo}
 SEMANTIC CONTEXT:
 ${semanticContext}
 
-Fix the SQL query so it only uses columns and tables that exist in the schema above. Pay close attention to column names — do not guess or invent column names.`,
+Fix the SQL query so it only uses columns and tables that exist in the schema above. Pay close attention to column names — do not guess or invent column names.
+
+Respond with valid JSON only. No explanation outside the JSON object.`,
     responseFormat: 'json',
     temperature: 0.1,
   });
