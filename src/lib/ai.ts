@@ -1,14 +1,9 @@
 import ZAI from 'z-ai-web-dev-sdk';
+import OpenAI from 'openai';
 
-// Singleton pattern for ZAI instance
-let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null;
-
-async function getAI() {
-  if (!zaiInstance) {
-    zaiInstance = await ZAI.create();
-  }
-  return zaiInstance;
-}
+// ============================================================
+// Types
+// ============================================================
 
 export interface AICompletionOptions {
   systemPrompt: string;
@@ -17,6 +12,12 @@ export interface AICompletionOptions {
   temperature?: number;
   maxTokens?: number;
   responseFormat?: 'text' | 'json';
+  /** Override provider for this call */
+  provider?: 'z-ai' | 'openrouter';
+  /** Override model for this call */
+  modelId?: string;
+  /** Override API key for this call */
+  apiKey?: string;
 }
 
 export interface AICompletionResult {
@@ -28,8 +29,21 @@ export interface AICompletionResult {
   };
 }
 
-export async function createCompletion(options: AICompletionOptions): Promise<AICompletionResult> {
-  const zai = await getAI();
+// ============================================================
+// Z-AI Provider (built-in, no key needed)
+// ============================================================
+
+let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null;
+
+async function getZAI() {
+  if (!zaiInstance) {
+    zaiInstance = await ZAI.create();
+  }
+  return zaiInstance;
+}
+
+async function createZAICompletion(options: AICompletionOptions): Promise<AICompletionResult> {
+  const zai = await getZAI();
 
   const messages: Array<{ role: 'assistant' | 'user'; content: string }> = [
     { role: 'assistant', content: options.systemPrompt },
@@ -48,22 +62,111 @@ export async function createCompletion(options: AICompletionOptions): Promise<AI
 
   const content = completion.choices[0]?.message?.content || '';
 
-  const result: AICompletionResult = { content };
+  return { content };
+}
 
-  if (options.responseFormat === 'json') {
-    try {
-      // Try to extract JSON from the response (handle markdown code blocks)
-      const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) || [, content];
-      const jsonStr = jsonMatch[1] || content;
-      result.parsedJson = JSON.parse(jsonStr.trim());
-    } catch {
-      // If parsing fails, return raw content
-      console.warn('Failed to parse JSON from AI response');
+// ============================================================
+// OpenRouter Provider (OpenAI-compatible API)
+// ============================================================
+
+function getOpenAIClient(apiKey: string): OpenAI {
+  return new OpenAI({
+    apiKey,
+    baseURL: 'https://openrouter.ai/api/v1',
+    defaultHeaders: {
+      'HTTP-Referer': 'https://datamind.bi',
+      'X-Title': 'DataMind BI',
+    },
+  });
+}
+
+async function createOpenRouterCompletion(options: AICompletionOptions): Promise<AICompletionResult> {
+  const apiKey = options.apiKey;
+  if (!apiKey) {
+    throw new Error('OpenRouter API key is required. Configure it in Settings.');
+  }
+
+  const client = getOpenAIClient(apiKey);
+  const model = options.modelId || 'anthropic/claude-sonnet-4';
+
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+    { role: 'system', content: options.systemPrompt },
+  ];
+
+  if (options.contextMessages) {
+    for (const msg of options.contextMessages) {
+      messages.push({ role: msg.role, content: msg.content });
     }
   }
 
-  return result;
+  messages.push({ role: 'user', content: options.userMessage });
+
+  const completion = await client.chat.completions.create({
+    model,
+    messages,
+    temperature: options.temperature ?? 0.3,
+    max_tokens: options.maxTokens ?? 4096,
+  });
+
+  const content = completion.choices[0]?.message?.content || '';
+
+  return {
+    content,
+    usage: {
+      promptTokens: completion.usage?.prompt_tokens,
+      completionTokens: completion.usage?.completion_tokens,
+    },
+  };
 }
+
+// ============================================================
+// Unified AI Service
+// ============================================================
+
+/**
+ * Create an AI completion using the configured provider.
+ * 
+ * Priority for choosing provider:
+ * 1. options.provider (explicit override)
+ * 2. Reads from AI config store
+ * 3. Falls back to z-ai
+ */
+export async function createCompletion(options: AICompletionOptions): Promise<AICompletionResult> {
+  // Determine provider
+  let provider = options.provider;
+  let modelId = options.modelId;
+  let apiKey = options.apiKey;
+
+  // If not explicitly overridden, read from store
+  if (!provider || !apiKey) {
+    try {
+      // Dynamic import to avoid circular deps — store is client-side only
+      const { useAIConfigStore } = await import('@/stores/ai-config-store');
+      const config = useAIConfigStore.getState();
+
+      if (!provider) provider = config.provider;
+      if (!modelId) modelId = config.getEffectiveModelId();
+      if (!apiKey) apiKey = config.openrouterApiKey;
+    } catch {
+      // If store is not available (e.g., during SSR), default to z-ai
+      if (!provider) provider = 'z-ai';
+    }
+  }
+
+  // Route to the appropriate provider
+  const enrichedOptions = { ...options, provider, modelId, apiKey };
+
+  if (provider === 'openrouter') {
+    return createOpenRouterCompletion(enrichedOptions);
+  }
+
+  // Default: z-ai
+  return createZAICompletion(enrichedOptions);
+}
+
+// ============================================================
+// High-level AI Functions
+// ============================================================
 
 export async function analyzeSchemaWithContext(
   schemaInfo: string,
@@ -105,7 +208,7 @@ Respond with a JSON object with these fields:
     semanticContext: 'Schema analysis could not be fully parsed.',
     businessGlossary: {},
     relationships: [],
-    summary: 'Database schema uploaded successfully. AI analysis incomplete - you can still query the data.',
+    summary: 'Database schema uploaded successfully. AI analysis incomplete — you can still query the data.',
   };
 }
 
@@ -185,7 +288,6 @@ export async function suggestVisualization(
   colorBy?: string;
   metrics?: Array<{ label: string; value: number; format?: string }>;
 }> {
-  // Sample the data to avoid sending too much
   const sampleRows = resultData.slice(0, 20);
   const columns = resultData.length > 0 ? Object.keys(resultData[0]) : [];
 
@@ -240,7 +342,6 @@ Recommend the best visualization for this data.`,
     };
   }
 
-  // Fallback to table
   return {
     chartType: 'table',
     title: 'Query Results',
