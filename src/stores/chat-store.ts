@@ -1,13 +1,17 @@
 import { create } from 'zustand';
 
 export interface VisualizationConfig {
-  chartType: 'bar' | 'line' | 'pie' | 'scatter' | 'area' | 'table' | 'metric';
+  chartType: 'bar' | 'line' | 'pie' | 'scatter' | 'area' | 'table' | 'metric' | 'heatmap';
   title: string;
   description: string;
   xAxis?: string;
   yAxis?: string[];
   colorBy?: string;
   metrics?: Array<{ label: string; value: number; format?: string }>;
+  /** Province column name for heatmap visualization */
+  provinceColumn?: string;
+  /** Value column name for heatmap visualization */
+  valueColumn?: string;
 }
 
 export interface QueryResult {

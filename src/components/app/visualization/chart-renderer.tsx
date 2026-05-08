@@ -26,6 +26,7 @@ import {
   type ChartConfig,
 } from '@/components/ui/chart';
 import { DataTable } from './data-table';
+import { DRHeatMap } from './dr-map';
 
 const CHART_COLORS = [
   'hsl(160, 60%, 50%)', // emerald
@@ -65,6 +66,15 @@ export function ChartRenderer({ visualization, data }: ChartRendererProps) {
       return <AreaChartRenderer visualization={visualization} data={data} />;
     case 'metric':
       return <MetricRenderer visualization={visualization} data={data} />;
+    case 'heatmap':
+      return (
+        <DRHeatMap
+          data={data}
+          provinceColumn={visualization.provinceColumn || ''}
+          valueColumn={visualization.valueColumn || ''}
+          title={visualization.title}
+        />
+      );
     case 'table':
       return <DataTable data={data} columns={data.length > 0 ? Object.keys(data[0]) : []} />;
     default:

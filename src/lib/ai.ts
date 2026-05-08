@@ -16,7 +16,8 @@ function extractJSON(text: string): string {
     return codeBlockMatch[1].trim();
   }
 
-  // Try to find a JSON object or array in the text
+  // Try to find a JSON object in the text (greedy to catch nested objects)
+  // Use a more robust match that handles nested braces
   const objectMatch = text.match(/\{[\s\S]*\}/);
   if (objectMatch) {
     return objectMatch[0];
@@ -29,6 +30,133 @@ function extractJSON(text: string): string {
 
   // Return as-is and let JSON.parse fail naturally
   return text.trim();
+}
+
+/**
+ * Extract SQL from plain text responses where the AI ignored the JSON format instruction
+ * and returned something like "Generated SQL: SELECT ..." instead of proper JSON.
+ * Returns a JSON string in the expected format, or null if no SQL could be extracted.
+ */
+function extractSQLFromPlainText(text: string): { type: 'query'; sql: string; explanation: string; confidence: number } | null {
+  // Common patterns where AI prefixes SQL with a label
+  const sqlPrefixPatterns = [
+    /(?:Generated\s+SQL|SQL|Query|SQL\s+Query|Generated\s+Query)\s*[:\-=]\s*\n?/i,
+    /(?:Here(?:'s|\s+is)\s+(?:the\s+)?(?:SQL|query))\s*[:\-=]?\s*\n?/i,
+    /(?:The\s+(?:SQL|query)\s+(?:is|would\s+be))\s*[:\-=]?\s*\n?/i,
+  ];
+
+  let sqlText: string | null = null;
+
+  for (const pattern of sqlPrefixPatterns) {
+    const match = text.match(pattern);
+    if (match) {
+      // Extract everything after the prefix label
+      const afterPrefix = text.slice(match.index! + match[0].length);
+      // Try to find a SELECT statement
+      const selectMatch = afterPrefix.match(/((?:SELECT|select)[\s\S]*?)(?:;\s*$|\n\n|$)/);
+      if (selectMatch) {
+        sqlText = selectMatch[1].trim().replace(/;$/, '');
+        break;
+      }
+    }
+  }
+
+  // If no prefix pattern matched, look for a bare SELECT statement
+  if (!sqlText) {
+    const selectMatch = text.match(/((?:SELECT|select)\s[\s\S]*?)(?:;\s*$|\n\n|$)/);
+    if (selectMatch) {
+      sqlText = selectMatch[1].trim().replace(/;$/, '');
+    }
+  }
+
+  if (!sqlText) {
+    return null;
+  }
+
+  // Try to extract an explanation from the text as well
+  let explanation = 'Extracted from AI plain text response';
+  const explanationPatterns = [
+    /(?:Explanation|Description|Reasoning|Note)\s*[:\-=]\s*\n?([\s\S]*?)(?:\n\n|(?:Generated\s+SQL|SQL|Query))/i,
+    /(?:This\s+query|The\s+query|This\s+SQL)\s+([\s\S]*?)(?:\n\n|(?:Generated\s+SQL|SQL|Query))/i,
+  ];
+  for (const pattern of explanationPatterns) {
+    const match = text.match(pattern);
+    if (match) {
+      explanation = match[1].trim();
+      break;
+    }
+  }
+
+  return {
+    type: 'query',
+    sql: sqlText,
+    explanation,
+    confidence: 0.5,
+  };
+}
+
+/**
+ * Extract visualization suggestion from plain text responses where the AI
+ * ignored the JSON format instruction and returned text instead of JSON.
+ * Returns a visualization object, or null if nothing useful could be extracted.
+ */
+function extractVisualizationFromPlainText(
+  text: string,
+  columns: string[]
+): { chartType: 'bar' | 'line' | 'pie' | 'scatter' | 'area' | 'table' | 'metric'; title: string; description: string; xAxis?: string; yAxis?: string[] } | null {
+  // Try to detect chart type mentions in plain text
+  const chartTypeMap: Record<string, 'bar' | 'line' | 'pie' | 'scatter' | 'area' | 'table' | 'metric'> = {
+    'bar chart': 'bar', 'bar': 'bar', 'column chart': 'bar',
+    'line chart': 'line', 'line': 'line', 'line graph': 'line', 'trend': 'line',
+    'pie chart': 'pie', 'pie': 'pie', 'donut': 'pie',
+    'scatter plot': 'scatter', 'scatter': 'scatter', 'scatter chart': 'scatter',
+    'area chart': 'area', 'area': 'area',
+    'metric': 'metric', 'kpi': 'metric', 'single value': 'metric',
+    'table': 'table', 'data table': 'table', 'grid': 'table',
+  };
+
+  let detectedChartType: 'bar' | 'line' | 'pie' | 'scatter' | 'area' | 'table' | 'metric' | null = null;
+  const lowerText = text.toLowerCase();
+
+  for (const [keyword, chartType] of Object.entries(chartTypeMap)) {
+    if (lowerText.includes(keyword)) {
+      detectedChartType = chartType;
+      break;
+    }
+  }
+
+  if (!detectedChartType) {
+    return null;
+  }
+
+  // Try to find axis/column references in the text
+  let xAxis: string | undefined;
+  let yAxis: string[] = [];
+
+  // Look for column names mentioned in the text
+  const mentionedColumns = columns.filter(col =>
+    lowerText.includes(col.toLowerCase())
+  );
+
+  if (mentionedColumns.length > 0) {
+    xAxis = mentionedColumns[0];
+    yAxis = mentionedColumns.slice(1);
+  }
+
+  // Try to extract a title
+  let title = 'Query Results';
+  const titleMatch = text.match(/(?:title|chart\s+title|name)\s*[:\-=]\s*"?([^"\n]+)"?/i);
+  if (titleMatch) {
+    title = titleMatch[1].trim();
+  }
+
+  return {
+    chartType: detectedChartType,
+    title,
+    description: text.slice(0, 200).trim(),
+    xAxis,
+    yAxis: yAxis.length > 0 ? yAxis : undefined,
+  };
 }
 
 // ============================================================
@@ -99,8 +227,15 @@ async function createZAICompletion(options: AICompletionOptions): Promise<AIComp
       const jsonStr = extractJSON(content);
       result.parsedJson = JSON.parse(jsonStr);
     } catch (e) {
-      console.error('Failed to parse Z-AI JSON response:', e);
-      console.error('Raw content:', content.slice(0, 500));
+      console.warn('Z-AI did not return valid JSON, attempting plain text fallback:', (e as Error).message);
+      console.debug('Raw content:', content.slice(0, 500));
+
+      // Fallback: try to extract structured data from plain text
+      const sqlFallback = extractSQLFromPlainText(content);
+      if (sqlFallback) {
+        console.info('Successfully extracted SQL from Z-AI plain text response');
+        result.parsedJson = sqlFallback;
+      }
     }
   }
 
@@ -211,8 +346,15 @@ export async function createCompletion(options: AICompletionOptions): Promise<AI
       const jsonStr = extractJSON(result.content);
       result.parsedJson = JSON.parse(jsonStr);
     } catch (e) {
-      console.error('Failed to parse AI JSON response:', e);
-      console.error('Raw content:', result.content.slice(0, 500));
+      console.warn('AI response is not valid JSON, attempting plain text fallback:', (e as Error).message);
+      console.debug('Raw content:', result.content.slice(0, 500));
+
+      // Fallback: try to extract structured data from plain text
+      const sqlFallback = extractSQLFromPlainText(result.content);
+      if (sqlFallback) {
+        console.info('Successfully extracted SQL from AI plain text response');
+        result.parsedJson = sqlFallback;
+      }
     }
   }
 
@@ -457,17 +599,123 @@ export async function suggestVisualization(
   resultData: Array<Record<string, unknown>>,
   naturalQuery: string
 ): Promise<{
-  chartType: 'bar' | 'line' | 'pie' | 'scatter' | 'area' | 'table' | 'metric';
+  chartType: 'bar' | 'line' | 'pie' | 'scatter' | 'area' | 'table' | 'metric' | 'heatmap';
   title: string;
   description: string;
   xAxis?: string;
   yAxis?: string[];
   colorBy?: string;
   metrics?: Array<{ label: string; value: number; format?: string }>;
+  /** Province column name for heatmap visualization */
+  provinceColumn?: string;
+  /** Value column name for heatmap visualization */
+  valueColumn?: string;
 }> {
   const sampleRows = resultData.slice(0, 20);
   const columns = resultData.length > 0 ? Object.keys(resultData[0]) : [];
 
+  // ---- GEOGRAPHIC DETECTION (before AI call) ----
+  // Check if the query or data looks geographic (DR provinces)
+  const geoKeywords = [
+    'provincia', 'province', 'mapa', 'map', 'geográf', 'geograph',
+    'región', 'region', 'heatmap', 'heat map', 'mapa de calor',
+    'por provincia', 'by province', 'por región', 'by region',
+    'distribución geográfica', 'geographic distribution',
+  ];
+  const lowerQuery = naturalQuery.toLowerCase();
+  const isGeoQuery = geoKeywords.some(kw => lowerQuery.includes(kw));
+
+  // Check if data contains DR province-like values
+  let hasProvinceValues = false;
+  let detectedProvinceCol: string | null = null;
+  let detectedValueCol: string | null = null;
+
+  for (const col of columns) {
+    const lowerCol = col.toLowerCase();
+    const isLikelyProvinceCol =
+      lowerCol.includes('provincia') ||
+      lowerCol.includes('province') ||
+      lowerCol.includes('region') ||
+      lowerCol.includes('región') ||
+      lowerCol.includes('state') ||
+      lowerCol.includes('estado') ||
+      lowerCol.includes('municipio') ||
+      lowerCol.includes('municipality') ||
+      lowerCol.includes('location') ||
+      lowerCol.includes('ubicación');
+
+    if (isLikelyProvinceCol) {
+      // Validate that the values look like DR provinces
+      const values = resultData.slice(0, 30).map(r => String(r[col] ?? ''));
+      const drProvinceNames = [
+        'Distrito Nacional', 'Azua', 'Baoruco', 'Barahona', 'Dajabón', 'Duarte',
+        'Elías Piña', 'El Seibo', 'Espaillat', 'Hato Mayor', 'Hermanas Mirabal',
+        'Independencia', 'La Altagracia', 'La Romana', 'La Vega',
+        'María Trinidad Sánchez', 'Monseñor Nouel', 'Monte Cristi', 'Monte Plata',
+        'Pedernales', 'Peravia', 'Puerto Plata', 'Samaná', 'Sánchez Ramírez',
+        'San Cristóbal', 'San José de Ocoa', 'San Juan', 'San Pedro de Macorís',
+        'Santiago', 'Santiago Rodríguez', 'Santo Domingo', 'Valverde',
+      ];
+      const matchCount = values.filter(v =>
+        drProvinceNames.some(p => p.toLowerCase() === v.toLowerCase().trim())
+      ).length;
+
+      if (matchCount >= Math.max(2, values.length * 0.25)) {
+        hasProvinceValues = true;
+        detectedProvinceCol = col;
+        // Find the numeric value column
+        detectedValueCol = columns.find(c => {
+          if (c === col) return false;
+          return resultData.slice(0, 10).some(r => {
+            const val = r[c];
+            return typeof val === 'number' || (!isNaN(Number(val)) && val !== null && val !== '');
+          });
+        }) || null;
+        break;
+      }
+    }
+  }
+
+  // If no column name match, try to detect by values alone
+  if (!hasProvinceValues) {
+    const drProvinceNames = [
+      'Distrito Nacional', 'Azua', 'Baoruco', 'Barahona', 'Dajabón', 'Duarte',
+      'Elías Piña', 'El Seibo', 'Espaillat', 'Hato Mayor', 'Hermanas Mirabal',
+      'Independencia', 'La Altagracia', 'La Romana', 'La Vega',
+      'María Trinidad Sánchez', 'Monseñor Nouel', 'Monte Cristi', 'Monte Plata',
+      'Pedernales', 'Peravia', 'Puerto Plata', 'Samaná', 'Sánchez Ramírez',
+      'San Cristóbal', 'San José de Ocoa', 'San Juan', 'San Pedro de Macorís',
+      'Santiago', 'Santiago Rodríguez', 'Santo Domingo', 'Valverde',
+    ];
+    for (const col of columns) {
+      const values = resultData.slice(0, 30).map(r => String(r[col] ?? '').toLowerCase().trim());
+      const matchCount = values.filter(v =>
+        drProvinceNames.some(p => p.toLowerCase() === v)
+      ).length;
+      if (matchCount >= Math.max(3, values.length * 0.3)) {
+        hasProvinceValues = true;
+        detectedProvinceCol = col;
+        detectedValueCol = columns.find(c => {
+          if (c === col) return false;
+          return resultData.slice(0, 10).some(r => typeof r[c] === 'number');
+        }) || null;
+        break;
+      }
+    }
+  }
+
+  // If this is a geographic query or data looks geographic, return heatmap
+  if ((isGeoQuery || hasProvinceValues) && detectedProvinceCol && detectedValueCol) {
+    return {
+      chartType: 'heatmap',
+      title: `Mapa de Calor — ${naturalQuery.slice(0, 60)}`,
+      description: `Heat map of ${detectedProvinceCol} by ${detectedValueCol}`,
+      provinceColumn: detectedProvinceCol,
+      valueColumn: detectedValueCol,
+    };
+  }
+
+  // ---- STANDARD VISUALIZATION (AI call) ----
   const result = await createCompletion({
     systemPrompt: `You are a data visualization expert. Analyze query results and recommend the best visualization type.
 
@@ -509,14 +757,23 @@ Recommend the best visualization for this data.`,
 
   if (result.parsedJson) {
     return result.parsedJson as {
-      chartType: 'bar' | 'line' | 'pie' | 'scatter' | 'area' | 'table' | 'metric';
+      chartType: 'bar' | 'line' | 'pie' | 'scatter' | 'area' | 'table' | 'metric' | 'heatmap';
       title: string;
       description: string;
       xAxis?: string;
       yAxis?: string[];
       colorBy?: string;
       metrics?: Array<{ label: string; value: number; format?: string }>;
+      provinceColumn?: string;
+      valueColumn?: string;
     };
+  }
+
+  // Fallback: try to extract visualization suggestion from plain text
+  const vizFallback = extractVisualizationFromPlainText(result.content, columns);
+  if (vizFallback) {
+    console.info('Successfully extracted visualization suggestion from AI plain text response');
+    return vizFallback;
   }
 
   return {

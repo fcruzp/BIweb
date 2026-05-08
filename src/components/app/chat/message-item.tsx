@@ -2,7 +2,6 @@
 
 import type { ChatMessage } from '@/stores/chat-store';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Separator } from '@/components/ui/separator';
@@ -14,16 +13,16 @@ import {
   Copy,
   Check,
   Clock,
-  Rows3,
   Table2,
   BarChart3,
-  Zap,
   Database,
   ShieldCheck,
+  MapPin,
 } from 'lucide-react';
 import { useState } from 'react';
 import { ReportMarkdown } from './report-markdown';
 import { ChartRenderer } from '../visualization/chart-renderer';
+import { DRHeatMap } from '../visualization/dr-map';
 import { DataTable } from '../visualization/data-table';
 
 interface MessageItemProps {
@@ -56,6 +55,8 @@ export function MessageItem({ message }: MessageItemProps) {
       </div>
     );
   }
+
+  const isHeatmap = message.visualization?.chartType === 'heatmap';
 
   // Assistant message — report style
   return (
@@ -90,6 +91,12 @@ export function MessageItem({ message }: MessageItemProps) {
               }`}>
                 <ShieldCheck className="h-3 w-3" />
                 <span className="font-medium">{Math.round(message.confidence * 100)}%</span> confidence
+              </div>
+            )}
+            {isHeatmap && (
+              <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 rounded-md px-2 py-1">
+                <MapPin className="h-3 w-3" />
+                Mapa geográfico
               </div>
             )}
           </div>
@@ -137,10 +144,35 @@ export function MessageItem({ message }: MessageItemProps) {
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-3 pt-3">
-              <ChartRenderer
-                visualization={message.visualization}
-                data={message.queryResult.data}
-              />
+              {/* For heatmap: show both a bar chart AND the map, stacked vertically */}
+              {isHeatmap ? (
+                <div className="space-y-4">
+                  {/* Standard chart (bar chart by default) */}
+                  <ChartRenderer
+                    visualization={{
+                      ...message.visualization,
+                      chartType: 'bar',
+                    }}
+                    data={message.queryResult.data}
+                  />
+
+                  <Separator className="bg-border/30" />
+
+                  {/* DR Heat Map */}
+                  <DRHeatMap
+                    data={message.queryResult.data}
+                    provinceColumn={message.visualization.provinceColumn || ''}
+                    valueColumn={message.visualization.valueColumn || ''}
+                    title="Mapa de Calor — República Dominicana"
+                  />
+                </div>
+              ) : (
+                <ChartRenderer
+                  visualization={message.visualization}
+                  data={message.queryResult.data}
+                />
+              )}
+
               <Separator className="my-3 bg-border/30" />
               <Button
                 variant="ghost"
