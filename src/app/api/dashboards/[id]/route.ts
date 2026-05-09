@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requireAuth, verifyOwnership } from '@/lib/auth-utils';
+import { requireAuth } from '@/lib/auth-utils';
 
 // GET /api/dashboards/[id]
 export async function GET(
@@ -19,8 +19,8 @@ export async function GET(
       return NextResponse.json({ error: 'Dashboard not found' }, { status: 404 });
     }
 
-    const isOwner = await verifyOwnership(dashboard.userId);
-    if (!isOwner) {
+    // OPTIMIZATION: Direct comparison instead of verifyOwnership()
+    if (dashboard.userId !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -48,8 +48,8 @@ export async function PUT(
       return NextResponse.json({ error: 'Dashboard not found' }, { status: 404 });
     }
 
-    const isOwner = await verifyOwnership(existing.userId);
-    if (!isOwner) {
+    // OPTIMIZATION: Direct comparison instead of verifyOwnership()
+    if (existing.userId !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -89,8 +89,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Dashboard not found' }, { status: 404 });
     }
 
-    const isOwner = await verifyOwnership(existing.userId);
-    if (!isOwner) {
+    // OPTIMIZATION: Direct comparison instead of verifyOwnership()
+    if (existing.userId !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requireAuth, verifyOwnership } from '@/lib/auth-utils';
+import { requireAuth } from '@/lib/auth-utils';
 import { findFilePath } from '@/lib/file-utils';
 import fs from 'fs';
 
@@ -10,9 +10,15 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const startTime = Date.now();
   try {
-    await requireAuth();
+    console.log(`[Schema] ⏱ START: datasource=${id}`);
 
+    const t0 = Date.now();
+    const user = await requireAuth();
+    console.log(`[Schema] ⏱ Auth: ${Date.now() - t0}ms (user=${user.id})`);
+
+    const t1 = Date.now();
     const datasource = await db.dataSource.findUnique({
       where: { id },
       include: {
@@ -20,20 +26,23 @@ export async function GET(
         contexts: true,
       },
     });
+    console.log(`[Schema] ⏱ DB query: ${Date.now() - t1}ms (found=${!!datasource})`);
 
     if (!datasource) {
       return NextResponse.json({ error: 'Data source not found' }, { status: 404 });
     }
 
-    // Verify ownership
-    const isOwner = await verifyOwnership(datasource.userId);
-    if (!isOwner) {
+    // OPTIMIZATION: Use user.id directly instead of verifyOwnership()
+    // which makes 2 extra Supabase round trips (auth + user lookup)
+    if (datasource.userId !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // Check if the file still exists
     const resolvedPath = findFilePath(datasource.filePath);
     const fileExists = resolvedPath !== null;
+
+    console.log(`[Schema] ⏱ TOTAL: ${Date.now() - startTime}ms`);
 
     return NextResponse.json({
       datasource: {
@@ -57,7 +66,7 @@ export async function DELETE(
 ) {
   const { id } = await params;
   try {
-    await requireAuth();
+    const user = await requireAuth();
 
     const datasource = await db.dataSource.findUnique({
       where: { id },
@@ -67,9 +76,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Data source not found' }, { status: 404 });
     }
 
-    // Verify ownership
-    const isOwner = await verifyOwnership(datasource.userId);
-    if (!isOwner) {
+    // OPTIMIZATION: Use user.id directly instead of verifyOwnership()
+    if (datasource.userId !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

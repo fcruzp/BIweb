@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requireAuth, verifyOwnership } from '@/lib/auth-utils';
+import { requireAuth } from '@/lib/auth-utils';
 
 // PATCH /api/chat/sessions/[id] - Rename a chat session
 export async function PATCH(
@@ -28,9 +28,8 @@ export async function PATCH(
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
-    // Verify ownership
-    const isOwner = await verifyOwnership(existing.userId);
-    if (!isOwner) {
+    // OPTIMIZATION: Direct comparison instead of verifyOwnership()
+    if (existing.userId !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -66,9 +65,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
-    // Verify ownership
-    const isOwner = await verifyOwnership(existing.userId);
-    if (!isOwner) {
+    // OPTIMIZATION: Direct comparison instead of verifyOwnership()
+    if (existing.userId !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

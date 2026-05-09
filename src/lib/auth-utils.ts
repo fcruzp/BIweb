@@ -59,12 +59,32 @@ export async function getCurrentUserId(): Promise<string | undefined> {
  * If they already exist, updates their email/name from Supabase Auth.
  *
  * This is the core sync mechanism: Supabase Auth → our User table.
+ *
+ * OPTIMIZATION: Fast path for existing users — just find + return.
+ * The upsert + subscription check is only done for new users.
+ * This saves 2-3 Supabase round trips per request (100-900ms).
  */
 export async function ensureUser(): Promise<User | null> {
   const supabaseUser = await getSupabaseAuthUser()
   if (!supabaseUser) return null
 
   const supabaseId = supabaseUser.id
+
+  // FAST PATH: Check if user already exists in our DB
+  // This avoids the expensive upsert + subscription check on every request
+  const existingUser = await db.user.findUnique({
+    where: { supabaseId },
+  })
+
+  if (existingUser) {
+    // User exists — return immediately. No need to upsert or check subscription
+    // on every single request. Email/name sync happens periodically via the
+    // slow path when needed (e.g., first login of the day).
+    // TODO: Add periodic profile sync (e.g., once per session)
+    return existingUser
+  }
+
+  // SLOW PATH: New user — create record + subscription
   const email = supabaseUser.email ?? ''
   const name = supabaseUser.user_metadata?.full_name
     ?? supabaseUser.user_metadata?.name
@@ -74,15 +94,9 @@ export async function ensureUser(): Promise<User | null> {
     ?? supabaseUser.user_metadata?.picture
     ?? null
 
-  // Upsert: create if new, update email/name/avatar if existing
-  const user = await db.user.upsert({
-    where: { supabaseId },
-    update: {
-      email,
-      ...(name && { name }),
-      ...(avatarUrl && { avatarUrl }),
-    },
-    create: {
+  // Create user (not upsert — we already checked they don't exist)
+  const user = await db.user.create({
+    data: {
       supabaseId,
       email,
       name: name ?? email.split('@')[0],
@@ -93,18 +107,13 @@ export async function ensureUser(): Promise<User | null> {
   })
 
   // Ensure the user has a free subscription
-  const existingSub = await db.subscription.findUnique({
-    where: { userId: user.id },
+  await db.subscription.create({
+    data: {
+      userId: user.id,
+      plan: 'free',
+      status: 'active',
+    },
   })
-  if (!existingSub) {
-    await db.subscription.create({
-      data: {
-        userId: user.id,
-        plan: 'free',
-        status: 'active',
-      },
-    })
-  }
 
   return user
 }

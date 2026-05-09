@@ -9,9 +9,14 @@ import { v4 as uuidv4 } from 'uuid';
 
 // GET /api/datasources - List all data sources (filtered by authenticated user)
 export async function GET() {
+  const startTime = Date.now();
   try {
+    console.log('[DataSources] ⏱ START: list');
+    const t0 = Date.now();
     const user = await requireAuth();
+    console.log(`[DataSources] ⏱ Auth: ${Date.now() - t0}ms`);
 
+    const t1 = Date.now();
     const datasources = await db.dataSource.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' },
@@ -20,6 +25,8 @@ export async function GET() {
         contexts: true,
       },
     });
+    console.log(`[DataSources] ⏱ DB query: ${Date.now() - t1}ms, count=${datasources.length}`);
+    console.log(`[DataSources] ⏱ TOTAL: ${Date.now() - startTime}ms`);
     return NextResponse.json({ datasources });
   } catch (error) {
     if (error instanceof Error && error.message === 'Authentication required') {

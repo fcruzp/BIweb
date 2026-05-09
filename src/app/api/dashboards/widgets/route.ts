@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requireAuth, verifyOwnership } from '@/lib/auth-utils';
+import { requireAuth } from '@/lib/auth-utils';
 
 // POST /api/dashboards/widgets - Create a new widget
 export async function POST(request: NextRequest) {
@@ -37,9 +37,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Dashboard not found' }, { status: 404 });
     }
 
-    // Verify ownership of the dashboard
-    const isOwner = await verifyOwnership(dashboard.userId);
-    if (!isOwner) {
+    // OPTIMIZATION: Direct comparison instead of verifyOwnership()
+    if (dashboard.userId !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -92,9 +91,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Dashboard not found' }, { status: 404 });
     }
 
-    // Verify ownership of the dashboard
-    const isOwner = await verifyOwnership(dashboard.userId);
-    if (!isOwner) {
+    // OPTIMIZATION: Direct comparison instead of verifyOwnership()
+    if (dashboard.userId !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

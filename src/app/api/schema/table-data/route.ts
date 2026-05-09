@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { openDatabase } from '@/lib/sqlite';
 import { resolveFilePath } from '@/lib/file-utils';
-import { requireAuth, verifyOwnership } from '@/lib/auth-utils';
+import { requireAuth } from '@/lib/auth-utils';
 
 // GET /api/schema/table-data?dataSourceId=...&tableName=...&page=1&pageSize=10
 export async function GET(request: NextRequest) {
@@ -46,9 +46,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Verify the data source belongs to the authenticated user
-    const isOwner = await verifyOwnership(datasource.userId);
-    if (!isOwner) {
+    // OPTIMIZATION: Direct comparison instead of verifyOwnership()
+    if (datasource.userId !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

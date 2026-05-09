@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requireAuth, verifyOwnership } from '@/lib/auth-utils';
+import { requireAuth } from '@/lib/auth-utils';
 
 // GET /api/chat/sessions - List chat sessions for a data source (filtered by user)
 export async function GET(request: NextRequest) {
@@ -26,8 +26,8 @@ export async function GET(request: NextRequest) {
     if (!dataSource) {
       return NextResponse.json({ error: 'Data source not found' }, { status: 404 });
     }
-    const isOwner = await verifyOwnership(dataSource.userId);
-    if (!isOwner) {
+    // OPTIMIZATION: Direct comparison instead of verifyOwnership()
+    if (dataSource.userId !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -81,8 +81,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Data source not found' }, { status: 404 });
     }
 
-    const isOwner = await verifyOwnership(dataSource.userId);
-    if (!isOwner) {
+    // OPTIMIZATION: Direct comparison instead of verifyOwnership()
+    if (dataSource.userId !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

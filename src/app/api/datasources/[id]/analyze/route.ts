@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { generateSchemaDescription, generateSampleDataDescription } from '@/lib/sqlite';
 import { analyzeSchemaWithContext } from '@/lib/ai';
-import { requireAuth, verifyOwnership } from '@/lib/auth-utils';
+import { requireAuth } from '@/lib/auth-utils';
 
 // Timeout wrapper — rejects if the promise takes longer than `ms` milliseconds
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -40,8 +40,8 @@ export async function POST(
 
   try {
     console.log('[Analyze] Step 1: Checking auth...');
-    await requireAuth();
-    console.log('[Analyze] Step 1: Auth OK');
+    const user = await requireAuth();
+    console.log(`[Analyze] Step 1: Auth OK (user=${user.id})`);
 
     console.log('[Analyze] Step 2: Fetching datasource from DB...');
     const datasource = await db.dataSource.findUnique({
@@ -56,9 +56,8 @@ export async function POST(
 
     console.log(`[Analyze] Step 2: Found datasource: name="${datasource.name}", status="${datasource.status}", schemas=${datasource.schemas.length}, contexts=${datasource.contexts.length}, filePath="${datasource.filePath}"`);
 
-    // Verify ownership
-    const isOwner = await verifyOwnership(datasource.userId);
-    if (!isOwner) {
+    // OPTIMIZATION: Direct comparison instead of verifyOwnership()
+    if (datasource.userId !== user.id) {
       console.log('[Analyze] Ownership check FAILED');
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
