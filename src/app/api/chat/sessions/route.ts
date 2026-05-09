@@ -26,7 +26,8 @@ export async function GET(request: NextRequest) {
     if (!dataSource) {
       return NextResponse.json({ error: 'Data source not found' }, { status: 404 });
     }
-    if (!verifyOwnership(dataSource.userId)) {
+    const isOwner = await verifyOwnership(dataSource.userId);
+    if (!isOwner) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -80,7 +81,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Data source not found' }, { status: 404 });
     }
 
-    if (!verifyOwnership(dataSource.userId)) {
+    const isOwner = await verifyOwnership(dataSource.userId);
+    if (!isOwner) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

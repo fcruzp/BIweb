@@ -147,7 +147,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify the data source belongs to the authenticated user
-    if (!verifyOwnership(datasource.userId)) {
+    const isDatasourceOwner = await verifyOwnership(datasource.userId);
+    if (!isDatasourceOwner) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -174,7 +175,8 @@ export async function POST(request: NextRequest) {
       if (!existingSession) {
         return NextResponse.json({ error: 'Session not found' }, { status: 404 });
       }
-      if (!verifyOwnership(existingSession.userId)) {
+      const isSessionOwner = await verifyOwnership(existingSession.userId);
+      if (!isSessionOwner) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
     }

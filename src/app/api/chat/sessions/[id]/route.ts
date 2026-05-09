@@ -29,7 +29,8 @@ export async function PATCH(
     }
 
     // Verify ownership
-    if (!verifyOwnership(existing.userId)) {
+    const isOwner = await verifyOwnership(existing.userId);
+    if (!isOwner) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -66,7 +67,8 @@ export async function DELETE(
     }
 
     // Verify ownership
-    if (!verifyOwnership(existing.userId)) {
+    const isOwner = await verifyOwnership(existing.userId);
+    if (!isOwner) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

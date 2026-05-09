@@ -23,7 +23,8 @@ export async function GET(
     }
 
     // Verify ownership of the session
-    if (!verifyOwnership(session.userId)) {
+    const isOwner = await verifyOwnership(session.userId);
+    if (!isOwner) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
