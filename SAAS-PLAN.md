@@ -78,10 +78,17 @@
 | Crear auth-utils temporales (Fase 1) | ✅ Completado (`src/lib/auth-utils.ts`) |
 | Push schema a SQLite (mantener app funcionando) | ✅ Completado |
 | Probar todas las APIs con el nuevo schema | ✅ Completado (todas funcionan) |
-| Push schema a Supabase PostgreSQL | 🔴 BLOQUEADO — falta password de BD |
+| Push schema a Supabase PostgreSQL | 🔴 BLOQUEADO — Connection Pooler no habilitado |
 | Migrar datos existentes | ⬜ Pendiente (después de push a PostgreSQL) |
 
-> ⚠️ **BLOQUEADOR**: Para completar la migración a PostgreSQL, necesitas proporcionar el **password real** de tu base de datos Supabase. El connection string tiene `[YOUR-PASSWORD]` como placeholder. Una vez lo proporciones, se ejecuta `db:push` y la app queda conectada a Supabase.
+> 🔴 **BLOQUEADOR ACTUAL**: El password fue proporcionado, pero la conexión a PostgreSQL falla por dos razones:
+> 1. **Conexión directa** (`db.*.supabase.co:5432`): Solo resuelve a IPv6, este ambiente no soporta IPv6 saliente
+> 2. **Connection Pooler** (`aws-0-us-east-1.pooler.supabase.com:6543`): Retorna "Tenant or user not found" — el pooler no tiene mapeo para este proyecto
+>
+> **SOLUCIÓN**: Ir al **Supabase Dashboard → Settings → Database → Connection Pooling** y:
+> 1. Verificar que el Connection Pooling esté **habilitado**
+> 2. Copiar el **connection string exacto** que aparece ahí (tiene el formato correcto del usuario)
+> 3. Proveer también la **service_role key** (para la API REST) que aparece en Settings → API
 
 ### Lo que NECESITA el usuario (para empezar)
 
@@ -449,10 +456,13 @@ Para completar la **Fase 1**, falta:
 3. ✅ ~~En Settings → API, copiar: **Project URL** y **anon public key**~~
 4. ✅ ~~En Settings → Database, copiar la **Connection string** (URI format)~~
 5. ✅ ~~Pasar esos datos para configurar la app~~
-6. 🔴 **Proporcionar el password real de la base de datos** (reemplazar `[YOUR-PASSWORD]` en el .env)
+6. ✅ ~~Proporcionar el password de la base de datos~~
+7. 🔴 **Habilitar Connection Pooling en Supabase Dashboard** (Settings → Database → Connection Pooling)
+8. 🔴 **Copiar el connection string EXACTO del pooler** (con el formato de usuario correcto)
+9. 🔴 **Copiar la service_role key** (Settings → API → service_role key)
 
-Una vez con el password, se ejecuta:
-1. Descomentar las líneas de `DATABASE_URL` y `DIRECT_URL` en `.env`
-2. Reemplazar `prisma/schema.prisma` con `prisma/schema.postgresql.prisma`
+Una vez con el pooler habilitado y los datos correctos:
+1. Actualizar `.env` con el connection string del pooler
+2. Cambiar `prisma/schema.prisma` a provider postgresql (el schema ya está listo en `schema.postgresql.prisma`)
 3. Ejecutar `bun run db:generate && bun run db:push`
-4. Reiniciar el servidor — app conectada a Supabase PostgreSQL
+4. Reiniciar el servidor — app conectada a Supabase PostgreSQL 🚀

@@ -33,3 +33,36 @@ Stage Summary:
 - PostgreSQL schema saved and ready for final migration
 - BLOCKER: Need actual database password to push schema to Supabase PostgreSQL
 - The .env has placeholder [YOUR-PASSWORD] in the connection string
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Complete Supabase PostgreSQL migration with provided password
+
+Work Log:
+- User provided database password: GGu12qk8uCNsMSbW
+- Updated .env with actual PostgreSQL connection strings (pooler and direct)
+- Switched Prisma schema to PostgreSQL provider (datasource db { provider = "postgresql", url, directUrl })
+- Ran prisma generate successfully for PostgreSQL client
+- Attempted db:push to Supabase → FAILED: "Can't reach database server at db.rsrcdaepiwjqfynwwzcn.supabase.co:5432"
+- Diagnosed: Direct connection (db.*.supabase.co:5432) only resolves to IPv6 address (2600:1f18:...)
+- This sandbox environment does NOT support outbound IPv6 connections
+- Tried Supabase pooler (aws-0-us-east-1.pooler.supabase.com:6543) → TCP port is OPEN (confirmed)
+- But pooler returns "Tenant or user not found" for ALL username formats tried:
+  - postgres.rsrcdaepiwjqfynwwzcn, postgres, rsrcdaepiwjqfynwwzcn.postgres, etc.
+- Tried all 12+ Supabase pooler regions → same error
+- Tried ports 6543 and 5432 on pooler → same error
+- Tried with SSL disabled, with pgbouncer=true, without pgbouncer → same error
+- Verified Supabase project IS active: REST API responds correctly, auth/v1/settings returns config
+- Root cause: Supabase Connection Pooler (Supavisor) does not have a tenant mapping for this project
+- This likely means the pooler needs to be ENABLED in Supabase Dashboard → Settings → Database
+- Reverted to SQLite to keep the app running
+- All code changes are preserved (User, Subscription, UsageEvent models, userId fields, Supabase clients)
+
+Stage Summary:
+- App is fully functional with SQLite (with all new models for SaaS)
+- PostgreSQL migration BLOCKED by network connectivity:
+  1. Direct connection: IPv6 only, this environment doesn't support IPv6
+  2. Pooler connection: "Tenant or user not found" — pooler needs to be enabled in Supabase Dashboard
+- ACTION NEEDED: User must go to Supabase Dashboard → Settings → Database → enable Connection Pooling
+- Once pooler is enabled, the migration is just: swap .env lines + db:push

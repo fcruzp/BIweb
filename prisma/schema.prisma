@@ -8,7 +8,7 @@ datasource db {
 }
 
 // ============================================
-// User & Auth Models (Phase 2 - will use PostgreSQL + Supabase Auth)
+// User & Auth Models
 // ============================================
 
 model User {
