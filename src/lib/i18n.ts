@@ -208,6 +208,25 @@ export const translations = {
     analyzing: 'Analyzing...',
     uploaded: 'Uploaded',
 
+    // Upload progress steps
+    uploadProgressTitle: 'Processing Data Source',
+    uploadProgressDesc: 'Please wait while your database is processed. You can skip the AI analysis step.',
+    uploadCompleteDesc: 'Your database is ready! You can start querying your data now.',
+    uploadStepUploading: 'Uploading File',
+    uploadStepUploadingDesc: 'Sending the database file to the server...',
+    uploadStepProcessing: 'Processing...',
+    uploadStepExtracting: 'Extracting Schema',
+    uploadStepExtractingDesc: 'Reading tables, columns, and sample data from the database...',
+    uploadStepExtractingTime: 'Usually 2-5 seconds',
+    uploadStepAnalyzing: 'AI Analysis',
+    uploadStepAnalyzingDesc: 'Generating semantic context, business glossary, and relationships...',
+    uploadStepAnalyzingProgress: 'AI is analyzing your data...',
+    uploadStepFinishing: 'Finishing up...',
+    uploadOverallProgress: 'Overall progress',
+    uploadSkipAnalysis: 'Skip & Start Querying',
+    uploadStartQuerying: 'Start Querying',
+    uploadFailed: 'Upload Failed',
+
     // Data source info
     fileInfo: 'File Info',
     tableName: 'Table',
@@ -441,6 +460,25 @@ export const translations = {
     uploadBtn: 'Subir',
     analyzing: 'Analizando...',
     uploaded: 'Subido',
+
+    // Upload progress steps
+    uploadProgressTitle: 'Procesando Fuente de Datos',
+    uploadProgressDesc: 'Espera mientras se procesa tu base de datos. Puedes saltar el análisis de IA.',
+    uploadCompleteDesc: '¡Tu base de datos está lista! Ya puedes empezar a consultar tus datos.',
+    uploadStepUploading: 'Subiendo Archivo',
+    uploadStepUploadingDesc: 'Enviando el archivo de base de datos al servidor...',
+    uploadStepProcessing: 'Procesando...',
+    uploadStepExtracting: 'Extrayendo Esquema',
+    uploadStepExtractingDesc: 'Leyendo tablas, columnas y datos de muestra de la base de datos...',
+    uploadStepExtractingTime: 'Generalmente 2-5 segundos',
+    uploadStepAnalyzing: 'Análisis con IA',
+    uploadStepAnalyzingDesc: 'Generando contexto semántico, glosario de negocio y relaciones...',
+    uploadStepAnalyzingProgress: 'La IA está analizando tus datos...',
+    uploadStepFinishing: 'Finalizando...',
+    uploadOverallProgress: 'Progreso general',
+    uploadSkipAnalysis: 'Saltar y Empezar a Consultar',
+    uploadStartQuerying: 'Empezar a Consultar',
+    uploadFailed: 'Error al Subir',
 
     // Data source info
     fileInfo: 'Info del Archivo',
