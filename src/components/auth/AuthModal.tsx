@@ -158,7 +158,7 @@ function SignInForm({ onForgotPassword }: { onForgotPassword: () => void }) {
       const { error: authError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/`,
+          redirectTo: `${window.location.origin}/auth/callback`,
         },
       });
 
@@ -339,7 +339,7 @@ function SignUpForm() {
       const { error: authError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/`,
+          redirectTo: `${window.location.origin}/auth/callback`,
         },
       });
 
@@ -493,7 +493,7 @@ function ForgotPasswordForm({ onBackToSignIn }: { onBackToSignIn: () => void }) 
     try {
       const supabase = createClient();
       const { error: authError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/`,
+        redirectTo: `${window.location.origin}/auth/callback`,
       });
 
       if (authError) {
