@@ -1,6 +1,6 @@
 # 🚀 DataMind BI — Plan SaaS Consolidado
 
-> Última actualización: Marzo 2025
+> Última actualización: Marzo 2025 | Progreso: Fase 1 parcialmente completada
 
 ---
 
@@ -50,23 +50,38 @@
 | **Límite por archivo** | 100MB |
 | **Límite total por usuario** | Según plan (5MB - ∞) |
 
+### Proyecto Supabase Creado
+
+| Dato | Valor |
+|------|-------|
+| **Project URL** | https://rsrcdaepiwjqfynwwzcn.supabase.co |
+| **Región** | US East |
+| **Plan** | Free |
+
 ### Tareas de Migración
 
 | Tarea | Estado |
 |-------|--------|
-| Cambiar provider Prisma a postgresql | ⬜ Pendiente |
-| Agregar modelo `User` al schema | ⬜ Pendiente |
-| Agregar `userId` a `DataSource` | ⬜ Pendiente |
-| Agregar `userId` a `ChatSession` | ⬜ Pendiente |
-| Agregar `userId` a `ChatMessage` | ⬜ Pendiente |
-| Agregar `userId` a `Dashboard` | ⬜ Pendiente |
-| Agregar `userId` a `DashboardWidget` | ⬜ Pendiente |
-| Agregar `userId` a `QueryHistory` | ⬜ Pendiente |
-| Agregar `userId` a `SourceSchema` | ⬜ Pendiente |
-| Agregar `userId` a `SourceContext` | ⬜ Pendiente |
-| Agregar modelos `Subscription` y `UsageEvent` | ⬜ Pendiente |
-| Migrar datos existentes (si hay) | ⬜ Pendiente |
-| Probar todas las APIs con el nuevo schema | ⬜ Pendiente |
+| Cambiar provider Prisma a postgresql | 🟡 Schema listo (`schema.postgresql.prisma`), pendiente activar |
+| Agregar modelo `User` al schema | ✅ Completado |
+| Agregar `userId` a `DataSource` | ✅ Completado (nullable hasta Fase 2) |
+| Agregar `userId` a `ChatSession` | ✅ Completado (nullable hasta Fase 2) |
+| Agregar `userId` a `ChatMessage` | ⬜ No requerido (hereda de ChatSession) |
+| Agregar `userId` a `Dashboard` | ✅ Completado (nullable hasta Fase 2) |
+| Agregar `userId` a `DashboardWidget` | ⬜ No requerido (hereda de Dashboard) |
+| Agregar `userId` a `QueryHistory` | ⬜ No requerido (hereda de DataSource) |
+| Agregar `userId` a `SourceSchema` | ⬜ No requerido (hereda de DataSource) |
+| Agregar `userId` a `SourceContext` | ⬜ No requerido (hereda de DataSource) |
+| Agregar modelos `Subscription` y `UsageEvent` | ✅ Completado |
+| Instalar `@supabase/supabase-js` + `@supabase/ssr` | ✅ Completado |
+| Crear Supabase client utilities | ✅ Completado (`src/lib/supabase/`) |
+| Crear auth-utils temporales (Fase 1) | ✅ Completado (`src/lib/auth-utils.ts`) |
+| Push schema a SQLite (mantener app funcionando) | ✅ Completado |
+| Probar todas las APIs con el nuevo schema | ✅ Completado (todas funcionan) |
+| Push schema a Supabase PostgreSQL | 🔴 BLOQUEADO — falta password de BD |
+| Migrar datos existentes | ⬜ Pendiente (después de push a PostgreSQL) |
+
+> ⚠️ **BLOQUEADOR**: Para completar la migración a PostgreSQL, necesitas proporcionar el **password real** de tu base de datos Supabase. El connection string tiene `[YOUR-PASSWORD]` como placeholder. Una vez lo proporciones, se ejecuta `db:push` y la app queda conectada a Supabase.
 
 ### Lo que NECESITA el usuario (para empezar)
 
@@ -114,7 +129,7 @@
 
 | Tarea | Estado |
 |-------|--------|
-| Configurar Supabase Auth Client (`@supabase/supabase-js` + `@supabase/ssr`) | ⬜ Pendiente |
+| Configurar Supabase Auth Client (`@supabase/supabase-js` + `@supabase/ssr`) | ✅ Completado (client/server/middleware creados) |
 | Crear páginas de Auth (Login, Register, Forgot Password, Verify Email) | ⬜ Pendiente |
 | Crear `useAuth()` hook (user, isAuthenticated, login(), logout(), signUp()) | ⬜ Pendiente |
 | Middleware de protección (redirigir a login si no autenticado) | ⬜ Pendiente |
@@ -427,12 +442,17 @@ Con Z-AI (sin costo de IA):
 
 ## ⚡ Próximo Paso
 
-Para empezar la **Fase 1**, el usuario debe:
+Para completar la **Fase 1**, falta:
 
-1. ✅ Crear cuenta en [supabase.com](https://supabase.com)
-2. ✅ Crear proyecto: nombre `datamind-bi`, región **US East**, password seguro
-3. ✅ En Settings → API, copiar: **Project URL** y **anon public key**
-4. ✅ En Settings → Database, copiar la **Connection string** (URI format)
-5. ✅ Pasar esos datos para configurar la app
+1. ✅ ~~Crear cuenta en [supabase.com](https://supabase.com)~~
+2. ✅ ~~Crear proyecto: nombre `datamind-bi`, región **US East**, password seguro~~
+3. ✅ ~~En Settings → API, copiar: **Project URL** y **anon public key**~~
+4. ✅ ~~En Settings → Database, copiar la **Connection string** (URI format)~~
+5. ✅ ~~Pasar esos datos para configurar la app~~
+6. 🔴 **Proporcionar el password real de la base de datos** (reemplazar `[YOUR-PASSWORD]` en el .env)
 
-Con esa información se inicia la migración a PostgreSQL + modelo User + userId en todo.
+Una vez con el password, se ejecuta:
+1. Descomentar las líneas de `DATABASE_URL` y `DIRECT_URL` en `.env`
+2. Reemplazar `prisma/schema.prisma` con `prisma/schema.postgresql.prisma`
+3. Ejecutar `bun run db:generate && bun run db:push`
+4. Reiniciar el servidor — app conectada a Supabase PostgreSQL

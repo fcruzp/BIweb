@@ -1,14 +1,22 @@
+// ============================================
+// DataMind BI — PostgreSQL Schema for Supabase
+// ============================================
+// This is the target schema for when we migrate from SQLite to Supabase PostgreSQL.
+// To use: Replace prisma/schema.prisma with this content, update .env, and run db:push.
+// ============================================
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ============================================
-// User & Auth Models (Phase 2 - will use PostgreSQL + Supabase Auth)
+// User & Auth Models
 // ============================================
 
 model User {
@@ -34,6 +42,9 @@ model User {
 
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
+
+  @@index([supabaseId])
+  @@index([email])
 }
 
 model Subscription {
@@ -52,6 +63,10 @@ model Subscription {
 
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([stripeCustomerId])
+  @@index([status])
 }
 
 model UsageEvent {
@@ -63,6 +78,10 @@ model UsageEvent {
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt     DateTime  @default(now())
+
+  @@index([userId])
+  @@index([eventType])
+  @@index([createdAt])
 }
 
 // ============================================
@@ -71,7 +90,7 @@ model UsageEvent {
 
 model DataSource {
   id           String         @id @default(cuid())
-  userId       String?        // Multi-tenant: owner (nullable until Phase 2 Auth)
+  userId       String         // Multi-tenant: owner of this data source (required in PostgreSQL)
   name         String
   fileName     String
   fileSize     Int
@@ -86,7 +105,10 @@ model DataSource {
   queries      QueryHistory[]
   sessions     ChatSession[]
 
-  user         User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
 }
 
 model SourceSchema {
@@ -99,6 +121,8 @@ model SourceSchema {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   dataSource   DataSource @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+
+  @@index([dataSourceId])
 }
 
 model SourceContext {
@@ -111,6 +135,8 @@ model SourceContext {
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
   dataSource       DataSource @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+
+  @@index([dataSourceId])
 }
 
 // ============================================
@@ -119,7 +145,7 @@ model SourceContext {
 
 model ChatSession {
   id           String         @id @default(cuid())
-  userId       String?        // Multi-tenant: owner (nullable until Phase 2 Auth)
+  userId       String         // Multi-tenant: owner of this session (required in PostgreSQL)
   dataSourceId String
   title        String         @default("New Chat")
   createdAt    DateTime       @default(now())
@@ -127,8 +153,11 @@ model ChatSession {
   messages     ChatMessage[]
   queries      QueryHistory[]
 
-  user         User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   dataSource   DataSource     @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([dataSourceId])
 }
 
 model ChatMessage {
@@ -141,6 +170,8 @@ model ChatMessage {
   visualization String?     // JSON string of visualization config
   createdAt     DateTime    @default(now())
   session       ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
 }
 
 // ============================================
@@ -161,6 +192,9 @@ model QueryHistory {
   createdAt     DateTime      @default(now())
   dataSource    DataSource    @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
   session       ChatSession?  @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([dataSourceId])
+  @@index([createdAt])
 }
 
 // ============================================
@@ -169,7 +203,7 @@ model QueryHistory {
 
 model Dashboard {
   id          String           @id @default(cuid())
-  userId      String?          // Multi-tenant: owner (nullable until Phase 2 Auth)
+  userId      String           // Multi-tenant: owner of this dashboard (required in PostgreSQL)
   name        String
   description String?
   layout      String           // JSON string of layout config
@@ -177,7 +211,9 @@ model Dashboard {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
-  user        User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model DashboardWidget {
@@ -196,4 +232,6 @@ model DashboardWidget {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   dashboard     Dashboard @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+
+  @@index([dashboardId])
 }
