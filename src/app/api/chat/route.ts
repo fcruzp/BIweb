@@ -34,17 +34,22 @@ function serializeError(error: unknown): { message: string; stack?: string; name
 }
 
 // ============================================================
-// SSE event encoder
+// SSE encoder
 // ============================================================
 
 const encoder = new TextEncoder();
 
-function sseChunk(event: Record<string, unknown>): Uint8Array {
+function sseData(event: Record<string, unknown>): Uint8Array {
   return encoder.encode(`data: ${JSON.stringify(event)}\n\n`);
 }
 
+/** SSE comment — used to force the server to flush headers without sending data */
+function sseComment(): Uint8Array {
+  return encoder.encode(': ping\n\n');
+}
+
 // ============================================================
-// Step logger — logs timing to console + returns log entry for SSE
+// Step logger
 // ============================================================
 
 interface StepLog {
@@ -61,7 +66,7 @@ function createStepLogger(overallStart: number) {
   function startStep(step: string, detail?: string): StepLog {
     stepStartTimes[step] = Date.now();
     const log: StepLog = { step, duration_ms: Date.now() - overallStart, detail, status: 'start' };
-    console.log(`[Chat] ⏱ STEP START: ${step} (overall: ${log.duration_ms}ms)${detail ? ` — ${detail}` : ''}`);
+    console.log(`[Chat] ⏱ START: ${step} (overall: ${log.duration_ms}ms)${detail ? ` — ${detail}` : ''}`);
     return log;
   }
 
@@ -70,7 +75,7 @@ function createStepLogger(overallStart: number) {
     const stepDuration = Date.now() - stepStart;
     const overallDuration = Date.now() - overallStart;
     const log: StepLog = { step, duration_ms: stepDuration, detail, status: 'done', overall_ms: overallDuration };
-    console.log(`[Chat] ⏱ STEP DONE: ${step} — ${stepDuration}ms (overall: ${overallDuration}ms)${detail ? ` — ${detail}` : ''}`);
+    console.log(`[Chat] ⏱ DONE: ${step} — ${stepDuration}ms (overall: ${overallDuration}ms)${detail ? ` — ${detail}` : ''}`);
     return log;
   }
 
@@ -79,7 +84,7 @@ function createStepLogger(overallStart: number) {
     const stepDuration = Date.now() - stepStart;
     const overallDuration = Date.now() - overallStart;
     const log: StepLog = { step, duration_ms: stepDuration, detail, status: 'error', overall_ms: overallDuration };
-    console.error(`[Chat] ⏱ STEP ERROR: ${step} — ${stepDuration}ms (overall: ${overallDuration}ms)${detail ? ` — ${detail}` : ''}`);
+    console.error(`[Chat] ⏱ ERROR: ${step} — ${stepDuration}ms (overall: ${overallDuration}ms)${detail ? ` — ${detail}` : ''}`);
     return log;
   }
 
@@ -87,7 +92,7 @@ function createStepLogger(overallStart: number) {
 }
 
 // ============================================================
-// Localized messages
+// i18n
 // ============================================================
 
 const i18n: Record<string, Record<string, string>> = {
@@ -222,81 +227,89 @@ function t(lang: string, key: string): string {
 }
 
 // ============================================================
-// Heartbeat helper — yields heartbeat events every N seconds
+// POST /api/chat — SSE streaming via TransformStream
+// ============================================================
+// CRITICAL ARCHITECTURE: We use TransformStream instead of
+// ReadableStream.from(asyncGenerator) because the latter may
+// not properly stream in Bun's Next.js runtime — the generator
+// might not start executing until the client reads, causing
+// a deadlock where the client waits for data that never comes.
+//
+// With TransformStream:
+// 1. The Response is returned IMMEDIATELY with the readable side
+// 2. A background async function writes to the writable side
+// 3. Heartbeats via setInterval keep the connection alive
 // ============================================================
 
-async function yieldHeartbeat(
-  startTime: number,
-  intervalMs: number,
-): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, intervalMs));
-}
-
-// POST /api/chat - Process a natural language query (SSE streaming via async generator)
-// CRITICAL: This uses ReadableStream.from(asyncGenerator) instead of
-// new ReadableStream({ start(controller) {...} }) because the latter
-// crashes Bun's Next.js runtime silently.
 export async function POST(request: NextRequest) {
   const overallStart = Date.now();
   const log = createStepLogger(overallStart);
 
   console.log(`[Chat] === REQUEST RECEIVED === (handler started at ${overallStart})`);
 
-  // Create the SSE stream using an async generator
-  async function* generate(): AsyncGenerator<Uint8Array> {
-    // 1. Send connected event IMMEDIATELY — client knows server received request
-    yield sseChunk({ type: 'connected', timestamp: overallStart });
-    console.log('[Chat] SSE "connected" event yielded');
+  // Create TransformStream — readable side goes to Response,
+  // writable side is written to by background processing
+  const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
+  const writer = writable.getWriter();
 
-    let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
-    // We'll yield heartbeat inline between steps instead of using setInterval
-    // since setInterval + controller doesn't work in generators
-
+  // Start heartbeat interval — writes a heartbeat + SSE comment every 3s
+  // This keeps the connection alive and forces Caddy to flush
+  const heartbeatInterval = setInterval(async () => {
     try {
-      // ──────────────────────────────────────────────────────────
-      // STEP 0: Authentication
-      // ──────────────────────────────────────────────────────────
+      // SSE comment to force flush
+      await writer.write(sseComment());
+      // Heartbeat data event for client elapsed time display
+      await writer.write(sseData({ type: 'heartbeat', elapsed_ms: Date.now() - overallStart }));
+      console.log(`[Chat] 💓 heartbeat sent (elapsed: ${Date.now() - overallStart}ms)`);
+    } catch (e) {
+      // Writer might be closed — ignore
+      console.log('[Chat] Heartbeat write failed (writer closed?)');
+    }
+  }, 3000);
+
+  // Start background processing
+  (async () => {
+    try {
+      // STEP 0: Send connected event + SSE comment to force header flush
+      await writer.write(sseComment()); // Force headers to be sent NOW
+      await writer.write(sseData({ type: 'connected', timestamp: overallStart }));
+      console.log('[Chat] SSE "connected" event written to stream');
+
+      // STEP 1: Authentication
       let user;
       try {
         log.startStep('auth');
         user = await requireAuth();
         const logEntry = log.endStep('auth', `user=${user.id}`);
-        yield sseChunk({ type: 'log', ...logEntry });
+        await writer.write(sseData({ type: 'log', ...logEntry }));
       } catch (authError) {
         const logEntry = log.errorStep('auth', serializeError(authError).message);
-        yield sseChunk({ type: 'log', ...logEntry });
-        yield sseChunk({ type: 'error', error: 'Authentication required' });
-        return; // End the generator
+        await writer.write(sseData({ type: 'log', ...logEntry }));
+        await writer.write(sseData({ type: 'error', error: 'Authentication required' }));
+        return; // Exit background processing
       }
 
-      // ──────────────────────────────────────────────────────────
-      // STEP 1: Parse request body
-      // ──────────────────────────────────────────────────────────
+      // STEP 2: Parse request body
       const parseLog = log.startStep('parse_body');
-      yield sseChunk({ type: 'log', ...parseLog });
+      await writer.write(sseData({ type: 'log', ...parseLog }));
 
       const body = await request.json();
       const { message, dataSourceId, sessionId, queryRowLimit } = body;
 
       const parseDone = log.endStep('parse_body', `message="${message?.slice(0, 50)}", dataSourceId=${dataSourceId}`);
-      yield sseChunk({ type: 'log', ...parseDone });
+      await writer.write(sseData({ type: 'log', ...parseDone }));
 
       if (!message || !dataSourceId) {
-        yield sseChunk({ type: 'error', error: 'Message and dataSourceId are required' });
+        await writer.write(sseData({ type: 'error', error: 'Message and dataSourceId are required' }));
         return;
       }
 
       // Detect user language early
       const lang = detectLanguage(message);
 
-      // ──────────────────────────────────────────────────────────
-      // STEP 2: Fetch datasource from DB
-      // ──────────────────────────────────────────────────────────
+      // STEP 3: Fetch datasource from DB
       const fetchLog = log.startStep('fetch_datasource', `id=${dataSourceId}`);
-      yield sseChunk({ type: 'log', ...fetchLog });
-
-      // Yield a heartbeat while waiting for DB
-      yield sseChunk({ type: 'heartbeat', elapsed_ms: Date.now() - overallStart });
+      await writer.write(sseData({ type: 'log', ...fetchLog }));
 
       const datasource = await db.dataSource.findUnique({
         where: { id: dataSourceId },
@@ -304,12 +317,12 @@ export async function POST(request: NextRequest) {
       });
 
       const fetchDone = log.endStep('fetch_datasource', `found=${!!datasource}, schemas=${datasource?.schemas.length}`);
-      yield sseChunk({ type: 'log', ...fetchDone });
+      await writer.write(sseData({ type: 'log', ...fetchDone }));
 
       if (!datasource) {
         const logEntry = log.errorStep('fetch_datasource', 'NOT FOUND');
-        yield sseChunk({ type: 'log', ...logEntry });
-        yield sseChunk({ type: 'error', error: 'Data source not found' });
+        await writer.write(sseData({ type: 'log', ...logEntry }));
+        await writer.write(sseData({ type: 'error', error: 'Data source not found' }));
         return;
       }
 
@@ -317,17 +330,17 @@ export async function POST(request: NextRequest) {
       const isDatasourceOwner = datasource.userId === user.id;
       if (!isDatasourceOwner) {
         const logEntry = log.errorStep('fetch_datasource', 'FORBIDDEN');
-        yield sseChunk({ type: 'log', ...logEntry });
-        yield sseChunk({ type: 'error', error: 'Forbidden' });
+        await writer.write(sseData({ type: 'log', ...logEntry }));
+        await writer.write(sseData({ type: 'error', error: 'Forbidden' }));
         return;
       }
 
       if (datasource.status === 'error' && datasource.schemas.length === 0) {
-        yield sseChunk({ type: 'error', error: 'Data source has errors and no schema available. Please re-upload the file.' });
+        await writer.write(sseData({ type: 'error', error: 'Data source has errors and no schema available. Please re-upload the file.' }));
         return;
       }
       if (datasource.schemas.length === 0) {
-        yield sseChunk({ type: 'error', error: 'Data source has no schema information. Please wait for processing or re-upload.' });
+        await writer.write(sseData({ type: 'error', error: 'Data source has no schema information. Please wait for processing or re-upload.' }));
         return;
       }
 
@@ -344,11 +357,9 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // ──────────────────────────────────────────────────────────
-      // STEP 3: Session setup + save user message
-      // ──────────────────────────────────────────────────────────
+      // STEP 4: Session setup + save user message
       const sessLog = log.startStep('session_setup');
-      yield sseChunk({ type: 'log', ...sessLog });
+      await writer.write(sseData({ type: 'log', ...sessLog }));
 
       let chatSessionId = sessionId;
       if (!chatSessionId) {
@@ -359,11 +370,11 @@ export async function POST(request: NextRequest) {
       } else {
         const existingSession = await db.chatSession.findUnique({ where: { id: chatSessionId } });
         if (!existingSession) {
-          yield sseChunk({ type: 'error', error: 'Session not found' });
+          await writer.write(sseData({ type: 'error', error: 'Session not found' }));
           return;
         }
         if (existingSession.userId !== user.id) {
-          yield sseChunk({ type: 'error', error: 'Forbidden' });
+          await writer.write(sseData({ type: 'error', error: 'Forbidden' }));
           return;
         }
       }
@@ -373,14 +384,12 @@ export async function POST(request: NextRequest) {
       });
 
       const sessDone = log.endStep('session_setup', `sessionId=${chatSessionId}`);
-      yield sseChunk({ type: 'log', ...sessDone });
-      yield sseChunk({ type: 'session', sessionId: chatSessionId });
+      await writer.write(sseData({ type: 'log', ...sessDone }));
+      await writer.write(sseData({ type: 'session', sessionId: chatSessionId }));
 
-      // ──────────────────────────────────────────────────────────
-      // STEP 4: Build schema context
-      // ──────────────────────────────────────────────────────────
+      // STEP 5: Build schema context
       const ctxLog = log.startStep('build_context');
-      yield sseChunk({ type: 'log', ...ctxLog });
+      await writer.write(sseData({ type: 'log', ...ctxLog }));
 
       const tables = datasource.schemas.map((s) => ({
         name: s.tableName,
@@ -392,13 +401,11 @@ export async function POST(request: NextRequest) {
       const semanticContext = datasource.contexts[0]?.semanticContext || '';
 
       const ctxDone = log.endStep('build_context', `schemaLen=${schemaDescription.length}`);
-      yield sseChunk({ type: 'log', ...ctxDone });
+      await writer.write(sseData({ type: 'log', ...ctxDone }));
 
-      // ──────────────────────────────────────────────────────────
-      // STEP 5: Fetch previous query history
-      // ──────────────────────────────────────────────────────────
+      // STEP 6: Fetch previous query history
       const histLog = log.startStep('fetch_history');
-      yield sseChunk({ type: 'log', ...histLog });
+      await writer.write(sseData({ type: 'log', ...histLog }));
 
       const previousHistory = await db.queryHistory.findMany({
         where: { dataSourceId },
@@ -411,22 +418,19 @@ export async function POST(request: NextRequest) {
       }));
 
       const histDone = log.endStep('fetch_history', `count=${previousQueries.length}`);
-      yield sseChunk({ type: 'log', ...histDone });
+      await writer.write(sseData({ type: 'log', ...histDone }));
 
       // ──────────────────────────────────────────────────────────
       // STAGE 1: Generate SQL (AI call — the slowest part!)
       // ──────────────────────────────────────────────────────────
-      yield sseChunk({
+      await writer.write(sseData({
         type: 'stage',
         stage: 'generating_sql',
         message: t(lang, 'stageGeneratingSQL'),
-      });
+      }));
 
-      // Yield heartbeat before AI call
-      yield sseChunk({ type: 'heartbeat', elapsed_ms: Date.now() - overallStart });
-
-      const sqlLogStart = log.startStep('ai_sql_generation', 'timeout=30s');
-      yield sseChunk({ type: 'log', ...sqlLogStart });
+      const sqlLogStart = log.startStep('ai_sql_generation', 'timeout=60s');
+      await writer.write(sseData({ type: 'log', ...sqlLogStart }));
 
       let sqlResult;
       try {
@@ -434,15 +438,15 @@ export async function POST(request: NextRequest) {
           generateSQLFromNaturalLanguage(
             message, schemaDescription, semanticContext, previousQueries, queryRowLimit
           ),
-          30_000,
+          60_000,
           'SQL generation'
         );
         const sqlLogDone = log.endStep('ai_sql_generation', `type=${sqlResult.type}, confidence=${sqlResult.confidence}`);
-        yield sseChunk({ type: 'log', ...sqlLogDone });
+        await writer.write(sseData({ type: 'log', ...sqlLogDone }));
       } catch (timeoutError) {
         const errInfo = serializeError(timeoutError);
         const sqlLogErr = log.errorStep('ai_sql_generation', errInfo.message);
-        yield sseChunk({ type: 'log', ...sqlLogErr });
+        await writer.write(sseData({ type: 'log', ...sqlLogErr }));
 
         const errorMsg = errInfo.message || 'SQL generation failed';
         const errorContent = `## ${t(lang, 'queryExecutionError')}\n\n${errorMsg}`;
@@ -450,18 +454,18 @@ export async function POST(request: NextRequest) {
           data: { sessionId: chatSessionId, role: 'assistant', content: errorContent },
         });
 
-        yield sseChunk({
+        await writer.write(sseData({
           type: 'complete',
           sessionId: chatSessionId,
           message: { role: 'assistant', content: errorContent, confidence: 0 },
-        });
+        }));
         return;
       }
 
       // Handle schema questions
       if (sqlResult.type === 'schema_question') {
         const schemaLogStart = log.startStep('schema_response');
-        yield sseChunk({ type: 'log', ...schemaLogStart });
+        await writer.write(sseData({ type: 'log', ...schemaLogStart }));
 
         const context = datasource.contexts[0];
         const tableDetails = datasource.schemas.map((s) => {
@@ -514,13 +518,13 @@ export async function POST(request: NextRequest) {
         });
 
         const schemaLogDone = log.endStep('schema_response');
-        yield sseChunk({ type: 'log', ...schemaLogDone });
+        await writer.write(sseData({ type: 'log', ...schemaLogDone }));
 
-        yield sseChunk({
+        await writer.write(sseData({
           type: 'complete',
           sessionId: chatSessionId,
           message: { role: 'assistant', content: schemaResponse, confidence: sqlResult.confidence },
-        });
+        }));
         return;
       }
 
@@ -530,51 +534,49 @@ export async function POST(request: NextRequest) {
           data: { sessionId: chatSessionId, role: 'assistant', content: unableContent, sqlQuery: sqlResult.sql || null },
         });
 
-        yield sseChunk({
+        await writer.write(sseData({
           type: 'complete',
           sessionId: chatSessionId,
           message: { role: 'assistant', content: unableContent, sqlQuery: sqlResult.sql || null, confidence: sqlResult.confidence },
-        });
+        }));
         return;
       }
 
-      // ──────────────────────────────────────────────────────────
-      // STEP 6: Validate SQL security
-      // ──────────────────────────────────────────────────────────
+      // STEP 7: Validate SQL security
       const valLog = log.startStep('validate_sql');
-      yield sseChunk({ type: 'log', ...valLog });
+      await writer.write(sseData({ type: 'log', ...valLog }));
 
       const validation = validateSQLQuery(sqlResult.sql);
 
       const valDone = log.endStep('validate_sql', `isSafe=${validation.isSafe}`);
-      yield sseChunk({ type: 'log', ...valDone });
+      await writer.write(sseData({ type: 'log', ...valDone }));
 
       if (!validation.isSafe) {
         const valErr = log.errorStep('validate_sql', `blocked: ${validation.errors.join(', ')}`);
-        yield sseChunk({ type: 'log', ...valErr });
+        await writer.write(sseData({ type: 'log', ...valErr }));
 
         const blockedContent = `## ${t(lang, 'queryBlocked')}\n\n${t(lang, 'queryBlockedDesc')} ${validation.errors.join(', ')}. ${t(lang, 'pleaseRephrase')}`;
         await db.chatMessage.create({
           data: { sessionId: chatSessionId, role: 'assistant', content: blockedContent, sqlQuery: sqlResult.sql },
         });
 
-        yield sseChunk({
+        await writer.write(sseData({
           type: 'complete',
           sessionId: chatSessionId,
           message: { role: 'assistant', content: blockedContent, sqlQuery: sqlResult.sql, confidence: 0 },
-        });
+        }));
         return;
       }
 
       // ──────────────────────────────────────────────────────────
       // STAGE 2: Execute SQL (with retry loop)
       // ──────────────────────────────────────────────────────────
-      yield sseChunk({
+      await writer.write(sseData({
         type: 'stage',
         stage: 'executing',
         message: t(lang, 'stageExecuting'),
         sql: sanitizeSQL(sqlResult.sql),
-      });
+      }));
 
       const responseRowLimit = typeof queryRowLimit === 'number' ? queryRowLimit : 500;
       const MAX_RETRIES = 2;
@@ -586,18 +588,18 @@ export async function POST(request: NextRequest) {
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         const execLabel = attempt === 0 ? 'sql_execute' : `sql_execute_retry_${attempt}`;
         const execLogStart = log.startStep(execLabel, `attempt=${attempt + 1}`);
-        yield sseChunk({ type: 'log', ...execLogStart });
+        await writer.write(sseData({ type: 'log', ...execLogStart }));
 
         try {
           queryResult = executeSelectQuery(datasource.filePath, finalSQL);
           lastError = '';
           const execLogDone = log.endStep(execLabel, `rows=${queryResult.rowCount}, time=${queryResult.executionTime}ms`);
-          yield sseChunk({ type: 'log', ...execLogDone });
+          await writer.write(sseData({ type: 'log', ...execLogDone }));
           break;
         } catch (execError) {
           lastError = execError instanceof Error ? execError.message : 'Query execution failed';
           const execLogErr = log.errorStep(execLabel, lastError);
-          yield sseChunk({ type: 'log', ...execLogErr });
+          await writer.write(sseData({ type: 'log', ...execLogErr }));
 
           if (lastError.includes('file not found') || lastError.includes('Database file not found')) {
             console.error('[Chat] Database file not found — aborting retries');
@@ -605,58 +607,53 @@ export async function POST(request: NextRequest) {
           }
 
           if (attempt < MAX_RETRIES && isRetryableExecutionError(lastError)) {
-            // Send retry stage
-            yield sseChunk({
+            await writer.write(sseData({
               type: 'stage',
               stage: 'retrying',
               message: t(lang, 'stageRetrying'),
               attempt: attempt + 1,
-            });
-
-            // Yield heartbeat before AI retry call
-            yield sseChunk({ type: 'heartbeat', elapsed_ms: Date.now() - overallStart });
+            }));
 
             const retryLabel = `ai_sql_retry_${attempt + 1}`;
-            const retryLogStart = log.startStep(retryLabel, 'timeout=30s');
-            yield sseChunk({ type: 'log', ...retryLogStart });
+            const retryLogStart = log.startStep(retryLabel, 'timeout=60s');
+            await writer.write(sseData({ type: 'log', ...retryLogStart }));
 
             try {
               const retryResult = await withTimeout(
                 regenerateSQLWithFeedback(
                   message, finalSQL, lastError, schemaDescription, semanticContext, queryRowLimit
                 ),
-                30_000,
+                60_000,
                 'SQL regeneration'
               );
 
               if (!retryResult.sql || retryResult.confidence === 0) {
                 const retryLogErr = log.errorStep(retryLabel, 'AI returned no SQL');
-                yield sseChunk({ type: 'log', ...retryLogErr });
+                await writer.write(sseData({ type: 'log', ...retryLogErr }));
                 break;
               }
 
               const retryValidation = validateSQLQuery(retryResult.sql);
               if (!retryValidation.isSafe) {
                 const retryLogErr = log.errorStep(retryLabel, 'AI SQL blocked by security');
-                yield sseChunk({ type: 'log', ...retryLogErr });
+                await writer.write(sseData({ type: 'log', ...retryLogErr }));
                 break;
               }
 
               finalSQL = sanitizeSQL(retryResult.sql);
               retryCount++;
               const retryLogDone = log.endStep(retryLabel, `new SQL: "${finalSQL.slice(0, 80)}"`);
-              yield sseChunk({ type: 'log', ...retryLogDone });
+              await writer.write(sseData({ type: 'log', ...retryLogDone }));
 
-              // Send updated SQL
-              yield sseChunk({
+              await writer.write(sseData({
                 type: 'stage',
                 stage: 'executing',
                 message: t(lang, 'stageExecuting'),
                 sql: finalSQL,
-              });
+              }));
             } catch (retryTimeoutError) {
               const retryLogErr = log.errorStep(retryLabel, serializeError(retryTimeoutError).message);
-              yield sseChunk({ type: 'log', ...retryLogErr });
+              await writer.write(sseData({ type: 'log', ...retryLogErr }));
               break;
             }
           } else {
@@ -669,7 +666,7 @@ export async function POST(request: NextRequest) {
       if (!queryResult) {
         const isFileNotFoundError = lastError.includes('file not found') || lastError.includes('Database file not found');
         const finalErr = log.errorStep('sql_execute_final', `No result: ${lastError}`);
-        yield sseChunk({ type: 'log', ...finalErr });
+        await writer.write(sseData({ type: 'log', ...finalErr }));
 
         const errorContent = isFileNotFoundError
           ? `## ${t(lang, 'fileNotFound')}\n\n${t(lang, 'fileNotFoundDesc')}`
@@ -687,11 +684,11 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        yield sseChunk({
+        await writer.write(sseData({
           type: 'complete',
           sessionId: chatSessionId,
           message: { role: 'assistant', content: errorContent, sqlQuery: finalSQL, confidence: sqlResult.confidence },
-        });
+        }));
         return;
       }
 
@@ -699,7 +696,7 @@ export async function POST(request: NextRequest) {
       // STAGE 3: Heuristic visualization (instant!)
       // ──────────────────────────────────────────────────────────
       const vizLogStart = log.startStep('visualization');
-      yield sseChunk({ type: 'log', ...vizLogStart });
+      await writer.write(sseData({ type: 'log', ...vizLogStart }));
 
       const slicedData = responseRowLimit > 0
         ? queryResult.data.slice(0, responseRowLimit)
@@ -708,10 +705,10 @@ export async function POST(request: NextRequest) {
       const visualization = suggestVisualizationHeuristic(finalSQL, queryResult.data, message);
 
       const vizLogDone = log.endStep('visualization', `type=${visualization?.chartType || 'none'}`);
-      yield sseChunk({ type: 'log', ...vizLogDone });
+      await writer.write(sseData({ type: 'log', ...vizLogDone }));
 
       // Send intermediate results — UI shows data right away
-      yield sseChunk({
+      await writer.write(sseData({
         type: 'query_result',
         sql: finalSQL,
         queryResult: {
@@ -723,25 +720,22 @@ export async function POST(request: NextRequest) {
         },
         visualization,
         confidence: sqlResult.confidence,
-      });
+      }));
 
       // ──────────────────────────────────────────────────────────
       // STAGE 4: AI Analysis
       // ──────────────────────────────────────────────────────────
-      yield sseChunk({
+      await writer.write(sseData({
         type: 'stage',
         stage: 'analyzing',
         message: t(lang, 'stageAnalyzing'),
-      });
-
-      // Yield heartbeat before AI analysis
-      yield sseChunk({ type: 'heartbeat', elapsed_ms: Date.now() - overallStart });
+      }));
 
       const sampleResults = queryResult.data.slice(0, 10);
       let analysis = '';
 
-      const anaLogStart = log.startStep('ai_analysis', 'timeout=30s');
-      yield sseChunk({ type: 'log', ...anaLogStart });
+      const anaLogStart = log.startStep('ai_analysis', 'timeout=60s');
+      await writer.write(sseData({ type: 'log', ...anaLogStart }));
 
       try {
         const analysisCompletion = await withTimeout(
@@ -783,7 +777,7 @@ ${JSON.stringify(sampleResults, null, 2)}`,
             temperature: 0.3,
             maxTokens: 1500,
           }),
-          30_000,
+          60_000,
           'Result analysis'
         );
 
@@ -791,21 +785,19 @@ ${JSON.stringify(sampleResults, null, 2)}`,
           analysis = analysisCompletion.content;
         }
         const anaLogDone = log.endStep('ai_analysis', `contentLen=${analysis.length}`);
-        yield sseChunk({ type: 'log', ...anaLogDone });
+        await writer.write(sseData({ type: 'log', ...anaLogDone }));
       } catch (err) {
         const anaLogErr = log.errorStep('ai_analysis', serializeError(err).message);
-        yield sseChunk({ type: 'log', ...anaLogErr });
+        await writer.write(sseData({ type: 'log', ...anaLogErr }));
       }
 
       if (!analysis) {
         analysis = `## ${t(lang, 'queryResults')}\n\n${t(lang, 'queryReturned')} **${queryResult.rowCount}** ${t(lang, 'rows')} ${t(lang, 'rowsIn')} **${queryResult.executionTime}ms**.`;
       }
 
-      // ──────────────────────────────────────────────────────────
-      // STEP 7: Save results to DB
-      // ──────────────────────────────────────────────────────────
+      // STEP 8: Save results to DB
       const saveLogStart = log.startStep('save_results');
-      yield sseChunk({ type: 'log', ...saveLogStart });
+      await writer.write(sseData({ type: 'log', ...saveLogStart }));
 
       const retryNote = retryCount > 0
         ? ` (${t(lang, 'autoCorrected')} ${retryCount} ${retryCount > 1 ? t(lang, 'attempts') : t(lang, 'attempt')})`
@@ -845,13 +837,13 @@ ${JSON.stringify(sampleResults, null, 2)}`,
       });
 
       const saveLogDone = log.endStep('save_results');
-      yield sseChunk({ type: 'log', ...saveLogDone });
+      await writer.write(sseData({ type: 'log', ...saveLogDone }));
 
       const totalMs = Date.now() - overallStart;
       console.log(`[Chat] === END === total=${totalMs}ms, rows=${queryResult.rowCount}, retries=${retryCount}`);
 
       // Send final complete event
-      yield sseChunk({
+      await writer.write(sseData({
         type: 'complete',
         sessionId: chatSessionId,
         message: {
@@ -870,29 +862,42 @@ ${JSON.stringify(sampleResults, null, 2)}`,
           visualization,
         },
         timing: { total_ms: totalMs },
-      });
+      }));
     } catch (error) {
       const errInfo = serializeError(error);
       console.error('[Chat] === FATAL ERROR ===:', errInfo);
-      yield sseChunk({
-        type: 'error',
-        error: errInfo.message || 'Failed to process query',
-        detail: errInfo.stack || undefined,
-      });
+      try {
+        await writer.write(sseData({
+          type: 'error',
+          error: errInfo.message || 'Failed to process query',
+          detail: errInfo.stack || undefined,
+        }));
+      } catch (writeErr) {
+        console.error('[Chat] Failed to write error event to stream:', serializeError(writeErr));
+      }
+    } finally {
+      // Stop heartbeat
+      clearInterval(heartbeatInterval);
+      // Close writer
+      try {
+        await writer.close();
+      } catch (closeErr) {
+        console.error('[Chat] Failed to close writer:', serializeError(closeErr));
+      }
     }
-  }
+  })();
 
-  // Create the stream from the async generator — this is Bun-compatible!
-  const stream = ReadableStream.from(generate());
+  // Return Response IMMEDIATELY — the readable side will stream data
+  // as the background function writes to the writable side
+  console.log('[Chat] Returning SSE stream response (TransformStream)');
 
-  console.log('[Chat] Returning SSE stream response (async generator)');
-
-  return new Response(stream, {
+  return new Response(readable, {
     headers: {
       'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Connection': 'keep-alive',
       'X-Accel-Buffering': 'no',
+      'Access-Control-Allow-Origin': '*',
     },
   });
 }

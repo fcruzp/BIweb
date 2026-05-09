@@ -20,6 +20,7 @@ const PUBLIC_API_ROUTES = [
   '/api/auth/sync',
   '/api/test-ai',
   '/api/test-sse',
+  '/api/chat/sse-test',
 ]
 
 /**

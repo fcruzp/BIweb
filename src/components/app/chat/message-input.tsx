@@ -102,24 +102,27 @@ export function MessageInput() {
         });
       }
 
-      // Use fetch with streaming reader for SSE
-      // STRATEGY: Two-phase timeout:
-      // 1. CONNECTION_TIMEOUT (90s): If no response headers received in 90s, abort.
-      //    This is the initial connection phase — the server should send the
-      //    "connected" SSE event very quickly (< 1s).
-      // 2. IDLE_TIMEOUT (30s): Once SSE stream is flowing, if no data chunk received
-      //    for 30 seconds, abort. The server sends heartbeats every 3s, so 30s
-      //    means 10 missed heartbeats = definitely dead.
-      console.log('[Chat] Sending query to /api/chat...');
+      // ──────────────────────────────────────────────────────────
+      // SSE Streaming Strategy
+      // ──────────────────────────────────────────────────────────
+      // 1. CONNECTION_TIMEOUT (30s): If no response headers received in 30s, abort.
+      //    The server should send the "connected" SSE event very quickly (< 1s).
+      // 2. IDLE_TIMEOUT (60s): Once SSE stream is flowing, if no data chunk received
+      //    for 60 seconds, abort. The server sends heartbeats every 3s, so 60s
+      //    means 20 missed heartbeats = definitely dead.
+      // ──────────────────────────────────────────────────────────
+      console.log('[Chat] 🚀 Sending query to /api/chat...');
       const fetchStart = Date.now();
       const abortController = new AbortController();
 
-      const CONNECTION_TIMEOUT_MS = 90_000; // 90s to get initial response
-      const IDLE_TIMEOUT_MS = 30_000;       // 30s idle once stream is flowing
+      const CONNECTION_TIMEOUT_MS = 30_000; // 30s to get initial response
+      const IDLE_TIMEOUT_MS = 60_000;       // 60s idle once stream is flowing
       let isStreamConnected = false;
+      let eventCount = 0;
 
+      // Start connection timeout
       let idleTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
-        console.error(`[Chat] Connection timeout: no response in ${CONNECTION_TIMEOUT_MS / 1000}s, aborting`);
+        console.error(`[Chat] ⏰ Connection timeout: no response in ${CONNECTION_TIMEOUT_MS / 1000}s, aborting`);
         abortController.abort();
       }, CONNECTION_TIMEOUT_MS);
 
@@ -128,14 +131,14 @@ export function MessageInput() {
         if (idleTimer) clearTimeout(idleTimer);
         idleTimer = setTimeout(() => {
           const phase = isStreamConnected ? 'idle' : 'connection';
-          console.error(`[Chat] ${phase} timeout: no data for ${currentTimeout / 1000}s, aborting`);
+          console.error(`[Chat] ⏰ ${phase} timeout: no data for ${currentTimeout / 1000}s, aborting (events received: ${eventCount})`);
           abortController.abort();
         }, currentTimeout);
       }
 
       function markStreamConnected() {
         isStreamConnected = true;
-        // Switch to idle timeout now that stream is flowing
+        console.log(`[Chat] ✅ Stream connected! Switching from connection timeout (${CONNECTION_TIMEOUT_MS / 1000}s) to idle timeout (${IDLE_TIMEOUT_MS / 1000}s)`);
         resetIdleTimer();
       }
 
@@ -160,18 +163,20 @@ export function MessageInput() {
         throw fetchError;
       }
 
+      const timeToHeaders = Date.now() - fetchStart;
+      console.log(`[Chat] 📥 Response headers received in ${timeToHeaders}ms (status=${res.status}, contentType=${res.headers.get('content-type')})`);
+
       if (!res.ok) {
         if (idleTimer) clearTimeout(idleTimer);
         // Try to parse error as JSON first (non-streaming error)
         const contentType = res.headers.get('content-type') || '';
-        console.error(`[Chat] API error: status=${res.status}, contentType=${contentType}, time=${Date.now() - fetchStart}ms`);
+        console.error(`[Chat] ❌ API error: status=${res.status}, contentType=${contentType}, time=${Date.now() - fetchStart}ms`);
         if (contentType.includes('application/json')) {
           const errorData = await res.json();
           console.error('[Chat] API error response:', { status: res.status, error: errorData.error, detail: errorData.detail });
           throw new Error(errorData.detail || errorData.error || `Failed to process query (${res.status})`);
         } else {
           console.error('[Chat] API non-JSON error:', { status: res.status, contentType });
-          // Specific message for gateway timeout
           if (res.status === 504) {
             throw new Error('La consulta tardó demasiado y el servidor canceló la conexión. Intenta reformular tu pregunta de forma más simple o inténtalo de nuevo.');
           }
@@ -186,7 +191,7 @@ export function MessageInput() {
         throw new Error('No response stream');
       }
 
-      console.log(`[Chat] SSE stream connected, time to first byte: ${Date.now() - fetchStart}ms`);
+      console.log(`[Chat] 📡 SSE reader acquired, reading stream...`);
       markStreamConnected(); // Switch from connection timeout to idle timeout
 
       const decoder = new TextDecoder();
@@ -196,7 +201,10 @@ export function MessageInput() {
 
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          console.log(`[Chat] 🏁 Stream ended naturally (total events: ${eventCount}, total time: ${Date.now() - fetchStart}ms)`);
+          break;
+        }
 
         // Reset idle timer — we received data
         resetIdleTimer();
@@ -208,6 +216,9 @@ export function MessageInput() {
         buffer = lines.pop() || ''; // Keep incomplete line in buffer
 
         for (const line of lines) {
+          // Skip SSE comments (lines starting with ':')
+          if (line.startsWith(':')) continue;
+
           if (!line.startsWith('data: ')) continue;
 
           const jsonStr = line.slice(6).trim();
@@ -215,11 +226,11 @@ export function MessageInput() {
 
           try {
             const event = JSON.parse(jsonStr);
+            eventCount++;
 
             switch (event.type) {
               case 'connected': {
-                // Server acknowledged the request — SSE stream is flowing
-                console.log(`[Chat] SSE connected event received — stream is live (${Date.now() - fetchStart}ms)`);
+                console.log(`[Chat] ✅ SSE "connected" event received — stream is live (time: ${Date.now() - fetchStart}ms, event #${eventCount})`);
                 break;
               }
 
@@ -227,6 +238,10 @@ export function MessageInput() {
                 // Server heartbeat — keep connection alive and update elapsed time
                 if (typeof event.elapsed_ms === 'number') {
                   setStreamingElapsedMs(event.elapsed_ms);
+                }
+                // Log every 5th heartbeat to avoid spam
+                if (eventCount % 5 === 0) {
+                  console.log(`[Chat] 💓 Heartbeat received (event #${eventCount}, elapsed: ${event.elapsed_ms}ms)`);
                 }
                 break;
               }
@@ -256,7 +271,7 @@ export function MessageInput() {
                   attempt: event.attempt,
                 };
                 setStreamingStage(newStage);
-                console.log(`[Chat] SSE stage: ${event.stage}`, event.sql ? `sql="${event.sql.slice(0, 80)}"` : '');
+                console.log(`[Chat] 🔄 Stage: ${event.stage}`, event.sql ? `sql="${event.sql.slice(0, 80)}"` : '');
 
                 // Update SQL in streaming message if provided
                 if (event.sql) {
@@ -268,7 +283,7 @@ export function MessageInput() {
 
               case 'query_result': {
                 // Query executed successfully — show results immediately!
-                console.log(`[Chat] SSE query_result: rows=${(event.queryResult as QueryResult)?.rowCount}, time=${(event.queryResult as QueryResult)?.executionTime}ms`);
+                console.log(`[Chat] 📊 Query result: rows=${(event.queryResult as QueryResult)?.rowCount}, time=${(event.queryResult as QueryResult)?.executionTime}ms`);
                 currentSQLRef.current = event.sql;
                 currentQueryResultRef.current = event.queryResult as QueryResult;
                 currentVisualizationRef.current = event.visualization as VisualizationConfig;
@@ -295,7 +310,7 @@ export function MessageInput() {
               case 'complete': {
                 const finalMessage = event.message;
                 const timing = event.timing as { total_ms: number } | undefined;
-                console.log(`[Chat] SSE complete: contentLen=${finalMessage?.content?.length}, hasResult=${!!finalMessage?.queryResult}${timing ? `, total=${timing.total_ms}ms` : ''}`);
+                console.log(`[Chat] ✅ Complete! contentLen=${finalMessage?.content?.length}, hasResult=${!!finalMessage?.queryResult}${timing ? `, total=${timing.total_ms}ms` : ''}`);
                 if (event.sessionId) {
                   setActiveSession(event.sessionId);
                 }
@@ -341,7 +356,7 @@ export function MessageInput() {
               case 'error': {
                 const errorMsg = event.error || 'An error occurred';
                 const errorDetail = event.detail || '';
-                console.error('[Chat] SSE error event:', { error: errorMsg, detail: errorDetail });
+                console.error('[Chat] ❌ SSE error event:', { error: errorMsg, detail: errorDetail });
                 setError(errorMsg);
                 toast.error(errorMsg);
 
@@ -358,10 +373,14 @@ export function MessageInput() {
                 });
                 break;
               }
+
+              default: {
+                console.log(`[Chat] 📨 Unknown SSE event type: ${event.type}`, event);
+              }
             }
           } catch (parseError) {
             // Ignore malformed SSE events
-            console.warn('Failed to parse SSE event:', parseError, jsonStr);
+            console.warn('[Chat] Failed to parse SSE event:', parseError, jsonStr);
           }
         }
       }
@@ -376,7 +395,7 @@ export function MessageInput() {
       setLoading(false);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An error occurred';
-      console.error('[Chat] Fatal error in handleSubmit:', error);
+      console.error('[Chat] 💥 Fatal error in handleSubmit:', error);
       setError(errorMessage);
       toast.error(errorMessage);
 
