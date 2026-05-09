@@ -93,3 +93,45 @@ Stage Summary:
 - Environment variable naming updated to NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 - PostgreSQL connection still blocked (pooler not enabled on Supabase side)
 - App fully functional with SQLite
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Complete Phase 1 setup with user-provided Supabase official instructions
+
+Work Log:
+- User shared official Supabase Next.js integration instructions from their dashboard
+- Verified all Supabase client utilities already match the official pattern:
+  - src/utils/supabase/server.ts: createServerClient with cookies (✓ matches)
+  - src/utils/supabase/client.ts: createBrowserClient (✓ matches)
+  - src/utils/supabase/middleware.ts: updateSession with cookie handling (✓ matches)
+  - src/middleware.ts: wires up updateSession for all routes (✓ matches)
+- Environment variables already correct:
+  - NEXT_PUBLIC_SUPABASE_URL (✓)
+  - NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (✓)
+- Re-attempted PostgreSQL connection:
+  - Direct (db.*.supabase.co:5432): IPv6 only, unreachable from this sandbox
+  - Pooler (aws-0-us-east-1.pooler.supabase.com:6543): "Tenant or user not found"
+  - Pooler via IPv4 addresses (44.216.29.125, etc.): Same error
+  - Tried all username formats: postgres.project-ref, postgres, etc.
+  - Tried Prisma db push, raw pg client, supabase CLI — all fail with same error
+- Root cause confirmed: Supabase Connection Pooler (Supavisor) not provisioned for this project
+  - The Supabase REST API works fine (confirmed auth/v1/settings responds)
+  - The PostgREST API is accessible (confirmed with service key test)
+  - Only the direct PostgreSQL connection layer (Supavisor) needs activation
+- Created comprehensive PostgreSQL-ready schema:
+  - prisma/schema.postgresql.prisma with @map for snake_case columns
+  - Added @@index for performance-critical queries
+  - Added @@map for plural table names
+  - Includes directUrl for Prisma migration support
+- Updated .env with clear migration instructions
+- Lint passes (0 errors, 1 pre-existing warning)
+- App running correctly on SQLite with all SaaS models
+
+Stage Summary:
+- Phase 1 is COMPLETE for all achievable tasks in this sandbox environment
+- App runs on SQLite with full SaaS schema (User, Subscription, UsageEvent, userId on all tenant tables)
+- Supabase Auth client utilities are 100% ready for Phase 2
+- PostgreSQL migration schema is prepared and ready (just needs pooler activation)
+- BLOCKED: User must enable Connection Pooling in Supabase Dashboard → Settings → Database
+- Once pooler is active: swap .env, copy schema.postgresql.prisma → schema.prisma, run db:push

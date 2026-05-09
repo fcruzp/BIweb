@@ -1,6 +1,6 @@
 # 🚀 DataMind BI — Plan SaaS Consolidado
 
-> Última actualización: Marzo 2025 | Progreso: Fase 1 parcialmente completada
+> Última actualización: Mayo 2025 | Progreso: Fase 1 completada (PostgreSQL pendiente habilitar pooler)
 
 ---
 
@@ -74,7 +74,7 @@
 | Agregar `userId` a `SourceContext` | ⬜ No requerido (hereda de DataSource) |
 | Agregar modelos `Subscription` y `UsageEvent` | ✅ Completado |
 | Instalar `@supabase/supabase-js` + `@supabase/ssr` | ✅ Completado |
-| Crear Supabase client utilities | ✅ Completado (`src/lib/supabase/`) |
+| Crear Supabase client utilities | ✅ Completado (`src/utils/supabase/` — formato oficial) |
 | Crear auth-utils temporales (Fase 1) | ✅ Completado (`src/lib/auth-utils.ts`) |
 | Push schema a SQLite (mantener app funcionando) | ✅ Completado |
 | Probar todas las APIs con el nuevo schema | ✅ Completado (todas funcionan) |
@@ -136,7 +136,7 @@
 
 | Tarea | Estado |
 |-------|--------|
-| Configurar Supabase Auth Client (`@supabase/supabase-js` + `@supabase/ssr`) | ✅ Completado (client/server/middleware creados) |
+| Configurar Supabase Auth Client (`@supabase/supabase-js` + `@supabase/ssr`) | ✅ Completado (client/server/middleware en `src/utils/supabase/`) |
 | Crear páginas de Auth (Login, Register, Forgot Password, Verify Email) | ⬜ Pendiente |
 | Crear `useAuth()` hook (user, isAuthenticated, login(), logout(), signUp()) | ⬜ Pendiente |
 | Middleware de protección (redirigir a login si no autenticado) | ⬜ Pendiente |
@@ -281,7 +281,7 @@
 
 | Tarea | Estado |
 |-------|--------|
-| Tabla `UsageEvent` (registrar cada query, upload, acción con metadata) | ⬜ Pendiente |
+| Tabla `UsageEvent` (registrar cada query, upload, acción con metadata) | ✅ Modelo creado en Prisma schema |
 | API de métricas (queries este mes, restantes, storage, etc.) | ⬜ Pendiente |
 | Gráfico de uso diario/semanal (Recharts) | ⬜ Pendiente |
 | Proyección de uso | ⬜ Pendiente |
