@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requireAuth, verifyOwnership } from '@/lib/auth-utils';
 
 // GET /api/chat/sessions/[id]/messages - Get all messages for a session
 export async function GET(
@@ -7,11 +8,23 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    let user;
+    try {
+      user = await requireAuth();
+    } catch {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
     const { id } = await params;
 
     const session = await db.chatSession.findUnique({ where: { id } });
     if (!session) {
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+    }
+
+    // Verify ownership of the session
+    if (!verifyOwnership(session.userId)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const messages = await db.chatMessage.findMany({

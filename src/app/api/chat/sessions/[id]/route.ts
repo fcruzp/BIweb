@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requireAuth, verifyOwnership } from '@/lib/auth-utils';
 
 // PATCH /api/chat/sessions/[id] - Rename a chat session
 export async function PATCH(
@@ -7,6 +8,13 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    let user;
+    try {
+      user = await requireAuth();
+    } catch {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
     const { id } = await params;
     const body = await request.json();
     const { title } = body;
@@ -18,6 +26,11 @@ export async function PATCH(
     const existing = await db.chatSession.findUnique({ where: { id } });
     if (!existing) {
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+    }
+
+    // Verify ownership
+    if (!verifyOwnership(existing.userId)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const session = await db.chatSession.update({
@@ -38,11 +51,23 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    let user;
+    try {
+      user = await requireAuth();
+    } catch {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
     const { id } = await params;
 
     const existing = await db.chatSession.findUnique({ where: { id } });
     if (!existing) {
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+    }
+
+    // Verify ownership
+    if (!verifyOwnership(existing.userId)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // Cascade delete will handle messages and query history

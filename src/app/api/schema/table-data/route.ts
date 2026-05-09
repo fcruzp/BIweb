@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requireAuth, verifyOwnership } from '@/lib/auth-utils';
 import Database from 'better-sqlite3';
 
 // GET /api/schema/table-data?dataSourceId=...&tableName=...&page=1&pageSize=10
@@ -25,14 +26,16 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const page = Math.max(1, parseInt(pageStr || '1', 10) || 1);
-  const pageSize = Math.min(100, Math.max(1, parseInt(pageSizeStr || '10', 10) || 10));
-
   try {
+    const user = await requireAuth();
+
+    const page = Math.max(1, parseInt(pageStr || '1', 10) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(pageSizeStr || '10', 10) || 10));
+
     // Find the datasource to get the filePath
     const datasource = await db.dataSource.findUnique({
       where: { id: dataSourceId },
-      select: { filePath: true },
+      select: { filePath: true, userId: true },
     });
 
     if (!datasource) {
@@ -40,6 +43,12 @@ export async function GET(request: NextRequest) {
         { error: 'Data source not found' },
         { status: 404 }
       );
+    }
+
+    // Verify the data source belongs to the authenticated user
+    const isOwner = await verifyOwnership(datasource.userId);
+    if (!isOwner) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const sqliteDb = new Database(datasource.filePath, { readonly: true });
@@ -74,6 +83,9 @@ export async function GET(request: NextRequest) {
       sqliteDb.close();
     }
   } catch (error) {
+    if (error instanceof Error && error.message === 'Authentication required') {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
     console.error('Error fetching table data:', error);
     return NextResponse.json(
       { error: 'Failed to fetch table data' },

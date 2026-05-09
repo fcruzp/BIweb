@@ -2,16 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { extractSchema, generateSchemaDescription, generateSampleDataDescription } from '@/lib/sqlite';
 import { analyzeSchemaWithContext } from '@/lib/ai';
+import { requireAuth } from '@/lib/auth-utils';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 
-// GET /api/datasources - List all data sources
+// GET /api/datasources - List all data sources (filtered by authenticated user)
 export async function GET() {
   try {
+    const user = await requireAuth();
+
     const datasources = await db.dataSource.findMany({
+      where: { userId: user.id },
       orderBy: { createdAt: 'desc' },
       include: {
         schemas: true,
@@ -20,6 +24,9 @@ export async function GET() {
     });
     return NextResponse.json({ datasources });
   } catch (error) {
+    if (error instanceof Error && error.message === 'Authentication required') {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
     console.error('Error fetching datasources:', error);
     return NextResponse.json({ error: 'Failed to fetch data sources' }, { status: 500 });
   }
@@ -28,6 +35,8 @@ export async function GET() {
 // POST /api/datasources - Upload a new SQLite file
 export async function POST(request: NextRequest) {
   try {
+    const user = await requireAuth();
+
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const name = (formData.get('name') as string) || file?.name || 'Untitled';
@@ -50,7 +59,7 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(bytes);
     fs.writeFileSync(filePath, buffer);
 
-    // Create data source record
+    // Create data source record with userId
     const dataSource = await db.dataSource.create({
       data: {
         name,
@@ -59,6 +68,7 @@ export async function POST(request: NextRequest) {
         filePath,
         fileType: 'sqlite',
         status: 'uploaded',
+        userId: user.id,
       },
     });
 
@@ -126,6 +136,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ datasource: result }, { status: 201 });
   } catch (error) {
+    if (error instanceof Error && error.message === 'Authentication required') {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
     console.error('Error uploading datasource:', error);
     return NextResponse.json({ error: 'Failed to upload data source' }, { status: 500 });
   }

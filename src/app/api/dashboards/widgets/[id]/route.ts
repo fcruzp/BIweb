@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requireAuth, verifyOwnership } from '@/lib/auth-utils';
 
 // PUT /api/dashboards/widgets/[id] - Update a widget
 export async function PUT(
@@ -8,6 +9,31 @@ export async function PUT(
 ) {
   const { id } = await params;
   try {
+    const user = await requireAuth();
+
+    // Fetch the widget to find its dashboard
+    const existingWidget = await db.dashboardWidget.findUnique({
+      where: { id },
+    });
+
+    if (!existingWidget) {
+      return NextResponse.json({ error: 'Widget not found' }, { status: 404 });
+    }
+
+    // Fetch the dashboard to check ownership
+    const dashboard = await db.dashboard.findUnique({
+      where: { id: existingWidget.dashboardId },
+    });
+
+    if (!dashboard) {
+      return NextResponse.json({ error: 'Dashboard not found' }, { status: 404 });
+    }
+
+    const isOwner = await verifyOwnership(dashboard.userId);
+    if (!isOwner) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const body = await request.json();
 
     const updateData: Record<string, unknown> = {};
@@ -29,6 +55,9 @@ export async function PUT(
 
     return NextResponse.json({ widget });
   } catch (error) {
+    if (error instanceof Error && error.message === 'Authentication required') {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
     console.error('Error updating widget:', error);
     return NextResponse.json({ error: 'Failed to update widget' }, { status: 500 });
   }
@@ -41,12 +70,40 @@ export async function DELETE(
 ) {
   const { id } = await params;
   try {
+    const user = await requireAuth();
+
+    // Fetch the widget to find its dashboard
+    const existingWidget = await db.dashboardWidget.findUnique({
+      where: { id },
+    });
+
+    if (!existingWidget) {
+      return NextResponse.json({ error: 'Widget not found' }, { status: 404 });
+    }
+
+    // Fetch the dashboard to check ownership
+    const dashboard = await db.dashboard.findUnique({
+      where: { id: existingWidget.dashboardId },
+    });
+
+    if (!dashboard) {
+      return NextResponse.json({ error: 'Dashboard not found' }, { status: 404 });
+    }
+
+    const isOwner = await verifyOwnership(dashboard.userId);
+    if (!isOwner) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     await db.dashboardWidget.delete({
       where: { id },
     });
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof Error && error.message === 'Authentication required') {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
     console.error('Error deleting widget:', error);
     return NextResponse.json({ error: 'Failed to delete widget' }, { status: 500 });
   }

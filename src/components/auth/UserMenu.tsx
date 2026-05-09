@@ -12,14 +12,15 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { useAuth } from './AuthProvider';
 import {
   LogIn,
   LogOut,
-  User,
   Settings,
   Loader2,
   UserCircle,
+  CreditCard,
 } from 'lucide-react';
 
 function getInitials(name: string | undefined | null, email: string | undefined | null): string {
@@ -36,13 +37,25 @@ function getInitials(name: string | undefined | null, email: string | undefined 
   return 'U';
 }
 
+const PLAN_LABELS: Record<string, { label: string; color: string }> = {
+  free: { label: 'Free', color: 'bg-gray-500/10 text-gray-500' },
+  supporter: { label: 'Supporter', color: 'bg-amber-500/10 text-amber-500' },
+  starter: { label: 'Starter', color: 'bg-blue-500/10 text-blue-500' },
+  pro: { label: 'Pro', color: 'bg-emerald-500/10 text-emerald-500' },
+  business: { label: 'Business', color: 'bg-purple-500/10 text-purple-500' },
+};
+
 export function UserMenu() {
-  const { user, isAuthenticated, isLoading, openAuthModal, signOut } = useAuth();
+  const { user, isAuthenticated, isLoading, openAuthModal, signOut, dbUser } = useAuth();
 
   const displayName = user?.user_metadata?.full_name || user?.email || '';
   const userEmail = user?.email ?? '';
   const avatarUrl = user?.user_metadata?.avatar_url ?? '';
   const initials = getInitials(user?.user_metadata?.full_name, user?.email);
+
+  const planInfo = dbUser?.subscription
+    ? PLAN_LABELS[dbUser.subscription.plan] ?? PLAN_LABELS.free
+    : PLAN_LABELS.free;
 
   if (isLoading) {
     return (
@@ -88,9 +101,14 @@ export function UserMenu() {
       >
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium text-white leading-none">
-              {displayName || 'User'}
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-white leading-none">
+                {displayName || 'User'}
+              </p>
+              <Badge variant="secondary" className={`h-4 text-[8px] px-1 ${planInfo.color}`}>
+                {planInfo.label}
+              </Badge>
+            </div>
             <p className="text-xs text-gray-400 leading-none">
               {userEmail}
             </p>
@@ -101,6 +119,10 @@ export function UserMenu() {
           <DropdownMenuItem className="text-gray-300 focus:text-white focus:bg-gray-800 cursor-pointer">
             <UserCircle className="mr-2 h-4 w-4" />
             Profile
+          </DropdownMenuItem>
+          <DropdownMenuItem className="text-gray-300 focus:text-white focus:bg-gray-800 cursor-pointer">
+            <CreditCard className="mr-2 h-4 w-4" />
+            Subscription
           </DropdownMenuItem>
           <DropdownMenuItem className="text-gray-300 focus:text-white focus:bg-gray-800 cursor-pointer">
             <Settings className="mr-2 h-4 w-4" />

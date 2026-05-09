@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { extractSchema, generateSchemaDescription, generateSampleDataDescription } from '@/lib/sqlite';
 import { analyzeSchemaWithContext } from '@/lib/ai';
+import { requireAuth, verifyOwnership } from '@/lib/auth-utils';
 
 // POST /api/datasources/[id]/analyze - Re-analyze a data source
 export async function POST(
@@ -10,12 +11,20 @@ export async function POST(
 ) {
   const { id } = await params;
   try {
+    await requireAuth();
+
     const datasource = await db.dataSource.findUnique({
       where: { id },
     });
 
     if (!datasource) {
       return NextResponse.json({ error: 'Data source not found' }, { status: 404 });
+    }
+
+    // Verify ownership
+    const isOwner = await verifyOwnership(datasource.userId);
+    if (!isOwner) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // Update status
@@ -72,6 +81,9 @@ export async function POST(
 
     return NextResponse.json({ datasource: result });
   } catch (error) {
+    if (error instanceof Error && error.message === 'Authentication required') {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
     console.error('Error analyzing datasource:', error);
     await db.dataSource.update({
       where: { id },

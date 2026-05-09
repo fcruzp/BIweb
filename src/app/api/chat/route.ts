@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { generateSQLFromNaturalLanguage, regenerateSQLWithFeedback, isRetryableExecutionError, suggestVisualization, createCompletion, detectLanguage } from '@/lib/ai';
 import { executeSelectQuery, generateSchemaDescription } from '@/lib/sqlite';
 import { validateSQLQuery, sanitizeSQL } from '@/lib/sql-security';
+import { requireAuth, verifyOwnership } from '@/lib/auth-utils';
 
 // ============================================================
 // Localized message helpers
@@ -118,6 +119,13 @@ function t(lang: string, key: string): string {
 // POST /api/chat - Process a natural language query
 export async function POST(request: NextRequest) {
   try {
+    let user;
+    try {
+      user = await requireAuth();
+    } catch {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { message, dataSourceId, sessionId, queryRowLimit } = body;
 
@@ -138,6 +146,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Data source not found' }, { status: 404 });
     }
 
+    // Verify the data source belongs to the authenticated user
+    if (!verifyOwnership(datasource.userId)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     if (datasource.status !== 'ready') {
       return NextResponse.json({ error: 'Data source is not ready for queries' }, { status: 400 });
     }
@@ -148,10 +161,22 @@ export async function POST(request: NextRequest) {
       const session = await db.chatSession.create({
         data: {
           dataSourceId,
+          userId: user.id,
           title: message.slice(0, 50),
         },
       });
       chatSessionId = session.id;
+    } else {
+      // Verify ownership of existing session
+      const existingSession = await db.chatSession.findUnique({
+        where: { id: chatSessionId },
+      });
+      if (!existingSession) {
+        return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+      }
+      if (!verifyOwnership(existingSession.userId)) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
     }
 
     // Save user message

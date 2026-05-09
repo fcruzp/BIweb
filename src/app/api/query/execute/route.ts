@@ -2,10 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { executeSelectQuery } from '@/lib/sqlite';
 import { validateSQLQuery, sanitizeSQL } from '@/lib/sql-security';
+import { requireAuth, verifyOwnership } from '@/lib/auth-utils';
 
 // POST /api/query/execute - Execute a validated SQL query directly
 export async function POST(request: NextRequest) {
   try {
+    const user = await requireAuth();
+
     const { sql, dataSourceId, queryRowLimit } = await request.json();
 
     if (!sql || !dataSourceId) {
@@ -19,6 +22,12 @@ export async function POST(request: NextRequest) {
 
     if (!datasource) {
       return NextResponse.json({ error: 'Data source not found' }, { status: 404 });
+    }
+
+    // Verify the data source belongs to the authenticated user
+    const isOwner = await verifyOwnership(datasource.userId);
+    if (!isOwner) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // Validate SQL
@@ -47,6 +56,9 @@ export async function POST(request: NextRequest) {
       executionTime: result.executionTime,
     });
   } catch (error) {
+    if (error instanceof Error && error.message === 'Authentication required') {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
     console.error('Error executing query:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Query execution failed' },

@@ -6,7 +6,7 @@
  * while User.id is our internal cuid used as the foreign key on other tables.
  *
  * Usage in API routes:
- *   import { getCurrentUser, getCurrentUserId, ensureUser, buildUserWhereClause } from '@/lib/auth-utils'
+ *   import { getCurrentUser, getCurrentUserId, ensureUser, requireAuth, buildUserWhereClause, verifyOwnership } from '@/lib/auth-utils'
  */
 
 import { createClient } from '@/utils/supabase/server'
@@ -92,6 +92,20 @@ export async function ensureUser(): Promise<User | null> {
     },
   })
 
+  // Ensure the user has a free subscription
+  const existingSub = await db.subscription.findUnique({
+    where: { userId: user.id },
+  })
+  if (!existingSub) {
+    await db.subscription.create({
+      data: {
+        userId: user.id,
+        plan: 'free',
+        status: 'active',
+      },
+    })
+  }
+
   return user
 }
 
@@ -123,4 +137,19 @@ export async function requireAuth(): Promise<User> {
     throw new Error('Authentication required')
   }
   return user
+}
+
+/**
+ * Verifies that a resource belongs to the authenticated user.
+ * Returns true if the resource's userId matches the current user's id.
+ * Returns false if the user is not authenticated or the resource doesn't belong to them.
+ *
+ * Usage:
+ *   const isOwner = await verifyOwnership(dataSource.userId)
+ *   if (!isOwner) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+ */
+export async function verifyOwnership(resourceUserId: string | null | undefined): Promise<boolean> {
+  if (!resourceUserId) return false
+  const userId = await getCurrentUserId()
+  return userId === resourceUserId
 }

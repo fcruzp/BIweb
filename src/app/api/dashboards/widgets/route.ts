@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requireAuth, verifyOwnership } from '@/lib/auth-utils';
 
 // POST /api/dashboards/widgets - Create a new widget
 export async function POST(request: NextRequest) {
   try {
+    const user = await requireAuth();
     const body = await request.json();
     const {
       dashboardId,
@@ -35,6 +37,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Dashboard not found' }, { status: 404 });
     }
 
+    // Verify ownership of the dashboard
+    const isOwner = await verifyOwnership(dashboard.userId);
+    if (!isOwner) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const widget = await db.dashboardWidget.create({
       data: {
         dashboardId,
@@ -53,6 +61,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ widget }, { status: 201 });
   } catch (error) {
+    if (error instanceof Error && error.message === 'Authentication required') {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
     console.error('Error creating widget:', error);
     return NextResponse.json({ error: 'Failed to create widget' }, { status: 500 });
   }
@@ -61,6 +72,7 @@ export async function POST(request: NextRequest) {
 // GET /api/dashboards/widgets?dashboardId=xxx - List widgets for a dashboard
 export async function GET(request: NextRequest) {
   try {
+    const user = await requireAuth();
     const { searchParams } = new URL(request.url);
     const dashboardId = searchParams.get('dashboardId');
 
@@ -71,6 +83,21 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Verify dashboard exists
+    const dashboard = await db.dashboard.findUnique({
+      where: { id: dashboardId },
+    });
+
+    if (!dashboard) {
+      return NextResponse.json({ error: 'Dashboard not found' }, { status: 404 });
+    }
+
+    // Verify ownership of the dashboard
+    const isOwner = await verifyOwnership(dashboard.userId);
+    if (!isOwner) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const widgets = await db.dashboardWidget.findMany({
       where: { dashboardId },
       orderBy: [{ positionY: 'asc' }, { positionX: 'asc' }],
@@ -78,6 +105,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ widgets });
   } catch (error) {
+    if (error instanceof Error && error.message === 'Authentication required') {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
     console.error('Error fetching widgets:', error);
     return NextResponse.json({ error: 'Failed to fetch widgets' }, { status: 500 });
   }

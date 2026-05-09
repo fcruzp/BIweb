@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requireAuth, verifyOwnership } from '@/lib/auth-utils';
 
-// GET /api/chat/sessions - List chat sessions for a data source
+// GET /api/chat/sessions - List chat sessions for a data source (filtered by user)
 export async function GET(request: NextRequest) {
   try {
+    let user;
+    try {
+      user = await requireAuth();
+    } catch {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const dataSourceId = searchParams.get('dataSourceId');
 
@@ -11,8 +19,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'dataSourceId is required' }, { status: 400 });
     }
 
+    // Verify the data source belongs to the user
+    const dataSource = await db.dataSource.findUnique({
+      where: { id: dataSourceId },
+    });
+    if (!dataSource) {
+      return NextResponse.json({ error: 'Data source not found' }, { status: 404 });
+    }
+    if (!verifyOwnership(dataSource.userId)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const sessions = await db.chatSession.findMany({
-      where: { dataSourceId },
+      where: { dataSourceId, userId: user.id },
       orderBy: { updatedAt: 'desc' },
       select: {
         id: true,
@@ -35,9 +54,16 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/chat/sessions - Create a new chat session
+// POST /api/chat/sessions - Create a new chat session (with userId)
 export async function POST(request: NextRequest) {
   try {
+    let user;
+    try {
+      user = await requireAuth();
+    } catch {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { dataSourceId, title } = body;
 
@@ -45,7 +71,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'dataSourceId is required' }, { status: 400 });
     }
 
-    // Verify data source exists
+    // Verify data source exists and belongs to the user
     const dataSource = await db.dataSource.findUnique({
       where: { id: dataSourceId },
     });
@@ -54,9 +80,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Data source not found' }, { status: 404 });
     }
 
+    if (!verifyOwnership(dataSource.userId)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const session = await db.chatSession.create({
       data: {
         dataSourceId,
+        userId: user.id,
         title: title || 'New Chat',
       },
     });

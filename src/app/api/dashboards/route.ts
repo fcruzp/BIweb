@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requireAuth, verifyOwnership } from '@/lib/auth-utils';
 
 // GET /api/dashboards
 export async function GET() {
   try {
+    const user = await requireAuth();
     const dashboards = await db.dashboard.findMany({
+      where: { userId: user.id },
       orderBy: { updatedAt: 'desc' },
       include: { widgets: true },
     });
     return NextResponse.json({ dashboards });
   } catch (error) {
+    if (error instanceof Error && error.message === 'Authentication required') {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
     console.error('Error fetching dashboards:', error);
     return NextResponse.json({ error: 'Failed to fetch dashboards' }, { status: 500 });
   }
@@ -18,6 +24,7 @@ export async function GET() {
 // POST /api/dashboards
 export async function POST(request: NextRequest) {
   try {
+    const user = await requireAuth();
     const { name, description } = await request.json();
 
     if (!name) {
@@ -29,12 +36,16 @@ export async function POST(request: NextRequest) {
         name,
         description: description || null,
         layout: JSON.stringify({ columns: 12 }),
+        userId: user.id,
       },
       include: { widgets: true },
     });
 
     return NextResponse.json({ dashboard }, { status: 201 });
   } catch (error) {
+    if (error instanceof Error && error.message === 'Authentication required') {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
     console.error('Error creating dashboard:', error);
     return NextResponse.json({ error: 'Failed to create dashboard' }, { status: 500 });
   }
