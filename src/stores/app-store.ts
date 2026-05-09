@@ -44,11 +44,11 @@ interface AppState {
   sidebarOpen: boolean;
   sidebarCollapsed: boolean;
 
-  // Data sources cache
+  // Data sources cache — PERSISTED for instant sidebar rendering
   dataSources: DataSourceInfo[];
   dataSourcesLoading: boolean;
 
-  // Chat sessions cache
+  // Chat sessions cache — PERSISTED for instant sidebar rendering
   chatSessions: ChatSessionInfo[];
   chatSessionsLoading: boolean;
 
@@ -127,6 +127,10 @@ export const useAppStore = create<AppState>()(
       name: 'datamind-app-state',
       partialize: (state) => ({
         activeDataSourceId: state.activeDataSourceId,
+        // Persist data sources and chat sessions for instant sidebar rendering
+        // On next load, sidebar renders from cache immediately while refreshing in background
+        dataSources: state.dataSources,
+        chatSessions: state.chatSessions,
       }),
     }
   )

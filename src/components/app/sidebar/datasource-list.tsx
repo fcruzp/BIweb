@@ -38,10 +38,14 @@ export function DataSourceList() {
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const initialFetchDone = useRef(false);
   const { t } = useI18n();
 
-  const loadDataSources = useCallback(async () => {
-    setDataSourcesLoading(true);
+  // Background refresh — fetches latest data and updates the store silently.
+  // If cached data exists (from Zustand persist), we render it immediately
+  // and refresh in the background. No spinner needed.
+  const loadDataSources = useCallback(async (showLoading = false) => {
+    if (showLoading) setDataSourcesLoading(true);
     setError(null);
     try {
       const res = await fetch('/api/datasources');
@@ -55,13 +59,18 @@ export function DataSourceList() {
       setError(err instanceof Error ? err.message : 'Network error');
       console.error('Failed to load data sources:', err);
     } finally {
-      setDataSourcesLoading(false);
+      if (showLoading) setDataSourcesLoading(false);
     }
   }, [setDataSources, setDataSourcesLoading]);
 
+  // Initial fetch — background refresh if we have cached data, blocking if empty
   useEffect(() => {
-    loadDataSources();
-  }, [loadDataSources]);
+    if (initialFetchDone.current) return;
+    initialFetchDone.current = true;
+    // If we already have cached data, refresh in background (no spinner)
+    // If no cached data, show loading spinner
+    loadDataSources(dataSources.length === 0);
+  }, []);
 
   // Poll for "analyzing" status changes
   useEffect(() => {
@@ -86,7 +95,7 @@ export function DataSourceList() {
         } catch {
           // Ignore polling errors
         }
-      }, 5000); // Poll every 5 seconds
+      }, 5000);
     }
 
     return () => {
@@ -125,7 +134,6 @@ export function DataSourceList() {
         }
         console.log('[DatasourceList] Retry analysis completed:', id);
       } else {
-        // Log the full error for debugging
         let errorDetail = `HTTP ${res.status}`;
         try {
           const errorData = await res.json();
@@ -134,18 +142,15 @@ export function DataSourceList() {
         } catch {
           console.error('[DatasourceList] Retry analysis FAILED:', { id, status: res.status });
         }
-        // Re-fetch to get updated status from DB
-        const refreshRes = await fetch('/api/datasources');
-        if (refreshRes.ok) {
-          const refreshData = await refreshRes.json();
-          setDataSources(refreshData.datasources);
-        }
+        // Re-fetch to get updated status from DB (background)
+        loadDataSources(false);
       }
     } catch (err) {
       console.error('[DatasourceList] Retry analysis network error:', err);
     }
   };
 
+  // Only show spinner when we have NO cached data AND we're loading
   if (dataSourcesLoading && dataSources.length === 0) {
     return (
       <div className="flex items-center justify-center p-4">
@@ -159,7 +164,7 @@ export function DataSourceList() {
       <div className="px-2 py-4 text-center space-y-2">
         <p className="text-xs text-destructive">{error}</p>
         <button
-          onClick={loadDataSources}
+          onClick={() => loadDataSources(true)}
           className="text-xs text-emerald-500 hover:text-emerald-400 flex items-center gap-1 mx-auto"
         >
           <RefreshCw className="h-3 w-3" />

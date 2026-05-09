@@ -66,3 +66,31 @@ Stage Summary:
 - Blur effect: All dialog modals now have `backdrop-blur-sm` on their overlay
 - Table-data 500: Better error handling + logging, file-not-found returns 404 instead of 500
 - Auth 400: Session validation + cleanup of expired sessions prevents stale token refresh
+
+---
+Task ID: 4
+Agent: Main
+Task: Make sidebar Data Sources and Chats load instantly (remove spinners)
+
+Work Log:
+- Root cause analysis: Sidebar showed spinners because:
+  1. `GET /api/datasources` included `schemas: true, contexts: true` — heavy JSON data (columns, sampleData, semanticContext, businessGlossary, relationships) that sidebar doesn't need
+  2. `GET /api/chat/sessions` included `messages: { take: 1 }` and a redundant `db.dataSource.findUnique()` ownership check
+  3. No Zustand persistence — dataSources/chatSessions started empty on every page load
+  4. No background refresh pattern — spinner shown on every fetch instead of rendering cached data
+
+- Backend optimizations:
+  - `GET /api/datasources`: Added `?detailed=true` parameter. Default returns lightweight sidebar data (no columns/sampleData/semanticContext). Full data only when `detailed=true`.
+  - `GET /api/chat/sessions`: Removed `messages: { take: 1 }` include + redundant ownership check. Single query with userId in where clause.
+
+- Frontend optimizations:
+  - Zustand persist: Added `dataSources` and `chatSessions` to persisted state (localStorage)
+  - Background refresh pattern: On page load, if cached data exists → render immediately + fetch in background silently. Only show spinner when no cache exists.
+  - DataSourceList: Uses `initialFetchDone` ref to prevent double-fetch. `loadDataSources(false)` for background refresh.
+  - ChatSessionList: Uses `lastFetchedDsId` ref to avoid refetching same dataSource. Filters sessions by activeDataSourceId.
+
+Stage Summary:
+- Sidebar should now render INSTANTLY from localStorage cache on page load
+- Data refreshes silently in the background (no spinner flicker)
+- Backend API responses are much smaller (no heavy schema/context data in list endpoint)
+- Chat sessions query reduced from 2 DB queries to 1

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAppStore, type ChatSessionInfo } from '@/stores/app-store';
 import { useChatStore } from '@/stores/chat-store';
 import {
@@ -48,13 +48,19 @@ export function ChatSessionList() {
   // Delete confirmation state
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  // Track last fetched dataSourceId to avoid unnecessary refetches
+  const lastFetchedDsId = useRef<string | null>(null);
+
   // Fetch sessions for the active data source
-  const fetchSessions = useCallback(async () => {
+  // Background refresh: no spinner if we already have cached sessions for this dataSource
+  const fetchSessions = useCallback(async (showLoading = false) => {
     if (!activeDataSourceId) {
       setChatSessions([]);
+      lastFetchedDsId.current = null;
       return;
     }
-    setChatSessionsLoading(true);
+
+    if (showLoading) setChatSessionsLoading(true);
     try {
       const res = await fetch(
         `/api/chat/sessions?dataSourceId=${activeDataSourceId}`
@@ -77,6 +83,7 @@ export function ChatSessionList() {
           })
         );
         setChatSessions(sessions);
+        lastFetchedDsId.current = activeDataSourceId;
       } else {
         console.error('Failed to fetch chat sessions:', res.status);
         setChatSessions([]);
@@ -85,13 +92,33 @@ export function ChatSessionList() {
       console.error('Failed to fetch chat sessions:', error);
       setChatSessions([]);
     } finally {
-      setChatSessionsLoading(false);
+      if (showLoading) setChatSessionsLoading(false);
     }
   }, [activeDataSourceId, setChatSessions, setChatSessionsLoading]);
 
   useEffect(() => {
-    fetchSessions();
-  }, [fetchSessions]);
+    if (!activeDataSourceId) {
+      lastFetchedDsId.current = null;
+      return;
+    }
+
+    // If we're switching to a different dataSource, clear sessions and fetch
+    // If same dataSource (e.g., page refresh), use cached data + background refresh
+    const isDifferentDs = lastFetchedDsId.current !== activeDataSourceId;
+    const hasCachedSessions = chatSessions.some(s => s.dataSourceId === activeDataSourceId);
+
+    if (isDifferentDs) {
+      // Clear sessions from previous dataSource immediately
+      setChatSessions([]);
+      fetchSessions(true);
+    } else if (!hasCachedSessions) {
+      // No cached data for this dataSource — show spinner
+      fetchSessions(true);
+    } else {
+      // We have cached data — refresh in background, no spinner
+      fetchSessions(false);
+    }
+  }, [activeDataSourceId]);
 
   // Create a new chat session
   const handleNewChat = async () => {
@@ -188,7 +215,9 @@ export function ChatSessionList() {
     );
   }
 
-  if (chatSessionsLoading) {
+  // Only show spinner when we have NO cached data for this dataSource AND loading
+  const hasCachedForThisDs = chatSessions.some(s => s.dataSourceId === activeDataSourceId);
+  if (chatSessionsLoading && !hasCachedForThisDs) {
     return (
       <div className="flex items-center justify-center p-3">
         <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
@@ -196,7 +225,7 @@ export function ChatSessionList() {
     );
   }
 
-  if (chatSessions.length === 0) {
+  if (chatSessions.length === 0 && !chatSessionsLoading) {
     return (
       <div className="px-2 py-3 text-center text-[10px] text-muted-foreground group-data-[collapsible=icon]:hidden">
         {t('noChatsHint')}
@@ -207,7 +236,9 @@ export function ChatSessionList() {
   return (
     <>
       <SidebarMenu>
-        {chatSessions.map((session) => (
+        {chatSessions
+          .filter(s => s.dataSourceId === activeDataSourceId)
+          .map((session) => (
           <SidebarMenuItem key={session.id}>
             <div className="flex items-center w-full group/chat-item">
               {editingId === session.id ? (

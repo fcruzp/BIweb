@@ -8,10 +8,14 @@ import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 
 // GET /api/datasources - List all data sources (filtered by authenticated user)
-export async function GET() {
+// OPTIMIZED: Returns lightweight list for sidebar (no schemas/contexts unless ?detailed=true)
+export async function GET(request: NextRequest) {
   const startTime = Date.now();
   try {
-    console.log('[DataSources] ⏱ START: list');
+    const { searchParams } = new URL(request.url);
+    const detailed = searchParams.get('detailed') === 'true';
+
+    console.log(`[DataSources] ⏱ START: list (detailed=${detailed})`);
     const t0 = Date.now();
     const user = await requireAuth();
     console.log(`[DataSources] ⏱ Auth: ${Date.now() - t0}ms`);
@@ -20,10 +24,32 @@ export async function GET() {
     const datasources = await db.dataSource.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' },
-      include: {
-        schemas: true,
-        contexts: true,
-      },
+      ...(detailed
+        ? {
+            include: {
+              schemas: true,
+              contexts: true,
+            },
+          }
+        : {
+            select: {
+              id: true,
+              name: true,
+              fileName: true,
+              fileSize: true,
+              fileType: true,
+              status: true,
+              errorMessage: true,
+              createdAt: true,
+              // Include schema count + table names for sidebar preview
+              schemas: {
+                select: { id: true, tableName: true, rowCount: true },
+              },
+              contexts: {
+                select: { id: true, summary: true },
+              },
+            },
+          }),
     });
     console.log(`[DataSources] ⏱ DB query: ${Date.now() - t1}ms, count=${datasources.length}`);
     console.log(`[DataSources] ⏱ TOTAL: ${Date.now() - startTime}ms`);
