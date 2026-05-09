@@ -34,6 +34,14 @@ export interface ChatMessage {
   timestamp: Date;
 }
 
+/** Stage info for streaming progress display */
+export interface StreamingStage {
+  stage: string;         // 'generating_sql' | 'executing' | 'retrying' | 'analyzing'
+  message: string;       // Localized human-readable message
+  sql?: string;          // SQL query (when available)
+  attempt?: number;      // Retry attempt number
+}
+
 interface ChatState {
   messages: ChatMessage[];
   isLoading: boolean;
@@ -41,6 +49,10 @@ interface ChatState {
   currentVisualization: VisualizationConfig | null;
   currentQueryResult: QueryResult | null;
   currentSQL: string | null;
+
+  // Streaming state
+  streamingStage: StreamingStage | null;
+  streamingMessage: Partial<ChatMessage> | null;  // Partial assistant message being built
 
   // Actions
   addMessage: (message: ChatMessage) => void;
@@ -51,6 +63,8 @@ interface ChatState {
   setCurrentVisualization: (viz: VisualizationConfig | null) => void;
   setCurrentQueryResult: (result: QueryResult | null) => void;
   setCurrentSQL: (sql: string | null) => void;
+  setStreamingStage: (stage: StreamingStage | null) => void;
+  setStreamingMessage: (message: Partial<ChatMessage> | null) => void;
   loadMessages: (sessionId: string) => Promise<void>;
 }
 
@@ -61,6 +75,8 @@ export const useChatStore = create<ChatState>((set) => ({
   currentVisualization: null,
   currentQueryResult: null,
   currentSQL: null,
+  streamingStage: null,
+  streamingMessage: null,
 
   addMessage: (message) =>
     set((state) => ({ messages: [...state.messages, message] })),
@@ -71,12 +87,16 @@ export const useChatStore = create<ChatState>((set) => ({
       currentVisualization: null,
       currentQueryResult: null,
       currentSQL: null,
+      streamingStage: null,
+      streamingMessage: null,
     }),
   setLoading: (loading) => set({ isLoading: loading }),
   setError: (error) => set({ error }),
   setCurrentVisualization: (viz) => set({ currentVisualization: viz }),
   setCurrentQueryResult: (result) => set({ currentQueryResult: result }),
   setCurrentSQL: (sql) => set({ currentSQL: sql }),
+  setStreamingStage: (stage) => set({ streamingStage: stage }),
+  setStreamingMessage: (message) => set({ streamingMessage: message }),
   loadMessages: async (sessionId: string) => {
     try {
       set({ isLoading: true, error: null });
@@ -161,6 +181,8 @@ export const useChatStore = create<ChatState>((set) => ({
         currentQueryResult: null,
         currentSQL: null,
         isLoading: false,
+        streamingStage: null,
+        streamingMessage: null,
       });
     } catch (error) {
       const errorMessage =

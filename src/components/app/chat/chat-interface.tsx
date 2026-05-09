@@ -20,7 +20,7 @@ import { useI18n } from '@/hooks/use-i18n';
 export function ChatInterface() {
   const { activeDataSourceId, dataSources, activeSessionId, chatSessions } =
     useAppStore();
-  const { isLoading, messages } = useChatStore();
+  const { isLoading, streamingStage, messages } = useChatStore();
   const [showReport, setShowReport] = useState(false);
   const { t } = useI18n();
 
@@ -62,7 +62,13 @@ export function ChatInterface() {
                 : activeSource.status}
           </p>
         </div>
-        {isLoading && (
+        {isLoading && streamingStage && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            {streamingStage.message}
+          </div>
+        )}
+        {isLoading && !streamingStage && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
             {t('processing')}

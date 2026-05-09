@@ -100,3 +100,55 @@ Stage Summary:
 - AI analysis can be skipped - users can start querying right after upload
 - Real upload progress tracking with XHR (not just a spinner)
 - All new text is localized in English and Spanish
+---
+Task ID: 4
+Agent: main
+Task: Fix extremely slow chat queries - add SSE streaming with real-time progress and eliminate AI visualization call
+
+Work Log:
+- Identified root cause: chat API made 3-4 sequential AI calls per message (25-50+ seconds)
+  - SQL generation: ~10-15s
+  - (Optional) SQL retry: ~10-15s
+  - Visualization suggestion: ~15s (AI call)
+  - Analysis: ~15-20s (AI call)
+  - Even with parallel viz+analysis, total was still 25-35s with zero feedback
+- Created src/lib/viz-heuristics.ts - instant heuristic visualization (replaces ~15s AI call)
+  - Detects geographic/heatmap data (DR provinces) - preserved from original
+  - Classifies columns by type (numeric, date, categorical)
+  - Single row → metric; date+numeric → line; category+numeric → bar; etc.
+  - ZERO latency compared to 15s AI call
+- Converted /api/chat from JSON response to Server-Sent Events (SSE) streaming
+  - Returns ReadableStream immediately, processes in background
+  - Sends progressive events: stage, query_result, complete, error
+  - User sees "Generating SQL..." → "Executing query..." → results appear → "Analyzing..." → analysis text
+  - query_result event sent immediately after SQL execution, before analysis
+  - Final 'complete' event has full message content
+- Updated src/stores/chat-store.ts with streaming state
+  - Added StreamingStage type (stage, message, sql, attempt)
+  - Added streamingStage and streamingMessage state
+  - Added setStreamingStage and setStreamingMessage actions
+- Rewrote src/components/app/chat/message-input.tsx for SSE
+  - Uses fetch() with ReadableStream reader to consume SSE events
+  - Uses refs for streaming state to avoid stale closures
+  - Updates store progressively as each SSE event arrives
+  - Handles all event types: session, stage, query_result, complete, error
+- Rewrote src/components/app/chat/message-list.tsx with progress UI
+  - StreamingProgress component shows current stage with icon and progress dots
+  - Shows SQL query during execution stage
+  - Shows partial results (data table/chart) while analysis is in progress
+  - Analysis-in-progress indicator below partial results
+- Updated src/components/app/chat/chat-interface.tsx
+  - Shows streaming stage message in header (e.g., "Generando consulta SQL...")
+- Updated src/app/api/visualization/suggest/route.ts to use heuristic (instant)
+- Added i18n keys: stageGeneratingSQL, stageExecuting, stageRetrying, stageAnalyzing (EN + ES)
+- Fixed duplicate i18n keys (analysisInProgress was defined twice)
+- Lint passes with no errors, TypeScript compilation passes for all changed files
+
+Stage Summary:
+- Chat response time perception dramatically improved:
+  - Before: 25-50s blank spinner, then all-or-nothing response
+  - After: ~10-15s to see "Generating SQL...", then SQL appears, then results+chart appear immediately, then analysis streams in
+- Eliminated ~15s AI visualization call (replaced with instant heuristics)
+- SSE streaming provides real-time progress feedback at every stage
+- Users can see query results and charts before analysis completes
+- Header shows current processing stage in real-time

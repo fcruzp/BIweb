@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { suggestVisualization } from '@/lib/ai';
+import { suggestVisualizationHeuristic } from '@/lib/viz-heuristics';
 
-// POST /api/visualization/suggest - Get visualization suggestion for data
+// POST /api/visualization/suggest - Get visualization suggestion for data (instant, heuristic)
 export async function POST(request: NextRequest) {
   try {
     const { sql, data, naturalQuery } = await request.json();
@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Data array is required' }, { status: 400 });
     }
 
-    const visualization = await suggestVisualization(sql || '', data, naturalQuery || '');
+    const visualization = suggestVisualizationHeuristic(sql || '', data, naturalQuery || '');
 
     return NextResponse.json({ visualization });
   } catch (error) {

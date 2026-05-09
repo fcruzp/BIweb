@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useAppStore } from '@/stores/app-store';
-import { useChatStore } from '@/stores/chat-store';
+import { useChatStore, type QueryResult, type VisualizationConfig, type StreamingStage } from '@/stores/chat-store';
 import { useAIConfigStore } from '@/stores/ai-config-store';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -15,9 +15,19 @@ export function MessageInput() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { activeDataSourceId, activeSessionId, setActiveSession, addChatSession } =
     useAppStore();
-  const { addMessage, setLoading, setError, isLoading } = useChatStore();
+  const {
+    addMessage, setLoading, setError, isLoading,
+    setStreamingStage, setStreamingMessage,
+    setCurrentSQL, setCurrentQueryResult, setCurrentVisualization,
+  } = useChatStore();
   const { queryRowLimit } = useAIConfigStore();
   const { t } = useI18n();
+
+  // Refs for streaming state that needs to be accessible across SSE events
+  const currentSQLRef = useRef<string | null>(null);
+  const currentQueryResultRef = useRef<QueryResult | null>(null);
+  const currentVisualizationRef = useRef<VisualizationConfig | null>(null);
+  const currentConfidenceRef = useRef<number>(0);
 
   const handleSubmit = async () => {
     if (!input.trim() || !activeDataSourceId || isLoading) return;
@@ -35,6 +45,25 @@ export function MessageInput() {
 
     setLoading(true);
     setError(null);
+
+    // Initialize streaming state
+    const initialStage: StreamingStage = {
+      stage: 'generating_sql',
+      message: t('stageGeneratingSQL') || 'Generating SQL query...',
+    };
+    setStreamingStage(initialStage);
+    setStreamingMessage({
+      id: crypto.randomUUID(),
+      role: 'assistant',
+      content: '',
+      timestamp: new Date(),
+    });
+
+    // Reset refs
+    currentSQLRef.current = null;
+    currentQueryResultRef.current = null;
+    currentVisualizationRef.current = null;
+    currentConfidenceRef.current = 0;
 
     try {
       // If no active session, create one first
@@ -63,6 +92,7 @@ export function MessageInput() {
         });
       }
 
+      // Use fetch with streaming reader for SSE
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -75,28 +105,162 @@ export function MessageInput() {
       });
 
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Failed to process query');
+        // Try to parse error as JSON first (non-streaming error)
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const errorData = await res.json();
+          throw new Error(errorData.error || 'Failed to process query');
+        } else {
+          throw new Error(`Server error: ${res.status}`);
+        }
       }
 
-      const data = await res.json();
+      // Read the SSE stream
+      const reader = res.body?.getReader();
+      if (!reader) {
+        throw new Error('No response stream');
+      }
 
-      // Add assistant message
-      addMessage({
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: data.message.content,
-        sqlQuery: data.message.sqlQuery || null,
-        explanation: data.message.explanation,
-        confidence: data.message.confidence,
-        queryResult: data.message.queryResult || null,
-        visualization: data.message.visualization || null,
-        timestamp: new Date(),
-      });
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Parse SSE events (separated by double newlines)
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr) continue;
+
+          try {
+            const event = JSON.parse(jsonStr);
+
+            switch (event.type) {
+              case 'session':
+                if (event.sessionId) {
+                  setActiveSession(event.sessionId);
+                }
+                break;
+
+              case 'stage': {
+                const newStage: StreamingStage = {
+                  stage: event.stage,
+                  message: event.message,
+                  sql: event.sql,
+                  attempt: event.attempt,
+                };
+                setStreamingStage(newStage);
+
+                // Update SQL in streaming message if provided
+                if (event.sql) {
+                  currentSQLRef.current = event.sql;
+                  setCurrentSQL(event.sql);
+                }
+                break;
+              }
+
+              case 'query_result': {
+                // Query executed successfully — show results immediately!
+                currentSQLRef.current = event.sql;
+                currentQueryResultRef.current = event.queryResult as QueryResult;
+                currentVisualizationRef.current = event.visualization as VisualizationConfig;
+                currentConfidenceRef.current = event.confidence || 0;
+
+                setCurrentSQL(currentSQLRef.current);
+                setCurrentQueryResult(currentQueryResultRef.current);
+                setCurrentVisualization(currentVisualizationRef.current);
+
+                // Update streaming message with partial results
+                setStreamingMessage({
+                  id: crypto.randomUUID(),
+                  role: 'assistant',
+                  content: '',
+                  sqlQuery: currentSQLRef.current,
+                  queryResult: currentQueryResultRef.current,
+                  visualization: currentVisualizationRef.current,
+                  confidence: currentConfidenceRef.current,
+                  timestamp: new Date(),
+                });
+                break;
+              }
+
+              case 'complete': {
+                const finalMessage = event.message;
+                if (event.sessionId) {
+                  setActiveSession(event.sessionId);
+                }
+
+                // Clear streaming state
+                setStreamingStage(null);
+                setStreamingMessage(null);
+                setLoading(false);
+
+                // Add the complete assistant message
+                addMessage({
+                  id: crypto.randomUUID(),
+                  role: 'assistant',
+                  content: finalMessage.content,
+                  sqlQuery: finalMessage.sqlQuery || currentSQLRef.current,
+                  explanation: finalMessage.explanation,
+                  confidence: finalMessage.confidence ?? currentConfidenceRef.current,
+                  queryResult: finalMessage.queryResult || currentQueryResultRef.current,
+                  visualization: finalMessage.visualization || currentVisualizationRef.current,
+                  timestamp: new Date(),
+                });
+
+                // Reset refs
+                currentSQLRef.current = null;
+                currentQueryResultRef.current = null;
+                currentVisualizationRef.current = null;
+                currentConfidenceRef.current = 0;
+                break;
+              }
+
+              case 'error': {
+                const errorMsg = event.error || 'An error occurred';
+                setError(errorMsg);
+                toast.error(errorMsg);
+
+                setStreamingStage(null);
+                setStreamingMessage(null);
+                setLoading(false);
+
+                addMessage({
+                  id: crypto.randomUUID(),
+                  role: 'assistant',
+                  content: `Error: ${errorMsg}`,
+                  timestamp: new Date(),
+                });
+                break;
+              }
+            }
+          } catch (parseError) {
+            // Ignore malformed SSE events
+            console.warn('Failed to parse SSE event:', parseError, jsonStr);
+          }
+        }
+      }
+
+      // Safety: if we exit the loop without a 'complete' event, clean up
+      setStreamingStage(null);
+      setStreamingMessage(null);
+      setLoading(false);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An error occurred';
       setError(errorMessage);
       toast.error(errorMessage);
+
+      setStreamingStage(null);
+      setStreamingMessage(null);
+      setLoading(false);
 
       addMessage({
         id: crypto.randomUUID(),
@@ -104,8 +268,6 @@ export function MessageInput() {
         content: `Error: ${errorMessage}`,
         timestamp: new Date(),
       });
-    } finally {
-      setLoading(false);
     }
   };
 

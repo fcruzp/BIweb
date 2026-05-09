@@ -251,6 +251,12 @@ export const translations = {
     failedToLoadSessions: 'Failed to load chat sessions',
     uploadSuccessAnalyzing: 'Upload successful! AI analysis is running in the background...',
 
+    // Chat streaming stages
+    stageGeneratingSQL: 'Generating SQL query...',
+    stageExecuting: 'Executing query...',
+    stageRetrying: 'Correcting query with AI...',
+    stageAnalyzing: 'Analyzing results...',
+
     // Delete confirmations
     deleteDataSource: 'Delete Data Source',
     deleteDataSourceConfirm: 'Are you sure you want to delete this data source? This will also delete all associated schemas, contexts, and query history.',
@@ -503,6 +509,12 @@ export const translations = {
     analyzingInProgress: 'Análisis de IA en progreso...',
     failedToLoadSessions: 'Error al cargar sesiones de chat',
     uploadSuccessAnalyzing: '¡Subida exitosa! El análisis de IA se está ejecutando en segundo plano...',
+
+    // Chat streaming stages
+    stageGeneratingSQL: 'Generando consulta SQL...',
+    stageExecuting: 'Ejecutando consulta...',
+    stageRetrying: 'Corrigiendo consulta con IA...',
+    stageAnalyzing: 'Analizando resultados...',
 
     // Delete confirmations
     deleteDataSource: 'Eliminar Fuente de Datos',
