@@ -14,6 +14,7 @@ const PUBLIC_ROUTES = [
 
 /**
  * API routes that don't require authentication.
+ * These also skip the Supabase Auth getUser() call for performance.
  */
 const PUBLIC_API_ROUTES = [
   '/api/auth/user',
@@ -38,18 +39,42 @@ const SKIP_PATTERNS = [
   '.ico',
 ]
 
+/**
+ * Check if a route is public (doesn't require auth).
+ * Used to skip the expensive Supabase Auth getUser() call.
+ */
+function isPublicRoute(pathname: string): boolean {
+  if (PUBLIC_ROUTES.includes(pathname)) return true;
+  if (PUBLIC_API_ROUTES.some(route => pathname.startsWith(route))) return true;
+  if (pathname.startsWith('/auth/callback')) return true;
+  return false;
+}
+
 export async function updateSession(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+
+  // Skip static assets entirely — no Supabase call needed
+  if (SKIP_PATTERNS.some(pattern => pathname.includes(pattern))) {
+    return NextResponse.next({
+      request: { headers: request.headers },
+    });
+  }
+
+  // OPTIMIZATION: For public routes, skip the Supabase Auth getUser() call.
+  // This saves 100-500ms per request by avoiding a network round trip
+  // to the Supabase Auth server for routes that don't need auth.
+  if (isPublicRoute(pathname)) {
+    return NextResponse.next({
+      request: { headers: request.headers },
+    });
+  }
+
+  // For protected routes, validate the session with Supabase Auth
   let supabaseResponse = NextResponse.next({
     request: {
       headers: request.headers,
     },
   });
-
-  // Skip static assets
-  const pathname = request.nextUrl.pathname
-  if (SKIP_PATTERNS.some(pattern => pathname.includes(pattern))) {
-    return supabaseResponse
-  }
 
   const supabase = createServerClient(
     supabaseUrl!,
@@ -82,21 +107,6 @@ export async function updateSession(request: NextRequest) {
   // If user is not authenticated and trying to access a protected route,
   // redirect to home page (which will show auth modal)
   if (!user) {
-    // Allow public routes
-    if (PUBLIC_ROUTES.includes(pathname)) {
-      return supabaseResponse
-    }
-
-    // Allow public API routes
-    if (PUBLIC_API_ROUTES.some(route => pathname.startsWith(route))) {
-      return supabaseResponse
-    }
-
-    // Allow auth callback route
-    if (pathname.startsWith('/auth/callback')) {
-      return supabaseResponse
-    }
-
     // For API routes, return 401 instead of redirecting
     if (pathname.startsWith('/api/')) {
       return NextResponse.json(

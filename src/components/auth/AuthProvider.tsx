@@ -83,7 +83,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const syncDbUser = useCallback(async () => {
     try {
-      const res = await fetch('/api/auth/sync', { method: 'POST' });
+      const controller = new AbortController();
+      // 10s timeout — if /auth/sync takes longer, something is very wrong
+      // and we shouldn't block the app from loading
+      const timeoutId = setTimeout(() => controller.abort(), 10_000);
+
+      const res = await fetch('/api/auth/sync', {
+        method: 'POST',
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
       if (res.ok) {
         const data = await res.json();
         if (data.user) {
@@ -98,9 +108,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             subscription: data.subscription ?? null,
           });
         }
+      } else {
+        console.warn('[AuthProvider] /api/auth/sync returned:', res.status);
       }
-    } catch {
+    } catch (err) {
       // Non-critical: user will be synced on next API call
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        console.warn('[AuthProvider] /api/auth/sync timed out (10s) — will retry on next API call');
+      } else {
+        console.warn('[AuthProvider] /api/auth/sync failed:', err instanceof Error ? err.message : err);
+      }
     }
   }, []);
 
