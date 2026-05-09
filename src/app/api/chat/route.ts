@@ -72,7 +72,52 @@ function createSSEStream() {
     return () => clearInterval(interval);
   }
 
-  return { stream, send, close, startHeartbeat };
+  return { stream, send, close, startHeartbeat, startTime };
+}
+
+// ============================================================
+// Step logger — logs timing + sends SSE log event
+// ============================================================
+
+interface StepLog {
+  step: string;
+  duration_ms: number;
+  detail?: string;
+  status: 'start' | 'done' | 'error';
+}
+
+function createStepLogger(send: (event: SSEEvent) => void, overallStart: number) {
+  const stepStartTimes: Record<string, number> = {};
+
+  function startStep(step: string, detail?: string) {
+    stepStartTimes[step] = Date.now();
+    const log: StepLog = { step, duration_ms: Date.now() - overallStart, detail, status: 'start' };
+    console.log(`[Chat] ⏱ STEP START: ${step} (overall: ${log.duration_ms}ms)${detail ? ` — ${detail}` : ''}`);
+    send({ type: 'log', ...log });
+    return stepStartTimes[step];
+  }
+
+  function endStep(step: string, detail?: string) {
+    const stepStart = stepStartTimes[step] || overallStart;
+    const stepDuration = Date.now() - stepStart;
+    const overallDuration = Date.now() - overallStart;
+    const log: StepLog = { step, duration_ms: stepDuration, detail, status: 'done' };
+    console.log(`[Chat] ⏱ STEP DONE: ${step} — ${stepDuration}ms (overall: ${overallDuration}ms)${detail ? ` — ${detail}` : ''}`);
+    send({ type: 'log', ...log, overall_ms: overallDuration });
+    return stepDuration;
+  }
+
+  function errorStep(step: string, detail?: string) {
+    const stepStart = stepStartTimes[step] || overallStart;
+    const stepDuration = Date.now() - stepStart;
+    const overallDuration = Date.now() - overallStart;
+    const log: StepLog = { step, duration_ms: stepDuration, detail, status: 'error' };
+    console.error(`[Chat] ⏱ STEP ERROR: ${step} — ${stepDuration}ms (overall: ${overallDuration}ms)${detail ? ` — ${detail}` : ''}`);
+    send({ type: 'log', ...log, overall_ms: overallDuration });
+    return stepDuration;
+  }
+
+  return { startStep, endStep, errorStep };
 }
 
 // ============================================================
@@ -212,15 +257,17 @@ function t(lang: string, key: string): string {
 
 // POST /api/chat - Process a natural language query (SSE streaming)
 export async function POST(request: NextRequest) {
-  const { stream, send, close, startHeartbeat } = createSSEStream();
-  const overallStart = Date.now();
+  const { stream, send, close, startHeartbeat, startTime } = createSSEStream();
+  const log = createStepLogger(send, startTime);
+
+  console.log(`[Chat] === REQUEST RECEIVED === (handler started at ${startTime})`);
 
   // Send a connected event IMMEDIATELY so that:
   // 1. Caddy/Next.js flushes the response headers (no gateway timeout)
   // 2. The client knows the server received the request
   // 3. The SSE stream starts flowing right away
-  send({ type: 'connected' });
-  console.log('[Chat] SSE stream connected — initial event sent');
+  send({ type: 'connected', timestamp: startTime });
+  console.log('[Chat] SSE "connected" event enqueued');
 
   // Run the main processing in the background so we can return the stream immediately
   (async () => {
@@ -228,23 +275,30 @@ export async function POST(request: NextRequest) {
     const stopHeartbeat = startHeartbeat();
 
     try {
-      console.log('[Chat] === START === New query request');
+      console.log('[Chat] === START === Background processing begins');
 
+      // ──────────────────────────────────────────────────────────
+      // STEP 0: Authentication
+      // ──────────────────────────────────────────────────────────
       let user;
       try {
-        const authStart = Date.now();
+        log.startStep('auth');
         user = await requireAuth();
-        console.log(`[Chat] Auth OK: user=${user.id} (${Date.now() - authStart}ms)`);
+        log.endStep('auth', `user=${user.id}`);
       } catch (authError) {
-        console.error('[Chat] Auth FAILED:', serializeError(authError));
+        log.errorStep('auth', serializeError(authError).message);
         send({ type: 'error', error: 'Authentication required' });
         close();
         return;
       }
 
+      // ──────────────────────────────────────────────────────────
+      // STEP 1: Parse request body
+      // ──────────────────────────────────────────────────────────
+      log.startStep('parse_body');
       const body = await request.json();
       const { message, dataSourceId, sessionId, queryRowLimit } = body;
-      console.log(`[Chat] Request: message="${message?.slice(0, 50)}", dataSourceId=${dataSourceId}, sessionId=${sessionId}, queryRowLimit=${queryRowLimit}`);
+      log.endStep('parse_body', `message="${message?.slice(0, 50)}", dataSourceId=${dataSourceId}`);
 
       if (!message || !dataSourceId) {
         send({ type: 'error', error: 'Message and dataSourceId are required' });
@@ -255,9 +309,10 @@ export async function POST(request: NextRequest) {
       // Detect user language early
       const lang = detectLanguage(message);
 
-      // Get data source with schema and context
-      const dbStart = Date.now();
-      console.log(`[Chat] Fetching datasource ${dataSourceId}...`);
+      // ──────────────────────────────────────────────────────────
+      // STEP 2: Fetch datasource from DB
+      // ──────────────────────────────────────────────────────────
+      log.startStep('fetch_datasource', `id=${dataSourceId}`);
       const datasource = await db.dataSource.findUnique({
         where: { id: dataSourceId },
         include: {
@@ -265,45 +320,39 @@ export async function POST(request: NextRequest) {
           contexts: true,
         },
       });
-      console.log(`[Chat] Datasource fetched (${Date.now() - dbStart}ms)`);
+      log.endStep('fetch_datasource', `found=${!!datasource}, schemas=${datasource?.schemas.length}, contexts=${datasource?.contexts.length}`);
 
       if (!datasource) {
-        console.error(`[Chat] Datasource NOT FOUND: ${dataSourceId}`);
+        log.errorStep('fetch_datasource', 'NOT FOUND');
         send({ type: 'error', error: 'Data source not found' });
         close();
         return;
       }
 
-      console.log(`[Chat] Datasource found: name="${datasource.name}", status="${datasource.status}", filePath="${datasource.filePath}", schemas=${datasource.schemas.length}, contexts=${datasource.contexts.length}`);
-
-      // Verify the data source belongs to the authenticated user
-      // OPTIMIZATION: Use user.id directly instead of calling verifyOwnership() which re-fetches from Supabase
-      const ownerStart = Date.now();
+      // Verify ownership
       const isDatasourceOwner = datasource.userId === user.id;
-      console.log(`[Chat] Ownership check: ${isDatasourceOwner ? 'OK' : 'DENIED'} (${Date.now() - ownerStart}ms — direct comparison, no Supabase call)`);
       if (!isDatasourceOwner) {
+        log.errorStep('fetch_datasource', 'FORBIDDEN — not owner');
         send({ type: 'error', error: 'Forbidden' });
         close();
         return;
       }
 
-      // Allow queries if schemas exist, even if status is 'analyzing' (AI context is optional)
-      // Only block if there are no schemas (meaning the file hasn't been processed at all)
+      // Allow queries if schemas exist, even if status is 'analyzing'
       if (datasource.status === 'error' && datasource.schemas.length === 0) {
-        console.error(`[Chat] Datasource in ERROR state with no schemas`);
+        log.errorStep('fetch_datasource', 'ERROR state with no schemas');
         send({ type: 'error', error: 'Data source has errors and no schema available. Please re-upload the file.' });
         close();
         return;
       }
       if (datasource.schemas.length === 0) {
-        console.error(`[Chat] Datasource has no schemas at all`);
+        log.errorStep('fetch_datasource', 'No schemas at all');
         send({ type: 'error', error: 'Data source has no schema information. Please wait for processing or re-upload.' });
         close();
         return;
       }
 
-      // Auto-fix: if datasource is stuck in 'analyzing' but has schemas, set it to 'ready'
-      // This can happen if the analyze endpoint crashed before completing
+      // Auto-fix stuck 'analyzing' status
       if (datasource.status === 'analyzing' && datasource.schemas.length > 0) {
         console.log(`[Chat] Auto-fixing stuck 'analyzing' status for datasource ${dataSourceId}`);
         try {
@@ -316,8 +365,10 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Get or create chat session
-      const sessionStart = Date.now();
+      // ──────────────────────────────────────────────────────────
+      // STEP 3: Get/create session + save user message
+      // ──────────────────────────────────────────────────────────
+      log.startStep('session_setup');
       let chatSessionId = sessionId;
       if (!chatSessionId) {
         const session = await db.chatSession.create({
@@ -345,7 +396,6 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Save user message
       await db.chatMessage.create({
         data: {
           sessionId: chatSessionId,
@@ -353,22 +403,15 @@ export async function POST(request: NextRequest) {
           content: message,
         },
       });
-
-      console.log(`[Chat] Pre-processing done: session+msg saved (${Date.now() - sessionStart}ms), starting AI pipeline...`);
+      log.endStep('session_setup', `sessionId=${chatSessionId}`);
 
       // Send session info
       send({ type: 'session', sessionId: chatSessionId });
 
       // ──────────────────────────────────────────────────────────
-      // STAGE 1: Generate SQL
+      // STEP 4: Build schema context
       // ──────────────────────────────────────────────────────────
-      send({
-        type: 'stage',
-        stage: 'generating_sql',
-        message: t(lang, 'stageGeneratingSQL'),
-      });
-
-      // Build schema context
+      log.startStep('build_context');
       const tables = datasource.schemas.map((s) => ({
         name: s.tableName,
         columns: JSON.parse(s.columns),
@@ -377,10 +420,12 @@ export async function POST(request: NextRequest) {
       }));
       const schemaDescription = generateSchemaDescription(tables);
       const semanticContext = datasource.contexts[0]?.semanticContext || '';
+      log.endStep('build_context', `schemaLen=${schemaDescription.length}, contextLen=${semanticContext.length}`);
 
-      console.log(`[Chat] Stage 1: Generating SQL (schemaLen=${schemaDescription.length}, contextLen=${semanticContext.length})...`);
-
-      // Get previous queries for context
+      // ──────────────────────────────────────────────────────────
+      // STEP 5: Fetch previous query history
+      // ──────────────────────────────────────────────────────────
+      log.startStep('fetch_history');
       const previousHistory = await db.queryHistory.findMany({
         where: { dataSourceId },
         orderBy: { createdAt: 'desc' },
@@ -390,9 +435,19 @@ export async function POST(request: NextRequest) {
         question: q.naturalQuery,
         sql: q.sqlQuery,
       }));
+      log.endStep('fetch_history', `previousQueries=${previousQueries.length}`);
 
+      // ──────────────────────────────────────────────────────────
+      // STAGE 1: Generate SQL (AI call — this is the slowest part!)
+      // ──────────────────────────────────────────────────────────
+      send({
+        type: 'stage',
+        stage: 'generating_sql',
+        message: t(lang, 'stageGeneratingSQL'),
+      });
+
+      log.startStep('ai_sql_generation', `timeout=30s`);
       let sqlResult;
-      const sqlGenStart = Date.now();
       try {
         sqlResult = await withTimeout(
           generateSQLFromNaturalLanguage(
@@ -402,13 +457,13 @@ export async function POST(request: NextRequest) {
             previousQueries,
             queryRowLimit
           ),
-          20000,
+          30_000, // Increased from 20s to 30s
           'SQL generation'
         );
-        console.log(`[Chat] Stage 1 DONE: SQL generation took ${Date.now() - sqlGenStart}ms, type=${sqlResult.type}, confidence=${sqlResult.confidence}, sql="${sqlResult.sql?.slice(0, 100)}"`);
+        log.endStep('ai_sql_generation', `type=${sqlResult.type}, confidence=${sqlResult.confidence}, sql="${sqlResult.sql?.slice(0, 80)}"`);
       } catch (timeoutError) {
         const errInfo = serializeError(timeoutError);
-        console.error(`[Chat] Stage 1 FAILED: SQL generation error after ${Date.now() - sqlGenStart}ms:`, errInfo);
+        log.errorStep('ai_sql_generation', errInfo.message);
         const errorMsg = errInfo.message || 'SQL generation failed';
 
         const errorContent = `## ${t(lang, 'queryExecutionError')}\n\n${errorMsg}`;
@@ -431,6 +486,7 @@ export async function POST(request: NextRequest) {
 
       // Handle schema questions — no SQL execution needed
       if (sqlResult.type === 'schema_question') {
+        log.startStep('schema_response');
         console.log('[Chat] Schema question — no SQL execution needed');
         const context = datasource.contexts[0];
 
@@ -484,6 +540,7 @@ export async function POST(request: NextRequest) {
           data: { sessionId: chatSessionId, role: 'assistant', content: schemaResponse },
         });
 
+        log.endStep('schema_response');
         send({
           type: 'complete',
           sessionId: chatSessionId,
@@ -498,7 +555,7 @@ export async function POST(request: NextRequest) {
       }
 
       if (!sqlResult.sql || sqlResult.confidence === 0) {
-        console.log(`[Chat] No SQL generated or confidence=0: explanation="${sqlResult.explanation?.slice(0, 100)}"`);
+        console.log(`[Chat] No SQL generated or confidence=0`);
         const unableContent = `## ${t(lang, 'unableToGenerate')}\n\n${sqlResult.explanation || t(lang, 'unableToGenerateDesc')}`;
         await db.chatMessage.create({
           data: { sessionId: chatSessionId, role: 'assistant', content: unableContent, sqlQuery: sqlResult.sql || null },
@@ -518,10 +575,14 @@ export async function POST(request: NextRequest) {
         return;
       }
 
-      // Validate the generated SQL
+      // ──────────────────────────────────────────────────────────
+      // STEP 6: Validate SQL security
+      // ──────────────────────────────────────────────────────────
+      log.startStep('validate_sql');
       const validation = validateSQLQuery(sqlResult.sql);
+      log.endStep('validate_sql', `isSafe=${validation.isSafe}`);
       if (!validation.isSafe) {
-        console.error(`[Chat] SQL blocked by security: ${validation.errors.join(', ')}`);
+        log.errorStep('validate_sql', `blocked: ${validation.errors.join(', ')}`);
         const blockedContent = `## ${t(lang, 'queryBlocked')}\n\n${t(lang, 'queryBlockedDesc')} ${validation.errors.join(', ')}. ${t(lang, 'pleaseRephrase')}`;
         await db.chatMessage.create({
           data: { sessionId: chatSessionId, role: 'assistant', content: blockedContent, sqlQuery: sqlResult.sql },
@@ -551,8 +612,6 @@ export async function POST(request: NextRequest) {
         sql: sanitizeSQL(sqlResult.sql),
       });
 
-      console.log(`[Chat] Stage 2: Executing SQL against filePath="${datasource.filePath}"...`);
-
       const responseRowLimit = typeof queryRowLimit === 'number' ? queryRowLimit : 500;
       const MAX_RETRIES = 2;
       let queryResult;
@@ -561,14 +620,16 @@ export async function POST(request: NextRequest) {
       let retryCount = 0;
 
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        const execLabel = attempt === 0 ? 'sql_execute' : `sql_execute_retry_${attempt}`;
+        log.startStep(execLabel, `attempt=${attempt + 1}, sql="${finalSQL.slice(0, 80)}"`);
         try {
           queryResult = executeSelectQuery(datasource.filePath, finalSQL);
           lastError = '';
-          console.log(`[Chat] Stage 2: SQL executed OK (attempt ${attempt + 1}), rows=${queryResult.rowCount}, time=${queryResult.executionTime}ms`);
+          log.endStep(execLabel, `rows=${queryResult.rowCount}, time=${queryResult.executionTime}ms`);
           break;
         } catch (execError) {
           lastError = execError instanceof Error ? execError.message : 'Query execution failed';
-          console.error(`[Chat] Stage 2: SQL execution FAILED (attempt ${attempt + 1}):`, lastError);
+          log.errorStep(execLabel, lastError);
 
           if (lastError.includes('file not found') || lastError.includes('Database file not found')) {
             console.error('[Chat] Database file not found — aborting retries');
@@ -576,8 +637,6 @@ export async function POST(request: NextRequest) {
           }
 
           if (attempt < MAX_RETRIES && isRetryableExecutionError(lastError)) {
-            console.log(`[Chat] Retrying with AI feedback (attempt ${attempt + 1}/${MAX_RETRIES})...`);
-
             // Send retry stage
             send({
               type: 'stage',
@@ -586,29 +645,31 @@ export async function POST(request: NextRequest) {
               attempt: attempt + 1,
             });
 
+            const retryLabel = `ai_sql_retry_${attempt + 1}`;
+            log.startStep(retryLabel, 'timeout=30s');
             try {
               const retryResult = await withTimeout(
                 regenerateSQLWithFeedback(
                   message, finalSQL, lastError, schemaDescription, semanticContext, queryRowLimit
                 ),
-                20000,
+                30_000, // Increased from 20s
                 'SQL regeneration'
               );
 
               if (!retryResult.sql || retryResult.confidence === 0) {
-                console.log('[Chat] Retry: AI returned no SQL or confidence=0');
+                log.errorStep(retryLabel, 'AI returned no SQL or confidence=0');
                 break;
               }
 
               const retryValidation = validateSQLQuery(retryResult.sql);
               if (!retryValidation.isSafe) {
-                console.log('[Chat] Retry: AI SQL blocked by security');
+                log.errorStep(retryLabel, 'AI SQL blocked by security');
                 break;
               }
 
               finalSQL = sanitizeSQL(retryResult.sql);
               retryCount++;
-              console.log(`[Chat] Retry: Got new SQL: "${finalSQL.slice(0, 100)}"`);
+              log.endStep(retryLabel, `new SQL: "${finalSQL.slice(0, 80)}"`);
 
               // Send updated SQL
               send({
@@ -618,7 +679,7 @@ export async function POST(request: NextRequest) {
                 sql: finalSQL,
               });
             } catch (retryTimeoutError) {
-              console.error('[Chat] SQL regeneration timed out or failed:', serializeError(retryTimeoutError));
+              log.errorStep(retryLabel, serializeError(retryTimeoutError).message);
               break;
             }
           } else {
@@ -630,7 +691,7 @@ export async function POST(request: NextRequest) {
       // If query still failed after retries
       if (!queryResult) {
         const isFileNotFoundError = lastError.includes('file not found') || lastError.includes('Database file not found');
-        console.error(`[Chat] Stage 2 FAILED: No query result. Last error: ${lastError}`);
+        log.errorStep('sql_execute_final', `No result. Last error: ${lastError}`);
         const errorContent = isFileNotFoundError
           ? `## ${t(lang, 'fileNotFound')}\n\n${t(lang, 'fileNotFoundDesc')}`
           : `## ${t(lang, 'queryExecutionError')}${retryCount > 0 ? ` (${t(lang, 'retried')} ${retryCount} ${retryCount > 1 ? t(lang, 'times') : t(lang, 'time')} ${t(lang, 'withAIFeedback')})` : ''}\n\n${lastError}`;
@@ -664,6 +725,7 @@ export async function POST(request: NextRequest) {
       // ──────────────────────────────────────────────────────────
       // STAGE 3: Heuristic visualization (instant, no AI call!)
       // ──────────────────────────────────────────────────────────
+      log.startStep('visualization');
       const slicedData = responseRowLimit > 0
         ? queryResult.data.slice(0, responseRowLimit)
         : queryResult.data;
@@ -671,6 +733,7 @@ export async function POST(request: NextRequest) {
 
       // Use heuristic visualization instead of AI call — instant!
       const visualization = suggestVisualizationHeuristic(finalSQL, queryResult.data, message);
+      log.endStep('visualization', `type=${visualization?.chartType || 'none'}`);
 
       // Send intermediate results so the UI can show data right away
       send({
@@ -688,7 +751,7 @@ export async function POST(request: NextRequest) {
       });
 
       // ──────────────────────────────────────────────────────────
-      // STAGE 4: AI Analysis (streamed)
+      // STAGE 4: AI Analysis (this can be slow too)
       // ──────────────────────────────────────────────────────────
       send({
         type: 'stage',
@@ -697,11 +760,9 @@ export async function POST(request: NextRequest) {
       });
 
       const sampleResults = queryResult.data.slice(0, 10);
-      const analysisStart = Date.now();
-
       let analysis = '';
+      log.startStep('ai_analysis', 'timeout=30s');
       try {
-        console.log('[Chat] Stage 4: Starting AI analysis (timeout: 15s)...');
         const analysisCompletion = await withTimeout(
           createCompletion({
             systemPrompt: `You are a senior business intelligence analyst. Analyze SQL query results concisely.
@@ -741,23 +802,26 @@ ${JSON.stringify(sampleResults, null, 2)}`,
             temperature: 0.3,
             maxTokens: 1500,
           }),
-          15000,
+          30_000, // Increased from 15s to 30s
           'Result analysis'
         );
 
         if (analysisCompletion?.content) {
           analysis = analysisCompletion.content;
         }
-        console.log(`[Chat] Stage 4 DONE: AI analysis took ${Date.now() - analysisStart}ms`);
+        log.endStep('ai_analysis', `contentLen=${analysis.length}`);
       } catch (err) {
-        console.error(`[Chat] Stage 4 FAILED: AI analysis error after ${Date.now() - analysisStart}ms:`, serializeError(err));
+        log.errorStep('ai_analysis', serializeError(err).message);
       }
 
       if (!analysis) {
         analysis = `## ${t(lang, 'queryResults')}\n\n${t(lang, 'queryReturned')} **${queryResult.rowCount}** ${t(lang, 'rows')} ${t(lang, 'rowsIn')} **${queryResult.executionTime}ms**.`;
       }
 
-      // Build the full response content
+      // ──────────────────────────────────────────────────────────
+      // STEP 7: Save results to DB
+      // ──────────────────────────────────────────────────────────
+      log.startStep('save_results');
       const retryNote = retryCount > 0
         ? ` (${t(lang, 'autoCorrected')} ${retryCount} ${retryCount > 1 ? t(lang, 'attempts') : t(lang, 'attempt')})`
         : '';
@@ -796,10 +860,12 @@ ${JSON.stringify(sampleResults, null, 2)}`,
           status: 'success',
         },
       });
+      log.endStep('save_results');
 
-      console.log(`[Chat] === END === total=${Date.now() - overallStart}ms, rows=${queryResult.rowCount}, retries=${retryCount}`);
+      const totalMs = Date.now() - startTime;
+      console.log(`[Chat] === END === total=${totalMs}ms, rows=${queryResult.rowCount}, retries=${retryCount}`);
 
-      // Send final complete event
+      // Send final complete event with timing summary
       send({
         type: 'complete',
         sessionId: chatSessionId,
@@ -818,6 +884,15 @@ ${JSON.stringify(sampleResults, null, 2)}`,
           },
           visualization,
         },
+        timing: {
+          total_ms: totalMs,
+          steps: {
+            auth: '(see log events)',
+            sql_generation: '(see log events)',
+            sql_execution: '(see log events)',
+            analysis: '(see log events)',
+          },
+        },
       });
     } catch (error) {
       const errInfo = serializeError(error);
@@ -834,11 +909,13 @@ ${JSON.stringify(sampleResults, null, 2)}`,
   })();
 
   // Return the SSE stream immediately
+  console.log('[Chat] Returning SSE stream response (headers flushed)');
   return new Response(stream, {
     headers: {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no', // Disable nginx buffering
     },
   });
 }

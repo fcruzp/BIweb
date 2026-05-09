@@ -102,10 +102,14 @@ function StreamingProgress({ stage, elapsedMs }: { stage: StreamingStage; elapse
             {stage.sql}
           </div>
         )}
-        {/* "Taking longer" hint */}
+        {/* "Taking longer" hint with stage-specific messages */}
         {isVerySlow && (
           <p className="text-[11px] text-amber-500/80 animate-pulse">
-            La consulta está tomando más tiempo de lo habitual. La IA sigue trabajando...
+            {stage.stage === 'generating_sql'
+              ? 'La IA está tardando en generar la consulta. Esto puede pasar en preguntas complejas...'
+              : stage.stage === 'analyzing'
+                ? 'El análisis de IA está tomando más tiempo de lo habitual...'
+                : 'La consulta está tomando más tiempo de lo habitual. La IA sigue trabajando...'}
           </p>
         )}
         {isSlow && !isVerySlow && (
@@ -210,7 +214,7 @@ export function MessageList() {
             </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Analyzing your question and generating query...</span>
+              <span>Conectando con el servidor...</span>
               {displayElapsed > 0 && (
                 <span className="font-mono text-[10px] text-muted-foreground/60">({formatElapsed(displayElapsed)})</span>
               )}

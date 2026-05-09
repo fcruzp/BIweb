@@ -299,3 +299,27 @@ Stage Summary:
 - Ownership checks now use direct comparison (saves 2-6s per request)
 - Client-side timeout prevents endless waiting (120s)
 - Expected improvement: first byte in <1s instead of 26s, no more 504 timeouts
+---
+Task ID: 1
+Agent: main
+Task: Fix 504 Gateway Timeout + add step-level timing logs for chat queries
+
+Work Log:
+- Read all relevant files: chat route, message-input, message-list, chat-store, ai.ts, Caddyfile
+- Identified root causes: (1) Caddy not flushing SSE events (no flush_interval), (2) Client-side 120s total timeout killing requests before server responds, (3) No step-level timing logs
+- Added `flush_interval -1` to Caddyfile reverse_proxy to ensure SSE events are flushed immediately
+- Rewrote chat route with `createStepLogger()` that logs each step's timing to both console and SSE `log` events
+- Increased AI timeouts: SQL generation 20s→30s, SQL regeneration 20s→30s, analysis 15s→30s
+- Added `X-Accel-Buffering: no` header to SSE response to disable nginx buffering
+- Replaced client-side 120s total timeout with 60s idle timeout (resets on each data chunk)
+- Client now handles `log` SSE events and prints step timing to browser console with icons (⏳/✅/❌)
+- Client prints a STEP TIMING SUMMARY at the end of each query
+- Updated message-list with stage-specific slow hints and better "connecting" text
+- Lint check passes (only pre-existing warning)
+
+Stage Summary:
+- Key fix: `flush_interval -1` in Caddyfile ensures SSE events reach client immediately
+- Key fix: 60s idle timeout replaces 120s total timeout — won't kill slow but active requests
+- New feature: Step-level timing logs in server console AND browser console via SSE log events
+- Changed timeouts: AI calls increased to 30s to reduce premature timeouts
+- Files changed: Caddyfile, src/app/api/chat/route.ts, src/components/app/chat/message-input.tsx, src/components/app/chat/message-list.tsx

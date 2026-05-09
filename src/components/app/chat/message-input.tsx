@@ -10,6 +10,15 @@ import { Send, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useI18n } from '@/hooks/use-i18n';
 
+// Step log entry for display in console
+interface StepLogEntry {
+  step: string;
+  duration_ms: number;
+  overall_ms?: number;
+  detail?: string;
+  status: 'start' | 'done' | 'error';
+}
+
 export function MessageInput() {
   const [input, setInput] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -94,14 +103,29 @@ export function MessageInput() {
       }
 
       // Use fetch with streaming reader for SSE
-      // AbortController with 120s timeout — prevents endless waiting if server never responds
+      // STRATEGY: No total timeout — instead use an idle timeout.
+      // If no data is received for 60 seconds, abort.
+      // Once data starts flowing (SSE stream connected), reset the idle timer
+      // on each chunk. This prevents killing the request when the AI is just slow
+      // but still working (heartbeats keep the connection alive).
       console.log('[Chat] Sending query to /api/chat...');
       const fetchStart = Date.now();
       const abortController = new AbortController();
-      const clientTimeout = setTimeout(() => {
+
+      // Idle timeout: 60 seconds with no data → abort
+      const IDLE_TIMEOUT_MS = 60_000;
+      let idleTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+        console.error(`[Chat] Idle timeout: no data received for ${IDLE_TIMEOUT_MS / 1000}s, aborting`);
         abortController.abort();
-        console.error('[Chat] Client-side timeout: 120s exceeded, aborting request');
-      }, 120_000);
+      }, IDLE_TIMEOUT_MS);
+
+      function resetIdleTimer() {
+        if (idleTimer) clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => {
+          console.error(`[Chat] Idle timeout: no data received for ${IDLE_TIMEOUT_MS / 1000}s, aborting`);
+          abortController.abort();
+        }, IDLE_TIMEOUT_MS);
+      }
 
       let res: Response;
       try {
@@ -117,15 +141,15 @@ export function MessageInput() {
           signal: abortController.signal,
         });
       } catch (fetchError) {
-        clearTimeout(clientTimeout);
+        if (idleTimer) clearTimeout(idleTimer);
         if (fetchError instanceof DOMException && fetchError.name === 'AbortError') {
-          throw new Error('La consulta tardó demasiado en conectarse al servidor. Verifica tu conexión e inténtalo de nuevo.');
+          throw new Error('No se recibió respuesta del servidor en 60 segundos. Verifica tu conexión e inténtalo de nuevo.');
         }
         throw fetchError;
       }
-      clearTimeout(clientTimeout);
 
       if (!res.ok) {
+        if (idleTimer) clearTimeout(idleTimer);
         // Try to parse error as JSON first (non-streaming error)
         const contentType = res.headers.get('content-type') || '';
         console.error(`[Chat] API error: status=${res.status}, contentType=${contentType}, time=${Date.now() - fetchStart}ms`);
@@ -146,17 +170,24 @@ export function MessageInput() {
       // Read the SSE stream
       const reader = res.body?.getReader();
       if (!reader) {
+        if (idleTimer) clearTimeout(idleTimer);
         throw new Error('No response stream');
       }
 
       console.log(`[Chat] SSE stream connected, time to first byte: ${Date.now() - fetchStart}ms`);
+      resetIdleTimer(); // We got headers — reset idle timer
 
       const decoder = new TextDecoder();
       let buffer = '';
+      // Collect step logs for final summary
+      const stepLogs: StepLogEntry[] = [];
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
+
+        // Reset idle timer — we received data
+        resetIdleTimer();
 
         buffer += decoder.decode(value, { stream: true });
 
@@ -176,7 +207,7 @@ export function MessageInput() {
             switch (event.type) {
               case 'connected': {
                 // Server acknowledged the request — SSE stream is flowing
-                console.log('[Chat] SSE connected event received — stream is live');
+                console.log(`[Chat] SSE connected event received — stream is live (${Date.now() - fetchStart}ms)`);
                 break;
               }
 
@@ -185,6 +216,17 @@ export function MessageInput() {
                 if (typeof event.elapsed_ms === 'number') {
                   setStreamingElapsedMs(event.elapsed_ms);
                 }
+                break;
+              }
+
+              case 'log': {
+                // Server-side step log — log to console for debugging
+                const logEntry = event as StepLogEntry & { overall_ms?: number };
+                stepLogs.push(logEntry);
+                const icon = logEntry.status === 'done' ? '✅' : logEntry.status === 'error' ? '❌' : '⏳';
+                const duration = logEntry.status !== 'start' ? ` (${logEntry.duration_ms}ms)` : '';
+                const overall = logEntry.overall_ms ? ` [total: ${logEntry.overall_ms}ms]` : '';
+                console.log(`[Chat] ${icon} STEP: ${logEntry.step}${duration}${overall}${logEntry.detail ? ` — ${logEntry.detail}` : ''}`);
                 break;
               }
 
@@ -240,9 +282,21 @@ export function MessageInput() {
 
               case 'complete': {
                 const finalMessage = event.message;
-                console.log(`[Chat] SSE complete: contentLen=${finalMessage?.content?.length}, hasResult=${!!finalMessage?.queryResult}`);
+                const timing = event.timing as { total_ms: number } | undefined;
+                console.log(`[Chat] SSE complete: contentLen=${finalMessage?.content?.length}, hasResult=${!!finalMessage?.queryResult}${timing ? `, total=${timing.total_ms}ms` : ''}`);
                 if (event.sessionId) {
                   setActiveSession(event.sessionId);
+                }
+
+                // Print step timing summary
+                if (stepLogs.length > 0) {
+                  console.log('[Chat] ═══ STEP TIMING SUMMARY ═══');
+                  const doneSteps = stepLogs.filter(l => l.status === 'done' || l.status === 'error');
+                  for (const s of doneSteps) {
+                    const icon = s.status === 'done' ? '✅' : '❌';
+                    console.log(`[Chat] ${icon} ${s.step}: ${s.duration_ms}ms${s.detail ? ` — ${s.detail}` : ''}`);
+                  }
+                  console.log(`[Chat] ═══ TOTAL: ${timing?.total_ms || Date.now() - fetchStart}ms ═══`);
                 }
 
                 // Clear streaming state
@@ -299,6 +353,9 @@ export function MessageInput() {
           }
         }
       }
+
+      // Clean up idle timer
+      if (idleTimer) clearTimeout(idleTimer);
 
       // Safety: if we exit the loop without a 'complete' event, clean up
       setStreamingStage(null);

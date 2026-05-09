@@ -19,7 +19,12 @@
                         header_up X-Forwarded-Proto {scheme}
                         header_up X-Real-IP {remote_host}
 
-                        # Critical timeouts for SSE (Server-Sent Events) streaming
+                        # Critical for SSE (Server-Sent Events): flush each event immediately
+                        # Without this, Caddy buffers the response and the client never
+                        # receives the "connected" event, causing gateway timeouts
+                        flush_interval -1
+
+                        # Critical timeouts for SSE streaming
                         # The /api/chat endpoint uses SSE for real-time progress updates
                         # These can take 30-90 seconds for AI-powered queries
                         transport http {
