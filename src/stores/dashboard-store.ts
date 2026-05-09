@@ -3,7 +3,7 @@ import { create } from 'zustand';
 export interface WidgetConfig {
   id: string;
   title: string;
-  widgetType: 'chart' | 'table' | 'metric' | 'text';
+  widgetType: 'chart' | 'table' | 'metric' | 'text' | 'map';
   dataSourceId?: string;
   sqlQuery?: string;
   visualization?: string; // JSON

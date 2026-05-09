@@ -3,6 +3,7 @@
 import { useWidgetData } from '@/hooks/use-widget-data';
 import { ChartRenderer } from '@/components/app/visualization/chart-renderer';
 import { DataTable } from '@/components/app/visualization/data-table';
+import { DRHeatMap } from '@/components/app/visualization/dr-map';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { WidgetConfig } from '@/stores/dashboard-store';
 import type { VisualizationConfig } from '@/stores/chat-store';
@@ -130,6 +131,38 @@ export function WidgetRenderer({ widget }: WidgetRendererProps) {
           data={result.data}
         />
       );
+
+    case 'map':
+      if (vizConfig && vizConfig.chartType === 'heatmap') {
+        return (
+          <div className="space-y-3">
+            {/* Bar chart above the map */}
+            <ChartRenderer
+              visualization={{
+                ...vizConfig,
+                chartType: 'bar',
+                xAxis: vizConfig.provinceColumn || vizConfig.xAxis,
+                yAxis: vizConfig.valueColumn ? [vizConfig.valueColumn] : vizConfig.yAxis,
+              }}
+              data={result.data}
+            />
+            <DRHeatMap
+              data={result.data}
+              provinceColumn={vizConfig.provinceColumn || ''}
+              valueColumn={vizConfig.valueColumn || ''}
+              title={vizConfig.title}
+            />
+          </div>
+        );
+      }
+      // Fallback: if no heatmap vizConfig, render as chart
+      return <ChartRenderer visualization={vizConfig || {
+        chartType: 'bar',
+        title: widget.title,
+        description: '',
+        xAxis: result.columns[0],
+        yAxis: result.columns.length > 1 ? [result.columns[1]] : [result.columns[0]],
+      }} data={result.data} />;
 
     default:
       return <DataTable data={result.data} columns={result.columns} />;

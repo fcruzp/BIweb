@@ -186,3 +186,27 @@ Stage Summary:
 - All lint checks pass (0 errors, 1 pre-existing warning)
 - Files modified: i18n.ts, use-i18n.ts, all 17 component files
 - No new files created
+
+---
+Task ID: 6
+Agent: main
+Task: Three modifications: 1) Add maps to widgets, 2) Remove SQL from reports, 3) Fix print/PDF
+
+Work Log:
+- Added 'map' widget type to dashboard system
+- Updated WidgetType in dashboard-store.ts to include 'map'
+- Updated add-widget-dialog.tsx with MapPin icon, 'map' type option (5-button grid)
+- Added auto-detection of geographic columns using detectGeographicColumn() from dr-map
+- Updated widget-renderer.tsx with map case: renders both bar chart + DRHeatMap
+- Updated pin-to-dashboard-button.tsx to accept 'map' type
+- Added i18n translations: widgetTypeMap 'Map' (EN) / 'Mapa' (ES)
+- Removed SQL code from chat reports
+- Fixed print/PDF: changed handlePrint() to open a new window with self-contained HTML document
+- Rewrote renderMarkdownToSimpleHtml() with line-by-line processing
+- buildPrintReport() generates pure HTML with all messages visible for printing
+
+Stage Summary:
+- Map widget type fully integrated into dashboard system
+- SQL code removed from both on-screen report and print/PDF output
+- Print/PDF now opens in new window with complete formatted document showing ALL Q&A pairs
+- Files modified: dashboard-store.ts, add-widget-dialog.tsx, widget-renderer.tsx, pin-to-dashboard-button.tsx, chat-report.tsx, i18n.ts

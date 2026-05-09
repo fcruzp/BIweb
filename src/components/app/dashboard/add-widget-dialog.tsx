@@ -21,15 +21,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, Play, BarChart3, Table2, Gauge, Type } from 'lucide-react';
+import { Loader2, Play, BarChart3, Table2, Gauge, Type, MapPin } from 'lucide-react';
 import { executeWidgetQuery } from '@/hooks/use-widget-data';
 import { ChartRenderer } from '@/components/app/visualization/chart-renderer';
 import { DataTable } from '@/components/app/visualization/data-table';
+import { detectGeographicColumn } from '@/components/app/visualization/dr-map';
 import type { VisualizationConfig } from '@/stores/chat-store';
 import { toast } from 'sonner';
 import { useI18n } from '@/hooks/use-i18n';
 
-export type WidgetType = 'chart' | 'table' | 'metric' | 'text';
+export type WidgetType = 'chart' | 'table' | 'metric' | 'text' | 'map';
 
 interface AddWidgetDialogProps {
   open: boolean;
@@ -83,6 +84,8 @@ export function AddWidgetDialog({
   const [saving, setSaving] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [markdownContent, setMarkdownContent] = useState('');
+  const [provinceColumn, setProvinceColumn] = useState('');
+  const [valueColumn, setValueColumn] = useState('');
 
   const handleRunQuery = useCallback(async () => {
     if (!dataSourceId || !sqlQuery) {
@@ -133,6 +136,40 @@ export function AddWidgetDialog({
           title: title || 'Data Table',
           description: '',
         });
+      } else if (!visualization && widgetType === 'map' && result.data.length > 0) {
+        // Auto-detect geographic columns for map
+        const geoInfo = detectGeographicColumn(result.data, result.columns);
+        if (geoInfo) {
+          setProvinceColumn(geoInfo.provinceColumn);
+          setValueColumn(geoInfo.valueColumn);
+          setVisualization({
+            chartType: 'heatmap',
+            title: title || 'Geographic Map',
+            description: '',
+            provinceColumn: geoInfo.provinceColumn,
+            valueColumn: geoInfo.valueColumn,
+            xAxis: geoInfo.provinceColumn,
+            yAxis: [geoInfo.valueColumn],
+          });
+        } else {
+          // Fallback: use first string col as province, first numeric as value
+          const firstRow = result.data[0];
+          const stringCols = result.columns.filter((c) => typeof firstRow[c] === 'string');
+          const numericCols = result.columns.filter((c) => typeof firstRow[c] === 'number');
+          const provCol = stringCols[0] || result.columns[0];
+          const valCol = numericCols[0] || result.columns[1] || result.columns[0];
+          setProvinceColumn(provCol);
+          setValueColumn(valCol);
+          setVisualization({
+            chartType: 'heatmap',
+            title: title || 'Geographic Map',
+            description: '',
+            provinceColumn: provCol,
+            valueColumn: valCol,
+            xAxis: provCol,
+            yAxis: [valCol],
+          });
+        }
       }
     } catch (err) {
       setPreviewError(err instanceof Error ? err.message : 'Query failed');
@@ -167,8 +204,8 @@ export function AddWidgetDialog({
           config: widgetType === 'text' ? { markdown: markdownContent } : {},
           positionX: 0,
           positionY: 0,
-          width: widgetType === 'metric' ? 3 : 6,
-          height: widgetType === 'metric' ? 3 : 4,
+          width: widgetType === 'metric' ? 3 : widgetType === 'map' ? 6 : 6,
+          height: widgetType === 'metric' ? 3 : widgetType === 'map' ? 5 : 4,
         }),
       });
 
@@ -197,6 +234,8 @@ export function AddWidgetDialog({
     setPreviewData(null);
     setPreviewError(null);
     setMarkdownContent('');
+    setProvinceColumn('');
+    setValueColumn('');
   };
 
   const widgetTypeIcon = (type: WidgetType) => {
@@ -205,6 +244,7 @@ export function AddWidgetDialog({
       case 'table': return <Table2 className="h-4 w-4" />;
       case 'metric': return <Gauge className="h-4 w-4" />;
       case 'text': return <Type className="h-4 w-4" />;
+      case 'map': return <MapPin className="h-4 w-4" />;
     }
   };
 
@@ -214,6 +254,7 @@ export function AddWidgetDialog({
       case 'table': return t('widgetTypeTable');
       case 'metric': return t('widgetTypeMetric');
       case 'text': return t('widgetTypeText');
+      case 'map': return t('widgetTypeMap');
     }
   };
 
@@ -242,8 +283,8 @@ export function AddWidgetDialog({
           {/* Widget Type */}
           <div className="space-y-2">
             <Label>{t('widgetType')}</Label>
-            <div className="grid grid-cols-4 gap-2">
-              {(['chart', 'table', 'metric', 'text'] as WidgetType[]).map((type) => (
+            <div className="grid grid-cols-5 gap-2">
+              {(['chart', 'table', 'metric', 'map', 'text'] as WidgetType[]).map((type) => (
                 <Button
                   key={type}
                   variant={widgetType === type ? 'default' : 'outline'}
@@ -326,6 +367,8 @@ export function AddWidgetDialog({
                     {widgetType === 'chart' && visualization ? (
                       <ChartRenderer visualization={visualization} data={previewData.data} />
                     ) : widgetType === 'metric' && visualization ? (
+                      <ChartRenderer visualization={visualization} data={previewData.data} />
+                    ) : widgetType === 'map' && visualization ? (
                       <ChartRenderer visualization={visualization} data={previewData.data} />
                     ) : (
                       <DataTable

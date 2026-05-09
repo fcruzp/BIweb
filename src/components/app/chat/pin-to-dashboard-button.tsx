@@ -19,7 +19,7 @@ import { useI18n } from '@/hooks/use-i18n';
 
 interface PinToDashboardButtonProps {
   title: string;
-  widgetType: 'chart' | 'table' | 'metric';
+  widgetType: 'chart' | 'table' | 'metric' | 'map';
   dataSourceId: string;
   sqlQuery: string;
   visualization?: VisualizationConfig | null;
@@ -68,8 +68,8 @@ export function PinToDashboardButton({
           config: {},
           positionX: 0,
           positionY: dashboard.widgets?.length || 0,
-          width: widgetType === 'metric' ? 3 : 6,
-          height: widgetType === 'metric' ? 3 : 4,
+          width: widgetType === 'metric' ? 3 : widgetType === 'map' ? 6 : 6,
+          height: widgetType === 'metric' ? 3 : widgetType === 'map' ? 5 : 4,
         }),
       });
 
