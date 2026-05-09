@@ -4,6 +4,7 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/s
 import { AppSidebar } from './sidebar/app-sidebar';
 import { useAppStore } from '@/stores/app-store';
 import { Separator } from '@/components/ui/separator';
+import { UserMenu } from '@/components/auth/UserMenu';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { sidebarOpen, setSidebarOpen } = useAppStore();
@@ -16,6 +17,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
           <span className="text-xs text-muted-foreground">DataMind BI</span>
+          <div className="ml-auto">
+            <UserMenu />
+          </div>
         </header>
         <div className="flex-1 overflow-hidden">
           {children}

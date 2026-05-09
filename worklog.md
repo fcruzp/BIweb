@@ -174,3 +174,145 @@ Stage Summary:
 - All API endpoints verified working with PostgreSQL
 - Key learning: Supabase pooler region matters — `aws-1` not `aws-0` for US East
 - Ready for Phase 2: Auth + Multi-Tenant
+
+---
+Task ID: 2-b
+Agent: Auth UI Agent
+Task: Phase 2 Auth UI — Create auth modal, user menu, and auth provider components
+
+Work Log:
+- Read previous work records (Tasks 1-5) to understand project context
+- Reviewed existing project structure: app-layout.tsx, page.tsx, shadcn/ui components, supabase client
+- Created 3 new auth components in src/components/auth/:
+
+  1. **AuthProvider.tsx** — React Context provider:
+     - Manages user state, isAuthenticated, isLoading via Supabase auth
+     - Uses createClient() from @/utils/supabase/client
+     - Listens for auth state changes via supabase.auth.onAuthStateChange()
+     - Gets initial session via supabase.auth.getSession()
+     - Provides: openAuthModal(tab?), closeAuthModal, signOut, isAuthModalOpen, authModalTab
+     - Auto-closes modal on successful auth
+     - Exports useAuth() hook with proper error boundary
+
+  2. **AuthModal.tsx** — Main auth dialog with tabs:
+     - Sign In tab: Email + Password, Google OAuth button, "Forgot password?" link
+     - Sign Up tab: Name + Email + Password, Google OAuth button
+     - Forgot Password tab: Email input + "Send Reset Link" + "Back to Sign In" link
+     - Uses shadcn/ui: Dialog, Tabs, Input, Label, Button, Separator, Card
+     - Dark theme: bg-gray-950, border-gray-800, emerald accent colors
+     - Decorative gradient accent bar at top (emerald → teal)
+     - Loading states with Loader2 spinner on all submit buttons
+     - Error display: red border/bg with AlertCircle icon
+     - Success display: green border/bg with CheckCircle2 icon (for signup confirmation + password reset)
+     - Password visibility toggle (Eye/EyeOff icons)
+     - Divider with "or sign in/up with email" text between OAuth and email forms
+     - Responsive design, terms of service text
+
+  3. **UserMenu.tsx** — Header avatar/menu:
+     - Loading state: spinner icon button
+     - Unauthenticated: "Sign In" ghost button (opens AuthModal)
+     - Authenticated: Avatar with dropdown menu
+       - Shows user avatar (from OAuth) or initials fallback (emerald bg)
+       - Dropdown: user name + email label, Profile, Settings, Sign Out
+       - Sign Out item in red with LogOut icon
+     - Uses shadcn/ui: DropdownMenu, Avatar, Button
+     - Ring hover effect on avatar (gray-700 → emerald-500/50)
+
+- Integrated AuthProvider into src/app/layout.tsx:
+  - Wraps {children} + AuthModal inside AuthProvider
+  - AuthProvider sits inside ThemeProvider
+
+- Integrated UserMenu into src/components/app/app-layout.tsx:
+  - Added UserMenu to header, pushed right with ml-auto
+  - Clean placement next to "DataMind BI" text
+
+- Design: Consistent dark BI aesthetic with emerald/teal accents throughout
+- All components have 'use client' directive
+- TypeScript throughout, no `any` types
+- Uses existing shadcn/ui components from src/components/ui/
+- Lint passes (0 errors, 1 pre-existing warning from data-table)
+- App compiles and loads correctly (GET / 200)
+
+Stage Summary:
+- Phase 2 Auth UI is COMPLETE
+- 3 new auth components created: AuthProvider, AuthModal, UserMenu
+- Auth flow: UserMenu triggers AuthModal → Supabase auth → context updates → UI refreshes
+- Auth modal supports: email/password sign in, email/password sign up, Google OAuth, forgot password
+- App running correctly on Supabase PostgreSQL with all existing features intact
+
+---
+Task ID: 2-a
+Agent: Auth Agent
+Task: Phase 2 — Auth Utilities and useAuth Hook
+
+Work Log:
+- Read all previous work records (Tasks 1-5) to understand project context
+- Reviewed existing files: auth-utils.ts (Phase 1 placeholders), supabase client utilities, db.ts, schema.prisma
+- Key context: App is on Supabase PostgreSQL, User model has supabaseId field for mapping auth.uid()
+- Updated src/lib/auth-utils.ts — Replaced Phase 1 placeholders with real Supabase Auth integration:
+  - getSupabaseAuthUser(): Gets authenticated Supabase Auth user from cookies (server-side)
+  - getCurrentUser(): Looks up our User record by supabaseId, returns full User | null
+  - getCurrentUserId(): Returns our internal User.id (cuid, NOT supabaseId) — used as FK on other tables
+  - ensureUser(): Core sync mechanism — upserts User record on sign-in (creates if new, updates email/name/avatar if existing)
+  - buildUserWhereClause(): Returns { userId } for Prisma queries when authenticated, {} otherwise
+  - requireAuth(): Convenience function that throws if not authenticated (for protected API routes)
+- Created src/hooks/useAuth.ts — Client-side React hook:
+  - Uses createClient from @/utils/supabase/client
+  - State: user (AppUser), supabaseUser, isAuthenticated, isLoading
+  - Actions: signIn, signUp, signOut, resetPassword, refreshUser
+  - onAuthStateChange listener for real-time auth state updates
+  - Auto-syncs user to our User table via POST /api/auth/sync on sign-in
+  - Initialize effect checks existing session via getSession()
+- Created src/app/api/auth/sync/route.ts — POST endpoint:
+  - Verifies Supabase Auth session via cookies (server-side)
+  - Calls ensureUser() to create or update User record
+  - Returns our internal User record or 401 if not authenticated
+- Created src/app/api/auth/user/route.ts — GET endpoint:
+  - Returns current authenticated User record from our DB
+  - Returns { user: null, authenticated: false } if not logged in
+  - No error thrown for unauthenticated users (graceful handling)
+- Lint check: 0 errors, 1 pre-existing warning (TanStack Table in data-table.tsx)
+- TypeScript check: No errors in any of the new auth files
+
+Stage Summary:
+- Phase 2 Auth core infrastructure is COMPLETE
+- Auth utilities fully replace Phase 1 placeholders with real Supabase Auth integration
+- useAuth hook provides complete client-side auth state management
+- Sync mechanism ensures Supabase Auth users are always reflected in our User table
+- Two API endpoints created: /api/auth/sync (POST) and /api/auth/user (GET)
+- Key design: User.supabaseId maps to Supabase auth.uid(), User.id (cuid) is our internal FK
+- Ready for: login/signup UI components, protected routes, multi-tenant data filtering
+
+---
+Task ID: 6
+Agent: Main Agent
+Task: Phase 2 Integration — Connect auth to app, stabilize server, verify everything
+
+Work Log:
+- Server was crashing frequently — reduced Prisma logging from ['query', 'error', 'warn'] to ['error'] only
+- Verified all sub-agent outputs:
+  - AuthProvider: Context + useAuth hook + auth state listener ✅
+  - AuthModal: Sign In / Sign Up / Forgot Password tabs ✅
+  - UserMenu: Avatar dropdown with Sign In button ✅
+  - auth-utils.ts: Server-side auth functions ✅
+  - API routes: /api/auth/sync and /api/auth/user ✅
+- Updated AuthProvider to auto-sync user to DB on login (fetch /api/auth/sync)
+- Cleaned up useAuth hook conflict: src/hooks/useAuth.ts now re-exports from AuthProvider
+- Verified layout.tsx has AuthProvider + AuthModal wrapping
+- Verified UserMenu is in app-layout header
+- All API endpoints tested and working:
+  - GET / → 200 ✅
+  - GET /api/dashboards → 200 ✅
+  - GET /api/datasources → 200 ✅
+  - GET /api/auth/user → 200 ✅
+- Lint passes (0 errors, 1 pre-existing warning)
+- App loads correctly with auth UI (Sign In button visible in header)
+
+Stage Summary:
+- Phase 2 Auth UI is fully integrated into the app
+- User can click "Sign In" button → AuthModal opens with Sign In/Sign Up/Forgot Password
+- Auth state is managed via React Context (AuthProvider)
+- Server-side auth utilities ready for protecting API routes
+- Auto-sync: Supabase Auth user → our User table on login
+- Google OAuth button present but needs Google provider enabled in Supabase Dashboard
+- App stable on Supabase PostgreSQL
