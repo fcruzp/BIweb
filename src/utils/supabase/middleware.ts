@@ -18,6 +18,8 @@ const PUBLIC_ROUTES = [
 const PUBLIC_API_ROUTES = [
   '/api/auth/user',
   '/api/auth/sync',
+  '/api/test-ai',
+  '/api/test-sse',
 ]
 
 /**

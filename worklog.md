@@ -323,3 +323,29 @@ Stage Summary:
 - New feature: Step-level timing logs in server console AND browser console via SSE log events
 - Changed timeouts: AI calls increased to 30s to reduce premature timeouts
 - Files changed: Caddyfile, src/app/api/chat/route.ts, src/components/app/chat/message-input.tsx, src/components/app/chat/message-list.tsx
+---
+Task ID: 2
+Agent: main
+Task: Fix 504/timeout issues + add step-level timing logs + fix SSE streaming crash
+
+Work Log:
+- Tested Z-AI SDK directly in Bun: WORKS PERFECTLY (290-478ms per completion)
+- Discovered that ReadableStream with controller pattern (`new ReadableStream({ start(controller) })`) crashes Bun's Next.js dev server silently
+- Discovered that `text/event-stream` Content-Type triggers dev server crash even with static strings
+- Verified that `ReadableStream.from(asyncGenerator)` pattern works for SSE in Bun
+- Rewrote chat route to use async generator pattern instead of controller pattern
+- Added step-level timing logs that emit `log` SSE events with ⏱/✅/❌ markers
+- Added heartbeat yields between AI calls to keep connection alive
+- Two-phase client timeout: 90s connection timeout → 30s idle timeout (3 missed heartbeats)
+- Client handles `log` events and prints step timing summary to browser console
+- Caddyfile: added `flush_interval -1` for SSE event flushing
+- Created /api/test-ai (Z-AI test) and /api/test-sse (SSE test) endpoints
+- Added test endpoints to middleware's public API routes
+
+Stage Summary:
+- ROOT CAUSE FOUND: The old `new ReadableStream({ start(controller) })` pattern crashes Bun's Next.js runtime silently
+- FIX: Rewrote to use `ReadableStream.from(asyncGenerator)` which is Bun-compatible
+- Z-AI SDK works fine (303-478ms) — not the bottleneck
+- The real bottleneck in production was: (1) SSE events buffered by Caddy (fixed with flush_interval -1), (2) Server sent headers too late (fixed with async generator yielding connected event first)
+- Files changed: src/app/api/chat/route.ts (complete rewrite), src/components/app/chat/message-input.tsx (two-phase timeout), Caddyfile (flush_interval), src/utils/supabase/middleware.ts (public routes)
+- New files: src/app/api/test-ai/route.ts, src/app/api/test-sse/route.ts

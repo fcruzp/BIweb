@@ -103,28 +103,40 @@ export function MessageInput() {
       }
 
       // Use fetch with streaming reader for SSE
-      // STRATEGY: No total timeout — instead use an idle timeout.
-      // If no data is received for 60 seconds, abort.
-      // Once data starts flowing (SSE stream connected), reset the idle timer
-      // on each chunk. This prevents killing the request when the AI is just slow
-      // but still working (heartbeats keep the connection alive).
+      // STRATEGY: Two-phase timeout:
+      // 1. CONNECTION_TIMEOUT (90s): If no response headers received in 90s, abort.
+      //    This is the initial connection phase — the server should send the
+      //    "connected" SSE event very quickly (< 1s).
+      // 2. IDLE_TIMEOUT (30s): Once SSE stream is flowing, if no data chunk received
+      //    for 30 seconds, abort. The server sends heartbeats every 3s, so 30s
+      //    means 10 missed heartbeats = definitely dead.
       console.log('[Chat] Sending query to /api/chat...');
       const fetchStart = Date.now();
       const abortController = new AbortController();
 
-      // Idle timeout: 60 seconds with no data → abort
-      const IDLE_TIMEOUT_MS = 60_000;
+      const CONNECTION_TIMEOUT_MS = 90_000; // 90s to get initial response
+      const IDLE_TIMEOUT_MS = 30_000;       // 30s idle once stream is flowing
+      let isStreamConnected = false;
+
       let idleTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
-        console.error(`[Chat] Idle timeout: no data received for ${IDLE_TIMEOUT_MS / 1000}s, aborting`);
+        console.error(`[Chat] Connection timeout: no response in ${CONNECTION_TIMEOUT_MS / 1000}s, aborting`);
         abortController.abort();
-      }, IDLE_TIMEOUT_MS);
+      }, CONNECTION_TIMEOUT_MS);
 
       function resetIdleTimer() {
+        const currentTimeout = isStreamConnected ? IDLE_TIMEOUT_MS : CONNECTION_TIMEOUT_MS;
         if (idleTimer) clearTimeout(idleTimer);
         idleTimer = setTimeout(() => {
-          console.error(`[Chat] Idle timeout: no data received for ${IDLE_TIMEOUT_MS / 1000}s, aborting`);
+          const phase = isStreamConnected ? 'idle' : 'connection';
+          console.error(`[Chat] ${phase} timeout: no data for ${currentTimeout / 1000}s, aborting`);
           abortController.abort();
-        }, IDLE_TIMEOUT_MS);
+        }, currentTimeout);
+      }
+
+      function markStreamConnected() {
+        isStreamConnected = true;
+        // Switch to idle timeout now that stream is flowing
+        resetIdleTimer();
       }
 
       let res: Response;
@@ -143,7 +155,7 @@ export function MessageInput() {
       } catch (fetchError) {
         if (idleTimer) clearTimeout(idleTimer);
         if (fetchError instanceof DOMException && fetchError.name === 'AbortError') {
-          throw new Error('No se recibió respuesta del servidor en 60 segundos. Verifica tu conexión e inténtalo de nuevo.');
+          throw new Error('No se recibió respuesta del servidor. Verifica tu conexión e inténtalo de nuevo.');
         }
         throw fetchError;
       }
@@ -175,7 +187,7 @@ export function MessageInput() {
       }
 
       console.log(`[Chat] SSE stream connected, time to first byte: ${Date.now() - fetchStart}ms`);
-      resetIdleTimer(); // We got headers — reset idle timer
+      markStreamConnected(); // Switch from connection timeout to idle timeout
 
       const decoder = new TextDecoder();
       let buffer = '';
