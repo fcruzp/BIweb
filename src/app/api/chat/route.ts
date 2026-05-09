@@ -5,6 +5,8 @@ import { executeSelectQuery, generateSchemaDescription } from '@/lib/sqlite';
 import { validateSQLQuery, sanitizeSQL } from '@/lib/sql-security';
 import { requireAuth } from '@/lib/auth-utils';
 import { suggestVisualizationHeuristic } from '@/lib/viz-heuristics';
+import { recordUsage, checkUsageLimit } from '@/lib/usage-tracking';
+import { USAGE_EVENT_TYPES } from '@/lib/plans';
 
 // ============================================================
 // Timeout helper
@@ -324,6 +326,16 @@ export async function POST(request: NextRequest) {
           const logEntry = log.endStep('auth', `user=${user.id}`);
           send({ type: 'log', ...logEntry });
           sendFlush();
+
+          // USAGE CHECK: Verify user hasn't exceeded query limit
+          const usageCheck = await checkUsageLimit(user.id, 'queries');
+          if (!usageCheck.allowed) {
+            const limitMsg = usageCheck.limit
+              ? `Query limit reached (${usageCheck.usage}/${usageCheck.limit} on ${usageCheck.planName} plan). Upgrade your plan for more queries.`
+              : 'Query limit reached. Please upgrade your plan.';
+            send({ type: 'error', error: limitMsg, code: 'usage_limit_exceeded', limitType: 'queries', usage: usageCheck.usage, limit: usageCheck.limit });
+            return;
+          }
         } catch (authError) {
           const logEntry = log.errorStep('auth', serializeError(authError).message);
           send({ type: 'log', ...logEntry });
@@ -889,6 +901,15 @@ ${JSON.stringify(sampleResults, null, 2)}`,
 
         const saveLogDone = log.endStep('save_results');
         send({ type: 'log', ...saveLogDone });
+
+        // Record usage event (non-blocking)
+        recordUsage(user.id, USAGE_EVENT_TYPES.QUERY_EXECUTED, {
+          dataSourceId,
+          sessionId: chatSessionId,
+          rowCount: queryResult.rowCount,
+          executionTime: queryResult.executionTime,
+          retryCount,
+        });
 
         const totalMs = Date.now() - overallStart;
         console.log(`[Chat] === END === total=${totalMs}ms, rows=${queryResult.rowCount}, retries=${retryCount}`);

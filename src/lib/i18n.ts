@@ -262,6 +262,28 @@ export const translations = {
     deleteDataSourceConfirm: 'Are you sure you want to delete this data source? This will also delete all associated schemas, contexts, and query history.',
     deleteChat: 'Delete Chat',
     deleteChatConfirm: 'Are you sure you want to delete this chat? This will permanently remove the chat and all its messages.',
+
+    // Export
+    export: 'Export',
+    exportCSV: 'CSV (Comma-separated)',
+    exportExcel: 'Excel (.xls)',
+    exportJSON: 'JSON',
+    exportData: 'Export Data',
+
+    // Usage & Plans
+    usageAndPlans: 'Usage & Plans',
+    queriesUsed: 'Queries Used',
+    dataSourcesUsed: 'Data Sources',
+    dashboardsUsed: 'Dashboards',
+    storageUsed: 'Storage Used',
+    of: 'of',
+    unlimited: 'Unlimited',
+    currentPlan: 'Current Plan',
+    upgradePlan: 'Upgrade Plan',
+    usageLimitReached: 'Usage Limit Reached',
+    usageLimitDesc: 'You have reached the limit for your current plan. Upgrade to continue using this feature.',
+    queriesThisMonth: 'queries this month',
+    mb: 'MB',
   },
 
   es: {
@@ -521,6 +543,28 @@ export const translations = {
     deleteDataSourceConfirm: '¿Estás seguro de que quieres eliminar esta fuente de datos? Esto también eliminará todos los esquemas, contextos e historial de consultas asociados.',
     deleteChat: 'Eliminar Chat',
     deleteChatConfirm: '¿Estás seguro de que quieres eliminar este chat? Esto eliminará permanentemente el chat y todos sus mensajes.',
+
+    // Export
+    export: 'Exportar',
+    exportCSV: 'CSV (Separado por comas)',
+    exportExcel: 'Excel (.xls)',
+    exportJSON: 'JSON',
+    exportData: 'Exportar Datos',
+
+    // Usage & Plans
+    usageAndPlans: 'Uso y Planes',
+    queriesUsed: 'Consultas Usadas',
+    dataSourcesUsed: 'Fuentes de Datos',
+    dashboardsUsed: 'Dashboards',
+    storageUsed: 'Almacenamiento Usado',
+    of: 'de',
+    unlimited: 'Ilimitado',
+    currentPlan: 'Plan Actual',
+    upgradePlan: 'Mejorar Plan',
+    usageLimitReached: 'Límite de Uso Alcanzado',
+    usageLimitDesc: 'Has alcanzado el límite de tu plan actual. Mejora tu plan para continuar usando esta función.',
+    queriesThisMonth: 'consultas este mes',
+    mb: 'MB',
   },
 } as const;
 

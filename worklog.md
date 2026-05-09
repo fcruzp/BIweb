@@ -94,3 +94,25 @@ Stage Summary:
 - Data refreshes silently in the background (no spinner flicker)
 - Backend API responses are much smaller (no heavy schema/context data in list endpoint)
 - Chat sessions query reduced from 2 DB queries to 1
+
+---
+Task ID: 5
+Agent: Main
+Task: Phase 3 — SaaS Production Features (Data Export, Plans, Usage Tracking)
+
+Work Log:
+- Created `src/lib/export-utils.ts` — CSV, JSON, HTML/Excel export utilities with downloadFile helper and generateExportFilename
+- Added export dropdown to `DataTable` component — CSV, Excel (.xls), JSON options
+- Added export dropdown to `MessageItem` visualization card — export query results directly from chat
+- Created `src/lib/plans.ts` — Plan configuration with 5 tiers (Free/Supporter/Starter/Pro/Business), limits, features, and upgrade helpers
+- Created `src/lib/usage-tracking.ts` — recordUsage() and checkUsageLimit() helpers for non-blocking usage tracking
+- Created `src/app/api/usage/route.ts` — GET endpoint returning current user's usage stats + plan limits
+- Added usage limit enforcement to `/api/chat/route.ts` — checks query limit before processing, records usage after success
+- Added i18n keys for Export and Usage/Plans sections in both EN and ES
+
+Stage Summary:
+- Data Export: Users can now export any query result as CSV, Excel, or JSON from chat and data tables
+- Plans: 5-tier plan system with limits (queries, data sources, dashboards, storage, export rows)
+- Usage Tracking: UsageEvent recording + checkUsageLimit() middleware ready for all endpoints
+- Backend enforcement: Chat queries check plan limits before execution and record usage on success
+- Frontend: Export dropdown buttons added to DataTable and MessageItem components

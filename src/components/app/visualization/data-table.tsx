@@ -19,14 +19,23 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowUpDown, ChevronLeft, ChevronRight, Download, FileSpreadsheet, FileJson, FileText } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { exportAsCSV, exportAsJSON, exportAsHTML, generateExportFilename } from '@/lib/export-utils';
 
 interface DataTableProps {
   data: Array<Record<string, unknown>>;
   columns: string[];
+  /** Optional title for export filenames */
+  exportTitle?: string;
 }
 
-export function DataTable({ data, columns }: DataTableProps) {
+export function DataTable({ data, columns, exportTitle }: DataTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
 
   // Ensure columns is always a valid array
@@ -79,6 +88,18 @@ export function DataTable({ data, columns }: DataTableProps) {
     );
   }
 
+  const handleExportCSV = () => {
+    exportAsCSV(data, safeColumns, generateExportFilename(exportTitle || 'datamind', 'csv'));
+  };
+
+  const handleExportJSON = () => {
+    exportAsJSON(data, generateExportFilename(exportTitle || 'datamind', 'json'));
+  };
+
+  const handleExportExcel = () => {
+    exportAsHTML(data, safeColumns, generateExportFilename(exportTitle || 'datamind', 'xls'), exportTitle);
+  };
+
   return (
     <div className="space-y-3">
       <div className="rounded-lg border border-border/50 overflow-hidden">
@@ -121,9 +142,9 @@ export function DataTable({ data, columns }: DataTableProps) {
         </Table>
       </div>
 
-      {/* Pagination */}
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>
+      {/* Pagination + Export */}
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">
           {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}-
           {Math.min(
             (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
@@ -131,25 +152,55 @@ export function DataTable({ data, columns }: DataTableProps) {
           )}{' '}
           of {data.length} rows
         </span>
-        <div className="flex gap-1">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 w-7 p-0"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            <ChevronLeft className="h-3 w-3" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 w-7 p-0"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            <ChevronRight className="h-3 w-3" />
-          </Button>
+        <div className="flex items-center gap-2">
+          {/* Export dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1.5 text-[11px] text-muted-foreground hover:text-foreground"
+              >
+                <Download className="h-3 w-3" />
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onClick={handleExportCSV} className="gap-2 text-xs">
+                <FileText className="h-3.5 w-3.5 text-emerald-500" />
+                CSV (Comma-separated)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportExcel} className="gap-2 text-xs">
+                <FileSpreadsheet className="h-3.5 w-3.5 text-blue-500" />
+                Excel (.xls)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportJSON} className="gap-2 text-xs">
+                <FileJson className="h-3.5 w-3.5 text-amber-500" />
+                JSON
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <div className="flex gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 w-7 p-0"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+            >
+              <ChevronLeft className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 w-7 p-0"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+            >
+              <ChevronRight className="h-3 w-3" />
+            </Button>
+          </div>
         </div>
       </div>
     </div>

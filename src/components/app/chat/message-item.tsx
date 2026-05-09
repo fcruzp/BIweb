@@ -24,6 +24,7 @@ import {
   Database,
   ShieldCheck,
   MapPin,
+  Download,
 } from 'lucide-react';
 import { useState, useCallback } from 'react';
 import { ReportMarkdown } from './report-markdown';
@@ -31,6 +32,13 @@ import { ChartRenderer } from '../visualization/chart-renderer';
 import { DRHeatMap } from '../visualization/dr-map';
 import { DataTable } from '../visualization/data-table';
 import { useI18n } from '@/hooks/use-i18n';
+import { exportAsCSV, exportAsJSON, exportAsHTML, generateExportFilename } from '@/lib/export-utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface MessageItemProps {
   message: ChatMessage;
@@ -251,15 +259,51 @@ export function MessageItem({ message }: MessageItemProps) {
               )}
 
               <Separator className="my-3 bg-border/30" />
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-xs h-7 gap-1.5 text-muted-foreground hover:text-foreground"
-                onClick={() => setShowTable(!showTable)}
-              >
-                <Table2 className="h-3 w-3" />
-                {showTable ? t('hideRawData') : t('showRawData')}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs h-7 gap-1.5 text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowTable(!showTable)}
+                >
+                  <Table2 className="h-3 w-3" />
+                  {showTable ? t('hideRawData') : t('showRawData')}
+                </Button>
+
+                {/* Export dropdown */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs h-7 gap-1.5 text-muted-foreground hover:text-foreground"
+                    >
+                      <Download className="h-3 w-3" />
+                      {t('export')}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuItem
+                      onClick={() => exportAsCSV(message.queryResult!.data, message.queryResult!.columns, generateExportFilename('datamind-query', 'csv'))}
+                      className="gap-2 text-xs"
+                    >
+                      CSV
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => exportAsHTML(message.queryResult!.data, message.queryResult!.columns, generateExportFilename('datamind-query', 'xls'), message.visualization?.title)}
+                      className="gap-2 text-xs"
+                    >
+                      Excel (.xls)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => exportAsJSON(message.queryResult!.data, generateExportFilename('datamind-query', 'json'))}
+                      className="gap-2 text-xs"
+                    >
+                      JSON
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
               {showTable && (
                 <div className="mt-2">
                   <DataTable data={message.queryResult.data} columns={message.queryResult.columns} />
