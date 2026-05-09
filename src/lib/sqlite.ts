@@ -1,5 +1,78 @@
-import Database from 'better-sqlite3';
 import fs from 'fs';
+
+// ============================================================
+// Runtime Detection & Database Adapter
+// ============================================================
+
+const isBun = typeof (globalThis as Record<string, unknown>).Bun !== 'undefined';
+
+type DatabaseConnection = {
+  prepare(sql: string): { all(...params: unknown[]): Array<Record<string, unknown>>; get(...params: unknown[]): Record<string, unknown> | undefined };
+  query(sql: string): { all(...params: unknown[]): Array<Record<string, unknown>>; get(...params: unknown[]): Record<string, unknown> | undefined };
+  pragma(sql: string): Array<Record<string, unknown>>;
+  close(): void;
+};
+
+function openDatabase(filePath: string, options?: { readonly?: boolean }): DatabaseConnection {
+  if (isBun) {
+    // Bun runtime — use bun:sqlite
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { Database } = require('bun:sqlite');
+    const db = new Database(filePath, { readonly: options?.readonly ?? false });
+
+    return {
+      prepare(sql: string) {
+        const stmt = db.prepare(sql);
+        return {
+          all(...params: unknown[]) { return stmt.all(...params) as Array<Record<string, unknown>>; },
+          get(...params: unknown[]) { return stmt.get(...params) as Record<string, unknown> | undefined; },
+        };
+      },
+      query(sql: string) {
+        const stmt = db.query(sql);
+        return {
+          all(...params: unknown[]) { return stmt.all(...params) as Array<Record<string, unknown>>; },
+          get(...params: unknown[]) { return stmt.get(...params) as Record<string, unknown> | undefined; },
+        };
+      },
+      pragma(sql: string) {
+        // bun:sqlite doesn't have .pragma(), use query instead
+        return db.query(`PRAGMA ${sql}`).all() as Array<Record<string, unknown>>;
+      },
+      close() { db.close(); },
+    };
+  } else {
+    // Node.js runtime — use better-sqlite3
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Database = require('better-sqlite3');
+    const db = new Database(filePath, { readonly: options?.readonly ?? false });
+
+    return {
+      prepare(sql: string) {
+        const stmt = db.prepare(sql);
+        return {
+          all(...params: unknown[]) { return stmt.all(...params) as Array<Record<string, unknown>>; },
+          get(...params: unknown[]) { return stmt.get(...params) as Record<string, unknown> | undefined; },
+        };
+      },
+      query(sql: string) {
+        const stmt = db.prepare(sql);
+        return {
+          all(...params: unknown[]) { return stmt.all(...params) as Array<Record<string, unknown>>; },
+          get(...params: unknown[]) { return stmt.get(...params) as Record<string, unknown> | undefined; },
+        };
+      },
+      pragma(sql: string) {
+        return db.pragma(sql) as Array<Record<string, unknown>>;
+      },
+      close() { db.close(); },
+    };
+  }
+}
+
+// ============================================================
+// Types
+// ============================================================
 
 export interface ColumnInfo {
   name: string;
@@ -21,6 +94,10 @@ export interface SchemaExtractionResult {
   fullSchemaText: string;
 }
 
+// ============================================================
+// Schema Extraction
+// ============================================================
+
 /**
  * Opens a SQLite database file (read-only) and extracts schema information
  */
@@ -29,7 +106,7 @@ export function extractSchema(filePath: string): SchemaExtractionResult {
     throw new Error(`Database file not found: ${filePath}`);
   }
 
-  const db = new Database(filePath, { readonly: true });
+  const db = openDatabase(filePath, { readonly: true });
 
   try {
     // Get all table names
@@ -62,8 +139,8 @@ export function extractSchema(filePath: string): SchemaExtractionResult {
       // Get row count
       let rowCount = 0;
       try {
-        const countResult = db.prepare(`SELECT COUNT(*) as count FROM "${name}"`).get() as { count: number };
-        rowCount = countResult.count;
+        const countResult = db.prepare(`SELECT COUNT(*) as count FROM "${name}"`).get() as { count: number } | undefined;
+        rowCount = countResult?.count ?? 0;
       } catch {
         // Some tables might not be queryable
       }
@@ -99,6 +176,10 @@ export function extractSchema(filePath: string): SchemaExtractionResult {
   }
 }
 
+// ============================================================
+// Query Execution
+// ============================================================
+
 /**
  * Executes a safe SELECT query on a SQLite database file
  */
@@ -112,7 +193,7 @@ export function executeSelectQuery(
   rowCount: number;
   executionTime: number;
 } {
-  const db = new Database(filePath, { readonly: true });
+  const db = openDatabase(filePath, { readonly: true });
 
   try {
     // Apply row limit if not already present
@@ -146,6 +227,10 @@ function addLimitToQuery(sql: string, maxRows: number): string {
   // Add LIMIT before any trailing semicolon
   return sql.replace(/;\s*$/, '') + ` LIMIT ${maxRows}`;
 }
+
+// ============================================================
+// Description Generators
+// ============================================================
 
 /**
  * Generates a formatted schema description for AI context
