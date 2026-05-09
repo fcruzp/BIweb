@@ -303,45 +303,53 @@ async function getZAI() {
 }
 
 async function createZAICompletion(options: AICompletionOptions): Promise<AICompletionResult> {
-  const zai = await getZAI();
+  const startTime = Date.now();
+  try {
+    const zai = await getZAI();
 
-  const messages: Array<{ role: 'assistant' | 'user'; content: string }> = [
-    { role: 'assistant', content: options.systemPrompt },
-  ];
+    const messages: Array<{ role: 'assistant' | 'user'; content: string }> = [
+      { role: 'assistant', content: options.systemPrompt },
+    ];
 
-  if (options.contextMessages) {
-    messages.push(...options.contextMessages);
-  }
+    if (options.contextMessages) {
+      messages.push(...options.contextMessages);
+    }
 
-  messages.push({ role: 'user', content: options.userMessage });
+    messages.push({ role: 'user', content: options.userMessage });
 
-  const completion = await zai.chat.completions.create({
-    messages,
-    thinking: { type: 'disabled' },
-  });
+    const completion = await zai.chat.completions.create({
+      messages,
+      thinking: { type: 'disabled' },
+    });
 
-  const content = completion.choices[0]?.message?.content || '';
-  const result: AICompletionResult = { content };
+    const content = completion.choices[0]?.message?.content || '';
+    console.log(`[Z-AI] Completion took ${Date.now() - startTime}ms, content length: ${content.length}`);
 
-  // Parse JSON if requested
-  if (options.responseFormat === 'json' && content) {
-    try {
-      const jsonStr = extractJSON(content);
-      result.parsedJson = JSON.parse(jsonStr);
-    } catch (e) {
-      console.warn('Z-AI did not return valid JSON, attempting plain text fallback:', (e as Error).message);
-      console.debug('Raw content:', content.slice(0, 500));
+    const result: AICompletionResult = { content };
 
-      // Fallback: try to extract structured data from plain text
-      const sqlFallback = extractSQLFromPlainText(content);
-      if (sqlFallback) {
-        console.info('Successfully extracted SQL from Z-AI plain text response');
-        result.parsedJson = sqlFallback;
+    // Parse JSON if requested
+    if (options.responseFormat === 'json' && content) {
+      try {
+        const jsonStr = extractJSON(content);
+        result.parsedJson = JSON.parse(jsonStr);
+      } catch (e) {
+        console.warn('Z-AI did not return valid JSON, attempting plain text fallback:', (e as Error).message);
+        console.debug('Raw content:', content.slice(0, 500));
+
+        // Fallback: try to extract structured data from plain text
+        const sqlFallback = extractSQLFromPlainText(content);
+        if (sqlFallback) {
+          console.info('Successfully extracted SQL from Z-AI plain text response');
+          result.parsedJson = sqlFallback;
+        }
       }
     }
-  }
 
-  return result;
+    return result;
+  } catch (error) {
+    console.error(`[Z-AI] Completion FAILED after ${Date.now() - startTime}ms:`, error instanceof Error ? error.message : error);
+    throw error;
+  }
 }
 
 // ============================================================
@@ -417,6 +425,9 @@ export async function createCompletion(options: AICompletionOptions): Promise<AI
   let apiKey = options.apiKey;
 
   // If not explicitly overridden, read from store
+  // NOTE: On the server side (API routes), the Zustand store uses default values
+  // since localStorage is not available. This means the server always uses z-ai
+  // unless the caller explicitly passes provider/apiKey/modelId.
   if (!provider || !apiKey) {
     try {
       // Dynamic import to avoid circular deps — store is client-side only
@@ -426,13 +437,15 @@ export async function createCompletion(options: AICompletionOptions): Promise<AI
       if (!provider) provider = config.provider;
       if (!modelId) modelId = config.getEffectiveModelId();
       if (!apiKey) apiKey = config.openrouterApiKey;
-    } catch {
+    } catch (storeError) {
       // If store is not available (e.g., during SSR), default to z-ai
+      console.log(`[AI] Config store not available (${storeError instanceof Error ? storeError.message : 'unknown'}), using z-ai`);
       if (!provider) provider = 'z-ai';
     }
   }
 
   // Route to the appropriate provider
+  console.log(`[AI] Using provider: ${provider}, model: ${modelId || 'default'}`);
   const enrichedOptions = { ...options, provider, modelId, apiKey };
 
   let result: AICompletionResult;

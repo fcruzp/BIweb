@@ -235,10 +235,29 @@ export async function POST(request: NextRequest) {
         return;
       }
 
-      if (datasource.status !== 'ready') {
-        send({ type: 'error', error: 'Data source is not ready for queries' });
+      // Allow queries if schemas exist, even if status is 'analyzing' (AI context is optional)
+      // Only block if there are no schemas (meaning the file hasn't been processed at all)
+      if (datasource.status === 'error' && datasource.schemas.length === 0) {
+        send({ type: 'error', error: 'Data source has errors and no schema available. Please re-upload the file.' });
         close();
         return;
+      }
+      if (datasource.schemas.length === 0) {
+        send({ type: 'error', error: 'Data source has no schema information. Please wait for processing or re-upload.' });
+        close();
+        return;
+      }
+
+      // Auto-fix: if datasource is stuck in 'analyzing' but has schemas, set it to 'ready'
+      // This can happen if the analyze endpoint crashed before completing
+      if (datasource.status === 'analyzing' && datasource.schemas.length > 0) {
+        console.log(`[Chat] Auto-fixing stuck 'analyzing' status for datasource ${dataSourceId}`);
+        try {
+          await db.dataSource.update({
+            where: { id: dataSourceId },
+            data: { status: 'ready', errorMessage: null },
+          });
+        } catch { /* non-critical */ }
       }
 
       // Get or create chat session
@@ -312,6 +331,7 @@ export async function POST(request: NextRequest) {
       }));
 
       let sqlResult;
+      const sqlGenStart = Date.now();
       try {
         sqlResult = await withTimeout(
           generateSQLFromNaturalLanguage(
@@ -321,9 +341,10 @@ export async function POST(request: NextRequest) {
             previousQueries,
             queryRowLimit
           ),
-          30000,
+          20000,
           'SQL generation'
         );
+        console.log(`[Chat] SQL generation took ${Date.now() - sqlGenStart}ms`);
       } catch (timeoutError) {
         console.error('SQL generation timed out or failed:', timeoutError);
         const errorMsg = timeoutError instanceof Error ? timeoutError.message : 'SQL generation failed';
@@ -643,8 +664,9 @@ Execution time: ${queryResult.executionTime}ms${retryCount > 0 ? `\nNote: Auto-c
 Sample results:
 ${JSON.stringify(sampleResults, null, 2)}`,
             temperature: 0.3,
+            maxTokens: 1500,
           }),
-          20000,
+          15000,
           'Result analysis'
         );
 

@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { extractSchema, generateSchemaDescription, generateSampleDataDescription } from '@/lib/sqlite';
+import { generateSchemaDescription, generateSampleDataDescription } from '@/lib/sqlite';
 import { analyzeSchemaWithContext } from '@/lib/ai';
 import { requireAuth, verifyOwnership } from '@/lib/auth-utils';
 
 // Timeout wrapper — rejects if the promise takes longer than `ms` milliseconds
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
-    promise
-      .then((v) => { clearTimeout(timer); resolve(v); })
-      .catch((e) => { clearTimeout(timer); reject(e); });
-  });
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    ),
+  ]);
 }
 
 // POST /api/datasources/[id]/analyze - Run AI analysis on a data source
@@ -21,11 +21,15 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const startTime = Date.now();
+  console.log(`[Analyze] Starting analysis for datasource ${id}`);
+
   try {
     await requireAuth();
 
     const datasource = await db.dataSource.findUnique({
       where: { id },
+      include: { schemas: true, contexts: true },
     });
 
     if (!datasource) {
@@ -38,9 +42,16 @@ export async function POST(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Already analyzing or ready? Skip re-analysis
+    // Already analyzing? Skip re-analysis
     if (datasource.status === 'analyzing') {
+      console.log(`[Analyze] Datasource ${id} already analyzing, skipping`);
       return NextResponse.json({ datasource, message: 'Already analyzing' });
+    }
+
+    // Already has AI context? Skip re-analysis
+    if (datasource.contexts.length > 0 && datasource.status === 'ready') {
+      console.log(`[Analyze] Datasource ${id} already has context and is ready, skipping`);
+      return NextResponse.json({ datasource, message: 'Already analyzed' });
     }
 
     // Update status
@@ -49,40 +60,47 @@ export async function POST(
       data: { status: 'analyzing', errorMessage: null },
     });
 
-    // Extract schema (with timeout)
-    const schemaResult = await withTimeout(
-      extractSchema(datasource.filePath),
-      15000,
-      'Schema extraction'
-    );
-    const schemaDescription = generateSchemaDescription(schemaResult.tables);
-    const sampleDescription = generateSampleDataDescription(schemaResult.tables);
-
-    // Delete existing schemas and contexts (re-analyze from scratch)
-    await db.sourceSchema.deleteMany({ where: { dataSourceId: id } });
-    await db.sourceContext.deleteMany({ where: { dataSourceId: id } });
-
-    // Save schema information
-    for (const table of schemaResult.tables) {
-      await db.sourceSchema.create({
+    // ──────────────────────────────────────────────────────────
+    // Use existing schemas from DB (already extracted during upload)
+    // This avoids re-opening the SQLite file and potential errors
+    // ──────────────────────────────────────────────────────────
+    if (datasource.schemas.length === 0) {
+      console.warn(`[Analyze] Datasource ${id} has no schemas — cannot analyze`);
+      await db.dataSource.update({
+        where: { id },
         data: {
-          dataSourceId: id,
-          tableName: table.name,
-          columns: JSON.stringify(table.columns),
-          rowCount: table.rowCount,
-          sampleData: JSON.stringify(table.sampleData),
+          status: 'error',
+          errorMessage: 'No schema information found. Please re-upload the file.',
         },
       });
+      return NextResponse.json({ error: 'No schema information found' }, { status: 400 });
     }
 
-    // Run AI analysis (with 60s timeout)
+    console.log(`[Analyze] Using ${datasource.schemas.length} existing schemas for datasource ${id}`);
+
+    // Build schema descriptions from existing DB records (no file access needed!)
+    const tables = datasource.schemas.map((s) => ({
+      name: s.tableName,
+      columns: JSON.parse(s.columns),
+      rowCount: s.rowCount,
+      sampleData: JSON.parse(s.sampleData),
+    }));
+    const schemaDescription = generateSchemaDescription(tables);
+    const sampleDescription = generateSampleDataDescription(tables);
+
+    // Delete existing contexts (re-analyze from scratch)
+    await db.sourceContext.deleteMany({ where: { dataSourceId: id } });
+
+    // Run AI analysis (with 45s timeout)
     let analysisSucceeded = false;
     try {
+      console.log(`[Analyze] Starting AI analysis for datasource ${id}...`);
       const analysis = await withTimeout(
         analyzeSchemaWithContext(schemaDescription, sampleDescription),
-        60000,
+        45000,
         'AI analysis'
       );
+      console.log(`[Analyze] AI analysis completed for datasource ${id} in ${Date.now() - startTime}ms`);
 
       await db.sourceContext.create({
         data: {
@@ -95,7 +113,7 @@ export async function POST(
       });
       analysisSucceeded = true;
     } catch (aiError) {
-      console.warn('AI analysis failed (non-critical, schema still usable):', aiError instanceof Error ? aiError.message : aiError);
+      console.warn(`[Analyze] AI analysis failed for datasource ${id} (non-critical):`, aiError instanceof Error ? aiError.message : aiError);
       // AI analysis failure is NOT critical — the data source is still usable
       // Create a minimal context so the summary shows something useful
       await db.sourceContext.create({
@@ -104,7 +122,7 @@ export async function POST(
           semanticContext: 'Schema analysis pending. You can still query your data — the AI context will enhance future queries.',
           businessGlossary: '{}',
           relationships: '[]',
-          summary: `Database with ${schemaResult.tables.length} tables uploaded successfully. AI analysis will be available shortly.`,
+          summary: `Database with ${datasource.schemas.length} tables uploaded successfully. AI analysis will be available shortly.`,
         },
       });
     }
@@ -118,6 +136,8 @@ export async function POST(
       },
     });
 
+    console.log(`[Analyze] Datasource ${id} analysis complete (success: ${analysisSucceeded}, total: ${Date.now() - startTime}ms)`);
+
     const result = await db.dataSource.findUnique({
       where: { id },
       include: { schemas: true, contexts: true },
@@ -125,12 +145,9 @@ export async function POST(
 
     return NextResponse.json({ datasource: result });
   } catch (error) {
-    if (error instanceof Error && error.message === 'Authentication required') {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    }
-    console.error('Error analyzing datasource:', error);
+    console.error(`[Analyze] ERROR analyzing datasource ${id}:`, error);
 
-    // Try to update status to error
+    // Try to update status to error — CRITICAL: don't leave it stuck at 'analyzing'
     try {
       await db.dataSource.update({
         where: { id },
@@ -139,7 +156,9 @@ export async function POST(
           errorMessage: error instanceof Error ? error.message : 'Analysis failed',
         },
       });
-    } catch { /* ignore DB update errors */ }
+    } catch (dbError) {
+      console.error(`[Analyze] Failed to update error status for datasource ${id}:`, dbError);
+    }
 
     return NextResponse.json({ error: 'Failed to analyze data source' }, { status: 500 });
   }

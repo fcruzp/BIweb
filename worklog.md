@@ -152,3 +152,45 @@ Stage Summary:
 - SSE streaming provides real-time progress feedback at every stage
 - Users can see query results and charts before analysis completes
 - Header shows current processing stage in real-time
+
+---
+Task ID: 5
+Agent: main
+Task: Fix /api/datasources/[id]/analyze 500 error and chat query blocking
+
+Work Log:
+- Diagnosed root cause: /api/datasources/[id]/analyze was returning 500 Internal Server Error
+- Key issues found:
+  1. Analyze endpoint re-extracted schema from file (unnecessary, already done during upload)
+  2. If extractSchema threw (e.g., file path issue), the datasource got stuck at 'analyzing' status
+  3. Chat route blocked ALL queries when status was not 'ready' — even if schemas existed
+  4. AI calls had long timeouts (30s SQL gen, 20s analysis) with no logging
+- Fixed analyze endpoint (src/app/api/datasources/[id]/analyze/route.ts):
+  - Removed re-extraction of schema — uses existing schemas from DB instead
+  - This eliminates the file access that could fail with 500
+  - Added check: skip analysis if context already exists and status is 'ready'
+  - Added detailed logging with [Analyze] prefix and timing info
+  - Better error handling: status is always updated (to 'error') even on crash
+- Fixed chat route (src/app/api/chat/route.ts):
+  - Allow queries when schemas exist, even if status is 'analyzing' (AI context is optional)
+  - Only block if no schemas at all (file not processed)
+  - Auto-fix stuck 'analyzing' status: if schemas exist, set to 'ready'
+  - Reduced SQL generation timeout from 30s to 20s
+  - Reduced analysis timeout from 20s to 15s
+  - Added maxTokens: 1500 to analysis call for faster response
+  - Added timing logging with [Chat] prefix
+- Enhanced AI logging (src/lib/ai.ts):
+  - Added timing and content length logging for Z-AI completions
+  - Added error logging with timing for failed completions
+  - Added provider/model logging for each completion call
+  - Better error message when config store is unavailable on server
+- Ran fix script to reset any stuck 'analyzing' datasources in DB
+- Lint passes, dev server compiles and runs successfully
+
+Stage Summary:
+- Analyze endpoint no longer re-extracts schema (eliminates file access errors)
+- Datasources can no longer get stuck at 'analyzing' status
+- Chat queries work even during analysis (schemas exist = queryable)
+- Auto-fix for stuck datasources in chat route
+- AI calls have reduced timeouts and better logging
+- Performance improved: 20s max for SQL gen, 15s max for analysis
