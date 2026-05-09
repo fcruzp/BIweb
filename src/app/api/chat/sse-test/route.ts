@@ -2,7 +2,7 @@ import ZAI from 'z-ai-web-dev-sdk';
 
 /**
  * SSE test endpoint that mimics the chat SSE pipeline.
- * Uses the same TransformStream + setTimeout pattern as the chat route.
+ * Uses the same ReadableStream + controller.enqueue() pattern.
  *
  * GET /api/chat/sse-test?prompt=Hello
  */
@@ -21,39 +21,66 @@ export async function GET(request: Request) {
     return encoder.encode(': ping\n\n');
   }
 
+  let controller: ReadableStreamDefaultController<Uint8Array> | null = null;
+  let isClosed = false;
+
+  function send(event: Record<string, unknown>): void {
+    if (isClosed || !controller) return;
+    try {
+      controller.enqueue(sseData(event));
+    } catch {
+      isClosed = true;
+    }
+  }
+
+  function sendFlush(): void {
+    if (isClosed || !controller) return;
+    try {
+      controller.enqueue(sseComment());
+    } catch {
+      isClosed = true;
+    }
+  }
+
   console.log(`[SSE-Test] === START === prompt="${prompt}"`);
 
-  const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
+  const stream = new ReadableStream<Uint8Array>({
+    start(ctrl) {
+      controller = ctrl;
+      // Send connected event SYNCHRONOUSLY in start()
+      ctrl.enqueue(sseComment());
+      ctrl.enqueue(sseData({ type: 'connected', timestamp: startTime }));
+      console.log(`[SSE-Test] Connected event enqueued in start()`);
+    },
+    cancel() {
+      isClosed = true;
+    },
+  });
 
-  // CRITICAL: Use setTimeout(0) so the Response is returned BEFORE any writes
+  // Heartbeat every 2s
+  const heartbeatInterval = setInterval(() => {
+    if (isClosed) return;
+    sendFlush();
+    send({ type: 'heartbeat', elapsed_ms: Date.now() - startTime });
+  }, 2000);
+
+  // Background processing via setTimeout (macrotask)
   setTimeout(() => {
-    const writer = writable.getWriter();
-
-    const heartbeatInterval = setInterval(async () => {
-      try {
-        await writer.write(sseComment());
-        await writer.write(sseData({ type: 'heartbeat', elapsed_ms: Date.now() - startTime }));
-      } catch { /* writer closed */ }
-    }, 2000);
-
     (async () => {
       try {
-        // Step 1: Connected
-        await writer.write(sseComment());
-        await writer.write(sseData({ type: 'connected', timestamp: startTime }));
-        console.log(`[SSE-Test] Connected event sent (${Date.now() - startTime}ms)`);
-
         // Step 2: Init Z-AI
-        await writer.write(sseData({ type: 'log', step: 'zai_init', duration_ms: 0, status: 'start' }));
+        send({ type: 'log', step: 'zai_init', duration_ms: 0, status: 'start' });
+        sendFlush();
         const initStart = Date.now();
         const zai = await ZAI.create();
         const initTime = Date.now() - initStart;
-        await writer.write(sseData({ type: 'log', step: 'zai_init', duration_ms: initTime, status: 'done', detail: 'Z-AI instance created' }));
+        send({ type: 'log', step: 'zai_init', duration_ms: initTime, status: 'done', detail: 'Z-AI instance created' });
         console.log(`[SSE-Test] Z-AI init: ${initTime}ms`);
 
         // Step 3: Make AI call
-        await writer.write(sseData({ type: 'log', step: 'ai_call', duration_ms: 0, status: 'start', detail: 'Calling Z-AI...' }));
-        await writer.write(sseData({ type: 'stage', stage: 'generating_sql', message: 'Calling AI via SSE...' }));
+        send({ type: 'log', step: 'ai_call', duration_ms: 0, status: 'start', detail: 'Calling Z-AI...' });
+        send({ type: 'stage', stage: 'generating_sql', message: 'Calling AI via SSE...' });
+        sendFlush();
 
         const completionStart = Date.now();
         const completion = await zai.chat.completions.create({
@@ -66,18 +93,18 @@ export async function GET(request: Request) {
         const completionTime = Date.now() - completionStart;
         const content = completion.choices[0]?.message?.content || '(empty)';
 
-        await writer.write(sseData({ type: 'log', step: 'ai_call', duration_ms: completionTime, status: 'done', detail: `Response: "${content.slice(0, 100)}"` }));
+        send({ type: 'log', step: 'ai_call', duration_ms: completionTime, status: 'done', detail: `Response: "${content.slice(0, 100)}"` });
         console.log(`[SSE-Test] AI call: ${completionTime}ms`);
 
         // Step 4: Send result
-        await writer.write(sseData({
+        send({
           type: 'complete',
           message: {
             role: 'assistant',
             content: `AI Response: ${content}\n\n⏱ Init: ${initTime}ms, AI: ${completionTime}ms, Total: ${Date.now() - startTime}ms`,
           },
           timing: { total_ms: Date.now() - startTime },
-        }));
+        });
 
         console.log(`[SSE-Test] === END === total=${Date.now() - startTime}ms`);
       } catch (error) {
@@ -85,17 +112,16 @@ export async function GET(request: Request) {
           ? { message: error.message, name: error.name }
           : { message: String(error) };
         console.error(`[SSE-Test] FAILED after ${Date.now() - startTime}ms:`, errInfo);
-        try {
-          await writer.write(sseData({ type: 'error', error: errInfo.message }));
-        } catch { /* writer closed */ }
+        send({ type: 'error', error: errInfo.message });
       } finally {
         clearInterval(heartbeatInterval);
-        try { await writer.close(); } catch { /* already closed */ }
+        isClosed = true;
+        try { controller?.close(); } catch { /* already closed */ }
       }
     })();
   }, 0);
 
-  return new Response(readable, {
+  return new Response(stream, {
     headers: {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache, no-store, must-revalidate',
