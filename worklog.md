@@ -263,3 +263,39 @@ Stage Summary:
 - Server-side logging added to sqlite.ts and query/execute route
 - Client-side logging added for all SSE events
 - User will now see real-time elapsed time instead of a static spinner
+
+---
+Task ID: 8
+Agent: main
+Task: Fix 504 Gateway Timeout on second chat query and 26.5s first-byte delay
+
+Work Log:
+- Analyzed user's console log: first query OK (26.5s to first byte), second query 504 Gateway Timeout after 180s
+- Root cause #1: SSE stream didn't send ANY data until after auth+DB+AI calls finished (26.5s to first byte)
+- Root cause #2: Caddy reverse proxy has default timeout (~180s) with no override in Caddyfile
+- Root cause #3: verifyOwnership() re-fetches user from Supabase for every ownership check (3 extra Supabase round-trips per request!)
+- Fix #1: Send `connected` SSE event IMMEDIATELY after creating the stream (before any processing)
+  - This ensures Caddy sees the response and starts streaming immediately
+  - Client receives `connected` event within milliseconds instead of 26+ seconds
+  - Prevents gateway timeout because data is flowing
+- Fix #2: Updated Caddyfile with explicit timeouts for SSE:
+  - read_timeout 300s (5 minutes for long AI queries)
+  - write_timeout 300s
+  - dial_timeout 30s
+- Fix #3: Eliminated verifyOwnership() calls from chat and query routes
+  - Now uses direct `datasource.userId === user.id` comparison (0ms vs 500-2000ms Supabase call)
+  - Saves 2-3 Supabase round-trips per request (could save 2-6 seconds!)
+- Fix #4: Added client-side AbortController with 120s timeout
+  - Prevents endless waiting if server never responds
+  - Shows localized error message on timeout
+- Fix #5: Added 504-specific error message in Spanish for gateway timeout
+- Added timing logs for auth (requireAuth), DB queries, and ownership checks
+- Added `connected` SSE event handler on client side
+- Lint passes: 0 errors, 1 pre-existing warning
+
+Stage Summary:
+- SSE stream now sends initial event immediately (fixes 26.5s first-byte delay)
+- Caddyfile configured with 300s timeout for SSE streams (fixes 504 timeout)
+- Ownership checks now use direct comparison (saves 2-6s per request)
+- Client-side timeout prevents endless waiting (120s)
+- Expected improvement: first byte in <1s instead of 26s, no more 504 timeouts

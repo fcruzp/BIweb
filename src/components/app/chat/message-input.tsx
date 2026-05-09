@@ -94,18 +94,36 @@ export function MessageInput() {
       }
 
       // Use fetch with streaming reader for SSE
+      // AbortController with 120s timeout — prevents endless waiting if server never responds
       console.log('[Chat] Sending query to /api/chat...');
       const fetchStart = Date.now();
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: userMessage,
-          dataSourceId: activeDataSourceId,
-          sessionId: sessionId,
-          queryRowLimit: queryRowLimit,
-        }),
-      });
+      const abortController = new AbortController();
+      const clientTimeout = setTimeout(() => {
+        abortController.abort();
+        console.error('[Chat] Client-side timeout: 120s exceeded, aborting request');
+      }, 120_000);
+
+      let res: Response;
+      try {
+        res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: userMessage,
+            dataSourceId: activeDataSourceId,
+            sessionId: sessionId,
+            queryRowLimit: queryRowLimit,
+          }),
+          signal: abortController.signal,
+        });
+      } catch (fetchError) {
+        clearTimeout(clientTimeout);
+        if (fetchError instanceof DOMException && fetchError.name === 'AbortError') {
+          throw new Error('La consulta tardó demasiado en conectarse al servidor. Verifica tu conexión e inténtalo de nuevo.');
+        }
+        throw fetchError;
+      }
+      clearTimeout(clientTimeout);
 
       if (!res.ok) {
         // Try to parse error as JSON first (non-streaming error)
@@ -117,6 +135,10 @@ export function MessageInput() {
           throw new Error(errorData.detail || errorData.error || `Failed to process query (${res.status})`);
         } else {
           console.error('[Chat] API non-JSON error:', { status: res.status, contentType });
+          // Specific message for gateway timeout
+          if (res.status === 504) {
+            throw new Error('La consulta tardó demasiado y el servidor canceló la conexión. Intenta reformular tu pregunta de forma más simple o inténtalo de nuevo.');
+          }
           throw new Error(`Server error: ${res.status}`);
         }
       }
@@ -152,6 +174,12 @@ export function MessageInput() {
             const event = JSON.parse(jsonStr);
 
             switch (event.type) {
+              case 'connected': {
+                // Server acknowledged the request — SSE stream is flowing
+                console.log('[Chat] SSE connected event received — stream is live');
+                break;
+              }
+
               case 'heartbeat': {
                 // Server heartbeat — keep connection alive and update elapsed time
                 if (typeof event.elapsed_ms === 'number') {

@@ -3,7 +3,7 @@ import { db } from '@/lib/db';
 import { generateSQLFromNaturalLanguage, regenerateSQLWithFeedback, isRetryableExecutionError, createCompletion, detectLanguage } from '@/lib/ai';
 import { executeSelectQuery, generateSchemaDescription } from '@/lib/sqlite';
 import { validateSQLQuery, sanitizeSQL } from '@/lib/sql-security';
-import { requireAuth, verifyOwnership } from '@/lib/auth-utils';
+import { requireAuth } from '@/lib/auth-utils';
 import { suggestVisualizationHeuristic } from '@/lib/viz-heuristics';
 
 // ============================================================
@@ -215,6 +215,13 @@ export async function POST(request: NextRequest) {
   const { stream, send, close, startHeartbeat } = createSSEStream();
   const overallStart = Date.now();
 
+  // Send a connected event IMMEDIATELY so that:
+  // 1. Caddy/Next.js flushes the response headers (no gateway timeout)
+  // 2. The client knows the server received the request
+  // 3. The SSE stream starts flowing right away
+  send({ type: 'connected' });
+  console.log('[Chat] SSE stream connected — initial event sent');
+
   // Run the main processing in the background so we can return the stream immediately
   (async () => {
     // Start heartbeat to keep connection alive and show elapsed time on client
@@ -225,8 +232,9 @@ export async function POST(request: NextRequest) {
 
       let user;
       try {
+        const authStart = Date.now();
         user = await requireAuth();
-        console.log(`[Chat] Auth OK: user=${user.id}`);
+        console.log(`[Chat] Auth OK: user=${user.id} (${Date.now() - authStart}ms)`);
       } catch (authError) {
         console.error('[Chat] Auth FAILED:', serializeError(authError));
         send({ type: 'error', error: 'Authentication required' });
@@ -248,6 +256,7 @@ export async function POST(request: NextRequest) {
       const lang = detectLanguage(message);
 
       // Get data source with schema and context
+      const dbStart = Date.now();
       console.log(`[Chat] Fetching datasource ${dataSourceId}...`);
       const datasource = await db.dataSource.findUnique({
         where: { id: dataSourceId },
@@ -256,6 +265,7 @@ export async function POST(request: NextRequest) {
           contexts: true,
         },
       });
+      console.log(`[Chat] Datasource fetched (${Date.now() - dbStart}ms)`);
 
       if (!datasource) {
         console.error(`[Chat] Datasource NOT FOUND: ${dataSourceId}`);
@@ -267,7 +277,10 @@ export async function POST(request: NextRequest) {
       console.log(`[Chat] Datasource found: name="${datasource.name}", status="${datasource.status}", filePath="${datasource.filePath}", schemas=${datasource.schemas.length}, contexts=${datasource.contexts.length}`);
 
       // Verify the data source belongs to the authenticated user
-      const isDatasourceOwner = await verifyOwnership(datasource.userId);
+      // OPTIMIZATION: Use user.id directly instead of calling verifyOwnership() which re-fetches from Supabase
+      const ownerStart = Date.now();
+      const isDatasourceOwner = datasource.userId === user.id;
+      console.log(`[Chat] Ownership check: ${isDatasourceOwner ? 'OK' : 'DENIED'} (${Date.now() - ownerStart}ms — direct comparison, no Supabase call)`);
       if (!isDatasourceOwner) {
         send({ type: 'error', error: 'Forbidden' });
         close();
@@ -304,6 +317,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Get or create chat session
+      const sessionStart = Date.now();
       let chatSessionId = sessionId;
       if (!chatSessionId) {
         const session = await db.chatSession.create({
@@ -323,7 +337,7 @@ export async function POST(request: NextRequest) {
           close();
           return;
         }
-        const isSessionOwner = await verifyOwnership(existingSession.userId);
+        const isSessionOwner = existingSession.userId === user.id;
         if (!isSessionOwner) {
           send({ type: 'error', error: 'Forbidden' });
           close();
@@ -339,6 +353,8 @@ export async function POST(request: NextRequest) {
           content: message,
         },
       });
+
+      console.log(`[Chat] Pre-processing done: session+msg saved (${Date.now() - sessionStart}ms), starting AI pipeline...`);
 
       // Send session info
       send({ type: 'session', sessionId: chatSessionId });

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { executeSelectQuery } from '@/lib/sqlite';
 import { validateSQLQuery, sanitizeSQL } from '@/lib/sql-security';
-import { requireAuth, verifyOwnership } from '@/lib/auth-utils';
+import { requireAuth } from '@/lib/auth-utils';
 
 // POST /api/query/execute - Execute a validated SQL query directly
 export async function POST(request: NextRequest) {
@@ -37,7 +37,8 @@ export async function POST(request: NextRequest) {
     console.log(`[QueryExecute] Datasource found: name="${datasource.name}", filePath="${datasource.filePath}"`);
 
     // Verify the data source belongs to the authenticated user
-    const isOwner = await verifyOwnership(datasource.userId);
+    // OPTIMIZATION: Use user.id directly instead of calling verifyOwnership() which re-fetches from Supabase
+    const isOwner = datasource.userId === user.id;
     if (!isOwner) {
       console.warn('[QueryExecute] Ownership check FAILED');
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
