@@ -41,3 +41,28 @@ Stage Summary:
 - setTimeout(0) for background work ensures Response returns first
 - SSE comments force proxy flush at critical points
 - Database file issue is deployment-related, not code bug
+
+---
+Task ID: 3
+Agent: Main
+Task: Add blur effect behind upload modal + fix console errors (table-data 500, auth 400)
+
+Work Log:
+- Added `backdrop-blur-sm` to DialogOverlay in `src/components/ui/dialog.tsx` — blurs background behind all modals (upload, auth, info)
+- Rewrote `/api/schema/table-data/route.ts` with better error handling:
+  - Added timing logs for auth, datasource fetch, path resolution
+  - Separated file-not-found errors (404) from general errors (500)
+  - Added try-catch around `resolveFilePath()` with helpful error message
+  - Added try-catch around `openDatabase()` with corruption/format error
+  - The 500 error was likely caused by the file path resolution failing silently
+- Fixed AuthProvider session validation:
+  - Added `supabase.auth.getUser()` validation after `getSession()` to catch expired sessions
+  - If session is invalid, clear stale session and show auth screen
+  - Handle `TOKEN_REFRESH_FAILED` event in `onAuthStateChange`
+  - Added `hasSyncedRef` to avoid redundant `/api/auth/sync` calls
+  - This fixes the `grant_type=password` 400 error from stale session refresh
+
+Stage Summary:
+- Blur effect: All dialog modals now have `backdrop-blur-sm` on their overlay
+- Table-data 500: Better error handling + logging, file-not-found returns 404 instead of 500
+- Auth 400: Session validation + cleanup of expired sessions prevents stale token refresh

@@ -6,6 +6,7 @@ import { requireAuth } from '@/lib/auth-utils';
 
 // GET /api/schema/table-data?dataSourceId=...&tableName=...&page=1&pageSize=10
 export async function GET(request: NextRequest) {
+  const startTime = Date.now();
   const { searchParams } = new URL(request.url);
   const dataSourceId = searchParams.get('dataSourceId');
   const tableName = searchParams.get('tableName');
@@ -28,16 +29,21 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // Step 1: Auth
+    const t0 = Date.now();
     const user = await requireAuth();
+    console.log(`[table-data] ⏱ Auth: ${Date.now() - t0}ms (user=${user.id})`);
 
     const page = Math.max(1, parseInt(pageStr || '1', 10) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(pageSizeStr || '10', 10) || 10));
 
-    // Find the datasource to get the filePath
+    // Step 2: Find the datasource
+    const t1 = Date.now();
     const datasource = await db.dataSource.findUnique({
       where: { id: dataSourceId },
-      select: { filePath: true, userId: true },
+      select: { filePath: true, userId: true, name: true },
     });
+    console.log(`[table-data] ⏱ Fetch datasource: ${Date.now() - t1}ms (found=${!!datasource})`);
 
     if (!datasource) {
       return NextResponse.json(
@@ -51,9 +57,37 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Resolve the file path (handles different deployment environments)
-    const resolvedPath = resolveFilePath(datasource.filePath);
-    const sqliteDb = openDatabase(resolvedPath, { readonly: true });
+    // Step 3: Resolve file path
+    let resolvedPath: string;
+    try {
+      const t2 = Date.now();
+      resolvedPath = resolveFilePath(datasource.filePath);
+      console.log(`[table-data] ⏱ Resolve path: ${Date.now() - t2}ms → ${resolvedPath}`);
+    } catch (resolveErr) {
+      console.error(`[table-data] File not found for datasource "${datasource.name}" (id=${dataSourceId}): storedPath="${datasource.filePath}"`, resolveErr instanceof Error ? resolveErr.message : resolveErr);
+      return NextResponse.json(
+        {
+          error: 'Database file not found. The file may have been lost during deployment. Please re-upload the database.',
+          detail: resolveErr instanceof Error ? resolveErr.message : String(resolveErr),
+        },
+        { status: 404 }
+      );
+    }
+
+    // Step 4: Open database and query
+    let sqliteDb;
+    try {
+      sqliteDb = openDatabase(resolvedPath, { readonly: true });
+    } catch (openErr) {
+      console.error(`[table-data] Failed to open database at "${resolvedPath}":`, openErr instanceof Error ? openErr.message : openErr);
+      return NextResponse.json(
+        {
+          error: 'Failed to open database file. It may be corrupted or in an unsupported format.',
+          detail: openErr instanceof Error ? openErr.message : String(openErr),
+        },
+        { status: 500 }
+      );
+    }
 
     try {
       // Get total row count
@@ -73,6 +107,8 @@ export async function GET(request: NextRequest) {
 
       const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
 
+      console.log(`[table-data] ✅ Done: ${data.length} rows, ${totalRows} total, ${Date.now() - startTime}ms total`);
+
       return NextResponse.json({
         data,
         columns,
@@ -88,7 +124,7 @@ export async function GET(request: NextRequest) {
     if (error instanceof Error && error.message === 'Authentication required') {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
-    console.error('Error fetching table data:', error);
+    console.error('[table-data] ❌ Error fetching table data:', error instanceof Error ? error.message : error, error instanceof Error ? error.stack : '');
     const message = error instanceof Error ? error.message : 'Failed to fetch table data';
     return NextResponse.json({ error: message }, { status: 500 });
   }

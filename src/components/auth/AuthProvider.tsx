@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import type { User } from '@supabase/supabase-js';
 
@@ -65,6 +65,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(() => getInitialAuthModalState().isOpen);
   const [authModalTab, setAuthModalTab] = useState<AuthTab>(() => getInitialAuthModalState().tab);
 
+  // Track if we've already synced the user this session
+  const hasSyncedRef = useRef(false);
+
   const openAuthModal = useCallback((tab: AuthTab = 'signin') => {
     setAuthModalTab(tab);
     setIsAuthModalOpen(true);
@@ -79,6 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
     setUser(null);
     setDbUser(null);
+    hasSyncedRef.current = false;
   }, []);
 
   const syncDbUser = useCallback(async () => {
@@ -107,6 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             company: data.user.company,
             subscription: data.subscription ?? null,
           });
+          hasSyncedRef.current = true;
         }
       } else {
         console.warn('[AuthProvider] /api/auth/sync returned:', res.status);
@@ -124,27 +129,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const supabase = createClient();
 
-    // Get initial session
+    // Get initial session — validate with getUser() to catch expired sessions
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setIsLoading(false);
-
-      // Sync user to our DB if authenticated
       if (session?.user) {
-        await syncDbUser();
+        // Validate the session server-side by calling getUser()
+        // This catches the case where the local session is stale/expired
+        const { data: { user: validatedUser }, error } = await supabase.auth.getUser();
+
+        if (error || !validatedUser) {
+          // Session is invalid/expired — sign out and show auth screen
+          console.warn('[AuthProvider] Session validation failed — clearing stale session');
+          await supabase.auth.signOut();
+          setUser(null);
+          setDbUser(null);
+          setIsLoading(false);
+          return;
+        }
+
+        setUser(validatedUser);
+        setIsLoading(false);
+
+        // Sync user to our DB if authenticated
+        if (!hasSyncedRef.current) {
+          await syncDbUser();
+        }
+      } else {
+        setUser(null);
+        setIsLoading(false);
       }
     });
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (event, session) => {
+        // Handle session recovery failures
+        if (event === 'TOKEN_REFRESH_FAILED' || event === 'SIGNED_OUT') {
+          setUser(null);
+          setDbUser(null);
+          setIsLoading(false);
+          hasSyncedRef.current = false;
+          return;
+        }
+
         setUser(session?.user ?? null);
         setIsLoading(false);
 
         // Close modal + sync user to our DB on successful sign in/sign up
         if (session?.user) {
           setIsAuthModalOpen(false);
-          await syncDbUser();
+          if (!hasSyncedRef.current || event === 'SIGNED_IN') {
+            await syncDbUser();
+          }
           // Clean up URL params
           if (window.location.search.includes('auth=')) {
             window.history.replaceState({}, '', '/');
