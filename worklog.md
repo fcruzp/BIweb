@@ -223,3 +223,43 @@ Stage Summary:
 - SSE error events include stack traces for production debugging
 - File path resolution logs which strategy was used and cwd on failure
 - When deployed, user can see errors in: 1) browser console (client-side logs), 2) server logs (console.log captured by hosting platform)
+
+---
+Task ID: 7
+Agent: main
+Task: Add elapsed time feedback, heartbeat SSE, and comprehensive logging for slow queries
+
+Work Log:
+- User reported: chat queries take too long on production, user sees "Generando consulta SQL..." spinner for extended time with no feedback, no logging for that part
+- Analyzed screenshot: UI stuck on "Generando consulta SQL..." stage with progress bar but no elapsed time or liveness indicator
+- Added SSE heartbeat mechanism to chat route:
+  - Server sends `heartbeat` event every 3 seconds with `elapsed_ms` field
+  - Keeps connection alive and provides real-time elapsed time to client
+  - Heartbeat starts when SSE stream begins, stops in finally block
+- Added elapsed time display to UI:
+  - StreamingProgress component shows formatted elapsed time badge (e.g., "5s", "1m 23s")
+  - Chat header shows elapsed seconds during loading
+  - Local elapsed counter in message-list.tsx updates every second (smooth counter)
+  - Uses server's elapsed_ms from heartbeat when available, falls back to local counter
+- Added "taking longer" hints:
+  - After 15s: "Procesando consulta con IA..." (mild warning)
+  - After 30s: "La consulta está tomando más tiempo de lo habitual. La IA sigue trabajando..." (amber, pulsing)
+- Added comprehensive server-side logging:
+  - sqlite.ts: extractSchema and executeSelectQuery now log START/DONE/FAILED with timing and details
+  - query/execute route: full request/response logging with timing at every step
+  - sqlite.ts: resolveFilePath errors now logged before re-throwing
+- Added client-side console logging:
+  - message-input.tsx: logs SSE stream connection time, each stage event, query_result timing, completion
+  - All SSE events now logged to browser console for production debugging
+- Updated chat-store.ts:
+  - Added `streamingElapsedMs` state and `setStreamingElapsedMs` action
+  - Reset in clearMessages, loadMessages, and all error/complete handlers
+- Lint passes: 0 errors, 1 pre-existing warning (TanStack Table)
+
+Stage Summary:
+- Heartbeat SSE events keep connection alive and provide elapsed time every 3s
+- UI shows elapsed time counter during all loading stages
+- "Taking longer than usual" hint appears after 15s/30s
+- Server-side logging added to sqlite.ts and query/execute route
+- Client-side logging added for all SSE events
+- User will now see real-time elapsed time instead of a static spinner

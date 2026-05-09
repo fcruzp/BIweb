@@ -45,6 +45,7 @@ interface SSEEvent {
 function createSSEStream() {
   const encoder = new TextEncoder();
   let controller: ReadableStreamDefaultController;
+  const startTime = Date.now();
 
   const stream = new ReadableStream({
     start(c) {
@@ -60,7 +61,18 @@ function createSSEStream() {
     try { controller.close(); } catch { /* already closed */ }
   }
 
-  return { stream, send, close };
+  /**
+   * Start a heartbeat interval that sends `elapsed_ms` updates every 3 seconds.
+   * Returns a cleanup function that stops the heartbeat.
+   */
+  function startHeartbeat(): () => void {
+    const interval = setInterval(() => {
+      send({ type: 'heartbeat', elapsed_ms: Date.now() - startTime });
+    }, 3000);
+    return () => clearInterval(interval);
+  }
+
+  return { stream, send, close, startHeartbeat };
 }
 
 // ============================================================
@@ -200,11 +212,14 @@ function t(lang: string, key: string): string {
 
 // POST /api/chat - Process a natural language query (SSE streaming)
 export async function POST(request: NextRequest) {
-  const { stream, send, close } = createSSEStream();
+  const { stream, send, close, startHeartbeat } = createSSEStream();
   const overallStart = Date.now();
 
   // Run the main processing in the background so we can return the stream immediately
   (async () => {
+    // Start heartbeat to keep connection alive and show elapsed time on client
+    const stopHeartbeat = startHeartbeat();
+
     try {
       console.log('[Chat] === START === New query request');
 
@@ -797,6 +812,7 @@ ${JSON.stringify(sampleResults, null, 2)}`,
         detail: errInfo.stack || undefined,
       });
     } finally {
+      stopHeartbeat();
       close();
     }
   })();

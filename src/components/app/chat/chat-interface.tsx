@@ -6,7 +6,7 @@ import { MessageList } from './message-list';
 import { MessageInput } from './message-input';
 import { WelcomeScreen } from './welcome-screen';
 import { ChatReport } from './chat-report';
-import { Brain, MessageSquare, FileText } from 'lucide-react';
+import { Brain, MessageSquare, FileText, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import {
@@ -20,7 +20,7 @@ import { useI18n } from '@/hooks/use-i18n';
 export function ChatInterface() {
   const { activeDataSourceId, dataSources, activeSessionId, chatSessions } =
     useAppStore();
-  const { isLoading, streamingStage, messages } = useChatStore();
+  const { isLoading, streamingStage, streamingElapsedMs, messages } = useChatStore();
   const [showReport, setShowReport] = useState(false);
   const { t } = useI18n();
 
@@ -66,6 +66,12 @@ export function ChatInterface() {
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
             {streamingStage.message}
+            {streamingElapsedMs > 0 && (
+              <span className="inline-flex items-center gap-0.5 font-mono text-[10px]">
+                <Clock className="h-2.5 w-2.5" />
+                {Math.floor(streamingElapsedMs / 1000)}s
+              </span>
+            )}
           </div>
         )}
         {isLoading && !streamingStage && (

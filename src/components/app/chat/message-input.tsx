@@ -19,6 +19,7 @@ export function MessageInput() {
     addMessage, setLoading, setError, isLoading,
     setStreamingStage, setStreamingMessage,
     setCurrentSQL, setCurrentQueryResult, setCurrentVisualization,
+    setStreamingElapsedMs,
   } = useChatStore();
   const { queryRowLimit } = useAIConfigStore();
   const { t } = useI18n();
@@ -93,6 +94,8 @@ export function MessageInput() {
       }
 
       // Use fetch with streaming reader for SSE
+      console.log('[Chat] Sending query to /api/chat...');
+      const fetchStart = Date.now();
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -107,6 +110,7 @@ export function MessageInput() {
       if (!res.ok) {
         // Try to parse error as JSON first (non-streaming error)
         const contentType = res.headers.get('content-type') || '';
+        console.error(`[Chat] API error: status=${res.status}, contentType=${contentType}, time=${Date.now() - fetchStart}ms`);
         if (contentType.includes('application/json')) {
           const errorData = await res.json();
           console.error('[Chat] API error response:', { status: res.status, error: errorData.error, detail: errorData.detail });
@@ -122,6 +126,8 @@ export function MessageInput() {
       if (!reader) {
         throw new Error('No response stream');
       }
+
+      console.log(`[Chat] SSE stream connected, time to first byte: ${Date.now() - fetchStart}ms`);
 
       const decoder = new TextDecoder();
       let buffer = '';
@@ -146,6 +152,14 @@ export function MessageInput() {
             const event = JSON.parse(jsonStr);
 
             switch (event.type) {
+              case 'heartbeat': {
+                // Server heartbeat — keep connection alive and update elapsed time
+                if (typeof event.elapsed_ms === 'number') {
+                  setStreamingElapsedMs(event.elapsed_ms);
+                }
+                break;
+              }
+
               case 'session':
                 if (event.sessionId) {
                   setActiveSession(event.sessionId);
@@ -160,6 +174,7 @@ export function MessageInput() {
                   attempt: event.attempt,
                 };
                 setStreamingStage(newStage);
+                console.log(`[Chat] SSE stage: ${event.stage}`, event.sql ? `sql="${event.sql.slice(0, 80)}"` : '');
 
                 // Update SQL in streaming message if provided
                 if (event.sql) {
@@ -171,6 +186,7 @@ export function MessageInput() {
 
               case 'query_result': {
                 // Query executed successfully — show results immediately!
+                console.log(`[Chat] SSE query_result: rows=${(event.queryResult as QueryResult)?.rowCount}, time=${(event.queryResult as QueryResult)?.executionTime}ms`);
                 currentSQLRef.current = event.sql;
                 currentQueryResultRef.current = event.queryResult as QueryResult;
                 currentVisualizationRef.current = event.visualization as VisualizationConfig;
@@ -196,6 +212,7 @@ export function MessageInput() {
 
               case 'complete': {
                 const finalMessage = event.message;
+                console.log(`[Chat] SSE complete: contentLen=${finalMessage?.content?.length}, hasResult=${!!finalMessage?.queryResult}`);
                 if (event.sessionId) {
                   setActiveSession(event.sessionId);
                 }
@@ -203,6 +220,7 @@ export function MessageInput() {
                 // Clear streaming state
                 setStreamingStage(null);
                 setStreamingMessage(null);
+                setStreamingElapsedMs(0);
                 setLoading(false);
 
                 // Add the complete assistant message
@@ -235,6 +253,7 @@ export function MessageInput() {
 
                 setStreamingStage(null);
                 setStreamingMessage(null);
+                setStreamingElapsedMs(0);
                 setLoading(false);
 
                 addMessage({
@@ -256,6 +275,7 @@ export function MessageInput() {
       // Safety: if we exit the loop without a 'complete' event, clean up
       setStreamingStage(null);
       setStreamingMessage(null);
+      setStreamingElapsedMs(0);
       setLoading(false);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An error occurred';
@@ -265,6 +285,7 @@ export function MessageInput() {
 
       setStreamingStage(null);
       setStreamingMessage(null);
+      setStreamingElapsedMs(0);
       setLoading(false);
 
       addMessage({

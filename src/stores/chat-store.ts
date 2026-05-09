@@ -53,6 +53,7 @@ interface ChatState {
   // Streaming state
   streamingStage: StreamingStage | null;
   streamingMessage: Partial<ChatMessage> | null;  // Partial assistant message being built
+  streamingElapsedMs: number;  // Elapsed milliseconds since query started (from heartbeat)
 
   // Actions
   addMessage: (message: ChatMessage) => void;
@@ -65,6 +66,7 @@ interface ChatState {
   setCurrentSQL: (sql: string | null) => void;
   setStreamingStage: (stage: StreamingStage | null) => void;
   setStreamingMessage: (message: Partial<ChatMessage> | null) => void;
+  setStreamingElapsedMs: (ms: number) => void;
   loadMessages: (sessionId: string) => Promise<void>;
 }
 
@@ -77,6 +79,7 @@ export const useChatStore = create<ChatState>((set) => ({
   currentSQL: null,
   streamingStage: null,
   streamingMessage: null,
+  streamingElapsedMs: 0,
 
   addMessage: (message) =>
     set((state) => ({ messages: [...state.messages, message] })),
@@ -89,6 +92,7 @@ export const useChatStore = create<ChatState>((set) => ({
       currentSQL: null,
       streamingStage: null,
       streamingMessage: null,
+      streamingElapsedMs: 0,
     }),
   setLoading: (loading) => set({ isLoading: loading }),
   setError: (error) => set({ error }),
@@ -97,6 +101,7 @@ export const useChatStore = create<ChatState>((set) => ({
   setCurrentSQL: (sql) => set({ currentSQL: sql }),
   setStreamingStage: (stage) => set({ streamingStage: stage }),
   setStreamingMessage: (message) => set({ streamingMessage: message }),
+  setStreamingElapsedMs: (ms) => set({ streamingElapsedMs: ms }),
   loadMessages: async (sessionId: string) => {
     try {
       set({ isLoading: true, error: null });
@@ -183,6 +188,7 @@ export const useChatStore = create<ChatState>((set) => ({
         isLoading: false,
         streamingStage: null,
         streamingMessage: null,
+        streamingElapsedMs: 0,
       });
     } catch (error) {
       const errorMessage =

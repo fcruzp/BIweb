@@ -103,7 +103,18 @@ export interface SchemaExtractionResult {
  * Uses resolveFilePath() to handle different deployment environments.
  */
 export function extractSchema(filePath: string): SchemaExtractionResult {
-  const resolvedPath = resolveFilePath(filePath);
+  const extractStart = Date.now();
+  console.log(`[SQLite] extractSchema START: filePath="${filePath}"`);
+
+  let resolvedPath: string;
+  try {
+    resolvedPath = resolveFilePath(filePath);
+    console.log(`[SQLite] Resolved path: ${resolvedPath}`);
+  } catch (resolveErr) {
+    console.error(`[SQLite] resolveFilePath FAILED for "${filePath}":`, resolveErr instanceof Error ? resolveErr.message : resolveErr);
+    throw resolveErr;
+  }
+
   const db = openDatabase(resolvedPath, { readonly: true });
 
   try {
@@ -111,6 +122,8 @@ export function extractSchema(filePath: string): SchemaExtractionResult {
     const tables = db
       .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
       .all() as Array<{ name: string }>;
+
+    console.log(`[SQLite] Found ${tables.length} tables: [${tables.map(t => t.name).join(', ')}]`);
 
     const tableSchemas: TableSchema[] = [];
     const schemaParts: string[] = [];
@@ -139,16 +152,16 @@ export function extractSchema(filePath: string): SchemaExtractionResult {
       try {
         const countResult = db.prepare(`SELECT COUNT(*) as count FROM "${name}"`).get() as { count: number } | undefined;
         rowCount = countResult?.count ?? 0;
-      } catch {
-        // Some tables might not be queryable
+      } catch (countErr) {
+        console.warn(`[SQLite] Could not count rows in table "${name}":`, countErr instanceof Error ? countErr.message : countErr);
       }
 
       // Get sample data (up to 5 rows)
       let sampleData: Array<Record<string, unknown>> = [];
       try {
         sampleData = db.prepare(`SELECT * FROM "${name}" LIMIT 5`).all() as Array<Record<string, unknown>>;
-      } catch {
-        // Some tables might not be queryable
+      } catch (sampleErr) {
+        console.warn(`[SQLite] Could not get sample data from table "${name}":`, sampleErr instanceof Error ? sampleErr.message : sampleErr);
       }
 
       tableSchemas.push({
@@ -165,10 +178,15 @@ export function extractSchema(filePath: string): SchemaExtractionResult {
       schemaParts.push(`TABLE ${name} (\n${columnDefs}\n) -- ${rowCount} rows`);
     }
 
+    console.log(`[SQLite] extractSchema DONE: ${tables.length} tables, ${schemaParts.join('').length} chars schema text, took ${Date.now() - extractStart}ms`);
+
     return {
       tables: tableSchemas,
       fullSchemaText: schemaParts.join('\n\n'),
     };
+  } catch (err) {
+    console.error(`[SQLite] extractSchema FAILED after ${Date.now() - extractStart}ms:`, err instanceof Error ? err.message : err);
+    throw err;
   } finally {
     db.close();
   }
@@ -192,7 +210,17 @@ export function executeSelectQuery(
   rowCount: number;
   executionTime: number;
 } {
-  const resolvedPath = resolveFilePath(filePath);
+  const execStart = Date.now();
+  console.log(`[SQLite] executeSelectQuery START: filePath="${filePath}", sql="${sql.slice(0, 120)}..."`);
+
+  let resolvedPath: string;
+  try {
+    resolvedPath = resolveFilePath(filePath);
+  } catch (resolveErr) {
+    console.error(`[SQLite] executeSelectQuery — resolveFilePath FAILED for "${filePath}":`, resolveErr instanceof Error ? resolveErr.message : resolveErr);
+    throw resolveErr;
+  }
+
   const db = openDatabase(resolvedPath, { readonly: true });
 
   try {
@@ -205,12 +233,17 @@ export function executeSelectQuery(
 
     const columns = data.length > 0 ? Object.keys(data[0]) : [];
 
+    console.log(`[SQLite] executeSelectQuery DONE: ${data.length} rows, ${columns.length} cols, ${executionTime}ms (total incl resolve: ${Date.now() - execStart}ms)`);
+
     return {
       data,
       columns,
       rowCount: data.length,
       executionTime,
     };
+  } catch (err) {
+    console.error(`[SQLite] executeSelectQuery FAILED after ${Date.now() - execStart}ms:`, err instanceof Error ? err.message : err);
+    throw err;
   } finally {
     db.close();
   }
