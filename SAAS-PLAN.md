@@ -1,6 +1,6 @@
 # 🚀 DataMind BI — Plan SaaS Consolidado
 
-> Última actualización: Mayo 2025 | Progreso: Fase 1 completada (PostgreSQL pendiente habilitar pooler)
+> Última actualización: Mayo 2025 | Progreso: ✅ Fase 1 COMPLETADA — App corriendo en Supabase PostgreSQL
 
 ---
 
@@ -62,7 +62,7 @@
 
 | Tarea | Estado |
 |-------|--------|
-| Cambiar provider Prisma a postgresql | 🟡 Schema listo (`schema.postgresql.prisma`), pendiente activar |
+| Cambiar provider Prisma a postgresql | ✅ Completado — `schema.prisma` usa provider postgresql |
 | Agregar modelo `User` al schema | ✅ Completado |
 | Agregar `userId` a `DataSource` | ✅ Completado (nullable hasta Fase 2) |
 | Agregar `userId` a `ChatSession` | ✅ Completado (nullable hasta Fase 2) |
@@ -78,25 +78,26 @@
 | Crear auth-utils temporales (Fase 1) | ✅ Completado (`src/lib/auth-utils.ts`) |
 | Push schema a SQLite (mantener app funcionando) | ✅ Completado |
 | Probar todas las APIs con el nuevo schema | ✅ Completado (todas funcionan) |
-| Push schema a Supabase PostgreSQL | 🔴 BLOQUEADO — Connection Pooler no habilitado |
-| Migrar datos existentes | ⬜ Pendiente (después de push a PostgreSQL) |
+| Push schema a Supabase PostgreSQL | ✅ Completado — 11 tablas creadas con índices |
+| Migrar datos existentes | ⬜ Pendiente (DB nueva está vacía, datos anteriores en SQLite backup) |
 
-> 🔴 **BLOQUEADOR ACTUAL**: El password fue proporcionado, pero la conexión a PostgreSQL falla por dos razones:
-> 1. **Conexión directa** (`db.*.supabase.co:5432`): Solo resuelve a IPv6, este ambiente no soporta IPv6 saliente
-> 2. **Connection Pooler** (`aws-0-us-east-1.pooler.supabase.com:6543`): Retorna "Tenant or user not found" — el pooler no tiene mapeo para este proyecto
->
-> **SOLUCIÓN**: Ir al **Supabase Dashboard → Settings → Database → Connection Pooling** y:
-> 1. Verificar que el Connection Pooling esté **habilitado**
-> 2. Copiar el **connection string exacto** que aparece ahí (tiene el formato correcto del usuario)
-> 3. Proveer también la **service_role key** (para la API REST) que aparece en Settings → API
+> ✅ **FASE 1 COMPLETADA**: La app está corriendo en Supabase PostgreSQL.
+> - Host del pooler: `aws-1-us-east-1.pooler.supabase.com` (NO `aws-0`)
+> - 11 tablas creadas con columnas snake_case (@map), índices y constraints
+> - Todas las APIs verificadas funcionando con PostgreSQL
+> - El problema anterior era el host incorrecto del pooler (`aws-0` vs `aws-1`)
 
-### Lo que NECESITA el usuario (para empezar)
+### Detalle de Conexión PostgreSQL
 
-1. Crear cuenta en [supabase.com](https://supabase.com)
-2. Crear proyecto: nombre `datamind-bi`, región **US East**, password seguro
-3. En Settings → API, copiar: **Project URL** y **anon public key**
-4. En Settings → Database, copiar la **Connection string** (URI format)
-5. Pasar esos datos para configurar la app
+| Parámetro | Valor |
+|-----------|-------|
+| **Host (Pooler)** | aws-1-us-east-1.pooler.supabase.com |
+| **Puerto (Transaction)** | 6543 |
+| **Puerto (Session)** | 5432 |
+| **Usuario** | postgres.rsrcdaepiwjqfynwwzcn |
+| **Base de datos** | postgres |
+| **SSL** | Requerido |
+| **PgBouncer** | Sí (Transaction mode) |
 
 ### Estimación: 1.5 - 2 semanas
 
@@ -449,20 +450,14 @@ Con Z-AI (sin costo de IA):
 
 ## ⚡ Próximo Paso
 
-Para completar la **Fase 1**, falta:
+**Fase 1 COMPLETADA** ✅ — La app está corriendo en Supabase PostgreSQL.
 
-1. ✅ ~~Crear cuenta en [supabase.com](https://supabase.com)~~
-2. ✅ ~~Crear proyecto: nombre `datamind-bi`, región **US East**, password seguro~~
-3. ✅ ~~En Settings → API, copiar: **Project URL** y **anon public key**~~
-4. ✅ ~~En Settings → Database, copiar la **Connection string** (URI format)~~
-5. ✅ ~~Pasar esos datos para configurar la app~~
-6. ✅ ~~Proporcionar el password de la base de datos~~
-7. 🔴 **Habilitar Connection Pooling en Supabase Dashboard** (Settings → Database → Connection Pooling)
-8. 🔴 **Copiar el connection string EXACTO del pooler** (con el formato de usuario correcto)
-9. 🔴 **Copiar la service_role key** (Settings → API → service_role key)
+### Siguiente: Fase 2 — Auth + Multi-Tenant
 
-Una vez con el pooler habilitado y los datos correctos:
-1. Actualizar `.env` con el connection string del pooler
-2. Cambiar `prisma/schema.prisma` a provider postgresql (el schema ya está listo en `schema.postgresql.prisma`)
-3. Ejecutar `bun run db:generate && bun run db:push`
-4. Reiniciar el servidor — app conectada a Supabase PostgreSQL 🚀
+1. ⬜ Crear páginas de Auth (Login, Register, Forgot Password)
+2. ⬜ Implementar `useAuth()` hook con Supabase Auth
+3. ⬜ Proteger API routes con verificación de sesión
+4. ⬜ Configurar RLS policies en PostgreSQL
+5. ⬜ Sync: Supabase Auth → tabla User
+6. ⬜ Configurar Google OAuth en Supabase Dashboard
+7. 🔴 Obtener **service_role key** de Supabase (Settings → API)

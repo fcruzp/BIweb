@@ -135,3 +135,42 @@ Stage Summary:
 - PostgreSQL migration schema is prepared and ready (just needs pooler activation)
 - BLOCKED: User must enable Connection Pooling in Supabase Dashboard → Settings → Database
 - Once pooler is active: swap .env, copy schema.postgresql.prisma → schema.prisma, run db:push
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Complete PostgreSQL migration — user provided correct pooler host
+
+Work Log:
+- User navigated to Supabase Dashboard → Settings → Database → Connection Pooling → Saved
+- User clicked "Connect" button → "Direct" tab and provided connection details
+- KEY DISCOVERY: The correct pooler host is `aws-1-us-east-1.pooler.supabase.com` (NOT `aws-0`)
+- This was the root cause of all previous "Tenant or user not found" errors!
+- Tested connection with raw pg client → SUCCESS! Connected to PostgreSQL 17.6
+- Updated .env with correct pooler URLs (aws-1 instead of aws-0)
+- Copied schema.postgresql.prisma → schema.prisma (activated PostgreSQL provider)
+- Ran `prisma generate` → Prisma Client generated for PostgreSQL
+- Ran `prisma db push` → ALL 11 TABLES CREATED IN SUPABASE!
+  - users, subscriptions, usage_events
+  - data_sources, source_schemas, source_contexts
+  - chat_sessions, chat_messages
+  - query_histories
+  - dashboards, dashboard_widgets
+  - All indexes created (30+ indexes including user_id, status, created_at, etc.)
+- Fixed env var override issue: system env had stale DATABASE_URL pointing to SQLite
+  - Created .env.local with PostgreSQL URLs (takes precedence over system env)
+  - Updated src/lib/db.ts to force PostgreSQL URL if env var still points to SQLite
+- Tested all API endpoints:
+  - GET /api/dashboards → 200 ✅ (PostgreSQL query: SELECT "public"."dashboards"...)
+  - GET /api/datasources → 200 ✅ (PostgreSQL query: SELECT "public"."data_sources"...)
+  - GET / → 200 ✅
+- Lint passes (0 errors, 1 pre-existing warning)
+- Backed up SQLite schema as prisma/schema.sqlite.prisma.bak
+
+Stage Summary:
+- 🎉 PHASE 1 COMPLETE: App fully running on Supabase PostgreSQL!
+- 11 tables created with proper snake_case column names (@map), indexes, and constraints
+- Connection via Supabase Connection Pooler (aws-1-us-east-1.pooler.supabase.com:6543)
+- All API endpoints verified working with PostgreSQL
+- Key learning: Supabase pooler region matters — `aws-1` not `aws-0` for US East
+- Ready for Phase 2: Auth + Multi-Tenant
