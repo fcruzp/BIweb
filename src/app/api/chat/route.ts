@@ -6,6 +6,19 @@ import { validateSQLQuery, sanitizeSQL } from '@/lib/sql-security';
 import { requireAuth, verifyOwnership } from '@/lib/auth-utils';
 
 // ============================================================
+// Timeout helper — wraps a promise with a timeout
+// ============================================================
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    ),
+  ]);
+}
+
+// ============================================================
 // Localized message helpers
 // ============================================================
 
@@ -34,6 +47,8 @@ const i18n: Record<string, Record<string, string>> = {
     queryResults: 'Resultados de la consulta',
     queryReturned: 'La consulta devolvió',
     rowsIn: 'filas en',
+    fileNotFound: 'Archivo de base de datos no encontrado',
+    fileNotFoundDesc: 'El archivo de base de datos asociado a esta fuente de datos no se encuentra disponible. Esto puede ocurrir después de un redeployment. Por favor, sube el archivo nuevamente.',
   },
   en: {
     schemaOverview: 'Database Schema Overview',
@@ -59,6 +74,8 @@ const i18n: Record<string, Record<string, string>> = {
     queryResults: 'Query Results',
     queryReturned: 'Query returned',
     rowsIn: 'rows in',
+    fileNotFound: 'Database file not found',
+    fileNotFoundDesc: 'The database file for this data source is no longer available. This can happen after a redeployment. Please re-upload the file.',
   },
   pt: {
     schemaOverview: 'Esquema do Banco de Dados',
@@ -84,6 +101,8 @@ const i18n: Record<string, Record<string, string>> = {
     queryResults: 'Resultados da consulta',
     queryReturned: 'A consulta retornou',
     rowsIn: 'linhas em',
+    fileNotFound: 'Arquivo de banco de dados não encontrado',
+    fileNotFoundDesc: 'O arquivo de banco de dados não está mais disponível. Isso pode acontecer após um novo deploy. Por favor, faça o upload novamente.',
   },
   fr: {
     schemaOverview: 'Schéma de la Base de Données',
@@ -109,6 +128,8 @@ const i18n: Record<string, Record<string, string>> = {
     queryResults: 'Résultats de la requête',
     queryReturned: 'La requête a renvoyé',
     rowsIn: 'lignes en',
+    fileNotFound: 'Fichier de base de données introuvable',
+    fileNotFoundDesc: 'Le fichier de base de données n\'est plus disponible. Cela peut arriver après un redéploiement. Veuillez le télécharger à nouveau.',
   },
 };
 
@@ -155,6 +176,9 @@ export async function POST(request: NextRequest) {
     if (datasource.status !== 'ready') {
       return NextResponse.json({ error: 'Data source is not ready for queries' }, { status: 400 });
     }
+
+    // Detect user language for localized responses (early, so we can use it in error messages)
+    const lang = detectLanguage(message);
 
     // Get or create chat session
     let chatSessionId = sessionId;
@@ -211,17 +235,41 @@ export async function POST(request: NextRequest) {
       sql: q.sqlQuery,
     }));
 
-    // Generate SQL from natural language
-    const sqlResult = await generateSQLFromNaturalLanguage(
-      message,
-      schemaDescription,
-      semanticContext,
-      previousQueries,
-      queryRowLimit
-    );
+    // Generate SQL from natural language — with timeout
+    let sqlResult;
+    try {
+      sqlResult = await withTimeout(
+        generateSQLFromNaturalLanguage(
+          message,
+          schemaDescription,
+          semanticContext,
+          previousQueries,
+          queryRowLimit
+        ),
+        30000,  // 30s timeout for SQL generation
+        'SQL generation'
+      );
+    } catch (timeoutError) {
+      console.error('SQL generation timed out or failed:', timeoutError);
+      const errorMsg = timeoutError instanceof Error ? timeoutError.message : 'SQL generation failed';
+      
+      await db.chatMessage.create({
+        data: {
+          sessionId: chatSessionId,
+          role: 'assistant',
+          content: `## ${t(lang, 'queryExecutionError')}\n\n${errorMsg}`,
+        },
+      });
 
-    // Detect user language for localized responses
-    const lang = detectLanguage(message);
+      return NextResponse.json({
+        sessionId: chatSessionId,
+        message: {
+          role: 'assistant',
+          content: `## ${t(lang, 'queryExecutionError')}\n\n${errorMsg}`,
+          confidence: 0,
+        },
+      });
+    }
 
     // Handle schema questions — build a rich response from stored metadata, no SQL execution
     if (sqlResult.type === 'schema_question') {
@@ -373,36 +421,51 @@ export async function POST(request: NextRequest) {
       } catch (execError) {
         lastError = execError instanceof Error ? execError.message : 'Query execution failed';
 
+        // Check if this is a "file not found" error — not retryable, fail immediately
+        if (lastError.includes('file not found') || lastError.includes('Database file not found')) {
+          console.error('[Chat] Database file not found:', lastError);
+          break;
+        }
+
         // Check if this is a retryable error (AI hallucinated a column/table name)
         if (attempt < MAX_RETRIES && isRetryableExecutionError(lastError)) {
           console.log(`[Chat] SQL execution failed (attempt ${attempt + 1}): ${lastError}. Retrying with feedback...`);
 
-          // Ask the AI to regenerate the SQL with error feedback
-          const retryResult = await regenerateSQLWithFeedback(
-            message,
-            finalSQL,
-            lastError,
-            schemaDescription,
-            semanticContext,
-            queryRowLimit
-          );
+          // Ask the AI to regenerate the SQL with error feedback — with timeout
+          try {
+            const retryResult = await withTimeout(
+              regenerateSQLWithFeedback(
+                message,
+                finalSQL,
+                lastError,
+                schemaDescription,
+                semanticContext,
+                queryRowLimit
+              ),
+              20000,  // 20s timeout for retry
+              'SQL regeneration'
+            );
 
-          if (!retryResult.sql || retryResult.confidence === 0) {
-            // AI couldn't fix it — break and report error
-            console.log('[Chat] AI could not fix the SQL query on retry.');
+            if (!retryResult.sql || retryResult.confidence === 0) {
+              // AI couldn't fix it — break and report error
+              console.log('[Chat] AI could not fix the SQL query on retry.');
+              break;
+            }
+
+            // Validate the regenerated SQL
+            const retryValidation = validateSQLQuery(retryResult.sql);
+            if (!retryValidation.isSafe) {
+              console.log(`[Chat] Regenerated SQL failed security check: ${retryValidation.errors.join(', ')}`);
+              break;
+            }
+
+            finalSQL = sanitizeSQL(retryResult.sql);
+            retryCount++;
+            // Continue loop to try the new query
+          } catch (retryTimeoutError) {
+            console.error('[Chat] SQL regeneration timed out:', retryTimeoutError);
             break;
           }
-
-          // Validate the regenerated SQL
-          const retryValidation = validateSQLQuery(retryResult.sql);
-          if (!retryValidation.isSafe) {
-            console.log(`[Chat] Regenerated SQL failed security check: ${retryValidation.errors.join(', ')}`);
-            break;
-          }
-
-          finalSQL = sanitizeSQL(retryResult.sql);
-          retryCount++;
-          // Continue loop to try the new query
         } else {
           // Non-retryable error or max retries exceeded
           break;
@@ -412,12 +475,17 @@ export async function POST(request: NextRequest) {
 
     // If query still failed after retries
     if (!queryResult) {
-      const errorRetryNote = retryCount > 0 ? ` (${t(lang, 'retried')} ${retryCount} ${retryCount > 1 ? t(lang, 'times') : t(lang, 'time')} ${t(lang, 'withAIFeedback')})` : '';
+      // Check if it's a file-not-found error
+      const isFileNotFoundError = lastError.includes('file not found') || lastError.includes('Database file not found');
+      const errorContent = isFileNotFoundError
+        ? `## ${t(lang, 'fileNotFound')}\n\n${t(lang, 'fileNotFoundDesc')}`
+        : `## ${t(lang, 'queryExecutionError')}${retryCount > 0 ? ` (${t(lang, 'retried')} ${retryCount} ${retryCount > 1 ? t(lang, 'times') : t(lang, 'time')} ${t(lang, 'withAIFeedback')})` : ''}\n\n${lastError}`;
+
       await db.chatMessage.create({
         data: {
           sessionId: chatSessionId,
           role: 'assistant',
-          content: `## ${t(lang, 'queryExecutionError')}${errorRetryNote}\n\n${lastError}`,
+          content: errorContent,
           sqlQuery: finalSQL,
         },
       });
@@ -441,79 +509,95 @@ export async function POST(request: NextRequest) {
         sessionId: chatSessionId,
         message: {
           role: 'assistant',
-          content: `## ${t(lang, 'queryExecutionError')}${errorRetryNote}\n\n${lastError}`,
+          content: errorContent,
           sqlQuery: finalSQL,
           confidence: sqlResult.confidence,
         },
       });
     }
 
-    // Get visualization suggestion
-    let visualization = null;
-    try {
-      visualization = await suggestVisualization(finalSQL, queryResult.data, message);
-    } catch (vizError) {
-      console.error('Error suggesting visualization:', vizError);
-    }
+    // ============================================================
+    // PERFORMANCE FIX: Run visualization + analysis IN PARALLEL
+    // This reduces total time from (viz + analysis) to max(viz, analysis)
+    // ============================================================
 
-    // Analyze results with AI — include the actual column names so the AI doesn't hallucinate
-    let analysis = '';
-    try {
-      const sampleResults = queryResult.data.slice(0, 10);
-      const resultColumns = queryResult.columns || (queryResult.data.length > 0 ? Object.keys(queryResult.data[0]) : []);
-      const analysisResult = await createCompletion({
-        systemPrompt: `You are a senior business intelligence analyst writing a concise executive report. Analyze SQL query results and present insights in a professional, well-structured format.
+    // Slice results based on configured limit (0 = no limit / send all)
+    const slicedData = responseRowLimit > 0
+      ? queryResult.data.slice(0, responseRowLimit)
+      : queryResult.data;
+
+    const resultColumns = queryResult.columns || (slicedData.length > 0 ? Object.keys(slicedData[0]) : []);
+    const sampleResults = queryResult.data.slice(0, 10);
+
+    // Run visualization and analysis IN PARALLEL with independent timeouts
+    const [vizResult, analysisResult] = await Promise.allSettled([
+      // Visualization suggestion — 15s timeout
+      withTimeout(
+        suggestVisualization(finalSQL, queryResult.data, message),
+        15000,
+        'Visualization suggestion'
+      ).catch(err => {
+        console.error('Visualization suggestion failed:', err);
+        return null;
+      }),
+
+      // Analysis — 20s timeout
+      withTimeout(
+        createCompletion({
+          systemPrompt: `You are a senior business intelligence analyst. Analyze SQL query results concisely.
 
 CRITICAL RULES:
-- ONLY reference column names that are listed in the "Result Columns" section below. Do NOT invent or assume any column names.
-- If you mention a value from the data, make sure the column name you use matches exactly.
-- Do NOT generate any SQL - only analyze the results and provide insights.
+- ONLY reference column names listed in "Result Columns". Do NOT invent column names.
+- Do NOT generate SQL — only analyze results and provide insights.
 
-OUTPUT FORMAT — Use this structure:
-## [Descriptive Title in Title Case]
-Write a 1-2 sentence executive summary paragraph.
+OUTPUT FORMAT:
+## [Title]
+1-2 sentence summary.
 
 ### Key Findings
-- **[Metric Name]**: [Value with context]
-- **[Metric Name]**: [Value with context]
-- **[Metric Name]**: [Value with context]
+- **[Metric]**: [Value with context]
+- **[Metric]**: [Value with context]
 
-### [Additional Section if warranted — trends, anomalies, breakdowns]
-Write a brief analytical paragraph with data-driven insights.
+### [Optional: Trends/Anomalies]
+Brief analysis paragraph.
 
 ### Recommended Follow-up
-- [Specific, actionable question the user could ask next]
-- [Specific, actionable question the user could ask next]
+- [Actionable question]
+- [Actionable question]
 
-STYLE GUIDELINES:
-- Use professional, confident language suitable for a C-suite audience
-- Quantify insights with specific numbers and percentages from the data
-- Highlight patterns, outliers, and business implications
-- Keep paragraphs to 2-3 sentences maximum
-- Use bold for key metrics and findings
-- Write section headers in Title Case
-- Be concise — the entire analysis should be scannable in under 30 seconds
+STYLE: Professional, concise, bold for key metrics. Scannable in 30 seconds.
 
-LANGUAGE RULE — CRITICAL:
-You MUST respond in the SAME LANGUAGE as the user's question. If the user wrote in Spanish, write the entire analysis in Spanish. If in English, write in English. If in Portuguese, write in Portuguese. If in French, write in French. Section headers, bullet points, and ALL human-readable text must match the user's language. SQL keywords and column names remain in their original form.`,
-        userMessage: `Analyze these SQL query results:
+LANGUAGE: Respond in the SAME LANGUAGE as the user's question. SQL keywords and column names stay in original form.`,
+          userMessage: `Analyze these SQL query results:
 
 Query: ${finalSQL}
 Question: ${message}
 Result Columns: ${resultColumns.join(', ')}
 Total rows: ${queryResult.rowCount}
-Execution time: ${queryResult.executionTime}ms${retryCount > 0 ? `\nNote: This query was auto-corrected after ${retryCount} attempt(s) due to column/table errors.` : ''}
+Execution time: ${queryResult.executionTime}ms${retryCount > 0 ? `\nNote: Auto-corrected after ${retryCount} attempt(s).` : ''}
 
 Sample results:
-${JSON.stringify(sampleResults, null, 2)}
+${JSON.stringify(sampleResults, null, 2)}`,
+          temperature: 0.3,
+        }),
+        20000,
+        'Result analysis'
+      ).catch(err => {
+        console.error('Analysis failed:', err);
+        return null;
+      }),
+    ]);
 
-Write a professional executive analysis using ONLY the column names listed above.`,
-        temperature: 0.3,
-      });
-      analysis = analysisResult.content;
-    } catch (analysisError) {
-      console.error('Error analyzing results:', analysisError);
-      analysis = `## ${t(lang, 'queryResults')}\n\n${t(lang, 'queryReturned')} ${queryResult.rowCount} ${t(lang, 'rows')} ${t(lang, 'rowsIn')} ${queryResult.executionTime}ms.`;
+    // Extract results
+    const visualization = vizResult.status === 'fulfilled' ? vizResult.value : null;
+    const analysisCompletion = analysisResult.status === 'fulfilled' ? analysisResult.value : null;
+
+    let analysis = '';
+    if (analysisCompletion?.content) {
+      analysis = analysisCompletion.content;
+    } else {
+      // Fallback analysis
+      analysis = `## ${t(lang, 'queryResults')}\n\n${t(lang, 'queryReturned')} **${queryResult.rowCount}** ${t(lang, 'rows')} ${t(lang, 'rowsIn')} **${queryResult.executionTime}ms**.`;
     }
 
     // Build the full response content — include retry note if applicable
@@ -524,11 +608,6 @@ Write a professional executive analysis using ONLY the column names listed above
     const rowsWord = t(lang, 'rows');
     const responseContent = `${analysis}\n\n📊 **${successMsg}**${retryNote} (${queryResult.rowCount} ${rowsWord}, ${queryResult.executionTime}ms)`;
 
-    // Slice results based on configured limit (0 = no limit / send all)
-    const slicedData = responseRowLimit > 0
-      ? queryResult.data.slice(0, responseRowLimit)
-      : queryResult.data;
-
     // Save assistant message
     await db.chatMessage.create({
       data: {
@@ -538,7 +617,7 @@ Write a professional executive analysis using ONLY the column names listed above
         sqlQuery: finalSQL,
         queryResult: JSON.stringify({
           data: slicedData,
-          columns: queryResult.columns || (slicedData.length > 0 ? Object.keys(slicedData[0]) : []),
+          columns: resultColumns,
           rowCount: queryResult.rowCount,
           totalRowCount: queryResult.rowCount,
           executionTime: queryResult.executionTime,
@@ -571,7 +650,7 @@ Write a professional executive analysis using ONLY the column names listed above
         confidence: sqlResult.confidence,
         queryResult: {
           data: slicedData,
-          columns: queryResult.columns,
+          columns: resultColumns,
           rowCount: queryResult.rowCount,
           totalRowCount: queryResult.rowCount,
           executionTime: queryResult.executionTime,

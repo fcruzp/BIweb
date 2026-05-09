@@ -2,11 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { extractSchema, generateSchemaDescription, generateSampleDataDescription } from '@/lib/sqlite';
 import { requireAuth } from '@/lib/auth-utils';
+import { getDataDir } from '@/lib/file-utils';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
-
-const DATA_DIR = path.join(process.cwd(), 'data');
 
 // GET /api/datasources - List all data sources (filtered by authenticated user)
 export async function GET() {
@@ -51,22 +50,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Only SQLite files (.db, .sqlite, .sqlite3) are supported' }, { status: 400 });
     }
 
+    // Ensure data directory exists
+    const dataDir = getDataDir();
+
     // Save file to data directory
     const fileId = uuidv4();
-    const fileName = `${fileId}_${file.name}`;
-    const filePath = path.join(DATA_DIR, fileName);
+    const storageFilename = `${fileId}_${file.name}`;
+    const filePath = path.join(dataDir, storageFilename);
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
     fs.writeFileSync(filePath, buffer);
 
-    // Create data source record with userId — status starts as "uploaded"
+    // Store ONLY the filename in the DB — resolve at runtime via resolveFilePath()
+    // This ensures portability across deployments with different working directories
     const dataSource = await db.dataSource.create({
       data: {
         name,
         fileName: file.name,
         fileSize: buffer.length,
-        filePath,
+        filePath: storageFilename,  // Just the filename, not the full path
         fileType: 'sqlite',
         status: 'uploaded',
         userId: user.id,

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { openDatabase } from '@/lib/sqlite';
+import { resolveFilePath } from '@/lib/file-utils';
 import { requireAuth, verifyOwnership } from '@/lib/auth-utils';
-import Database from 'better-sqlite3';
 
 // GET /api/schema/table-data?dataSourceId=...&tableName=...&page=1&pageSize=10
 export async function GET(request: NextRequest) {
@@ -51,14 +52,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const sqliteDb = new Database(datasource.filePath, { readonly: true });
+    // Resolve the file path (handles different deployment environments)
+    const resolvedPath = resolveFilePath(datasource.filePath);
+    const sqliteDb = openDatabase(resolvedPath, { readonly: true });
 
     try {
       // Get total row count
       const countResult = sqliteDb
         .prepare(`SELECT COUNT(*) as count FROM "${tableName}"`)
-        .get() as { count: number };
-      const totalRows = countResult.count;
+        .get() as { count: number } | undefined;
+      const totalRows = countResult?.count ?? 0;
 
       // Get paginated data
       const offset = (page - 1) * pageSize;
@@ -87,9 +90,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
     console.error('Error fetching table data:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch table data' },
-      { status: 500 }
-    );
+    const message = error instanceof Error ? error.message : 'Failed to fetch table data';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Execute
+    // Execute (resolveFilePath is now handled inside executeSelectQuery)
     const sanitizedSQL = sanitizeSQL(sql);
     const result = executeSelectQuery(datasource.filePath, sanitizedSQL);
 
@@ -60,9 +60,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
     console.error('Error executing query:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Query execution failed' },
-      { status: 500 }
-    );
+    const message = error instanceof Error ? error.message : 'Query execution failed';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

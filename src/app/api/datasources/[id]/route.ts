@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireAuth, verifyOwnership } from '@/lib/auth-utils';
+import { findFilePath } from '@/lib/file-utils';
 import fs from 'fs';
 
 // GET /api/datasources/[id]
@@ -30,7 +31,16 @@ export async function GET(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    return NextResponse.json({ datasource });
+    // Check if the file still exists
+    const resolvedPath = findFilePath(datasource.filePath);
+    const fileExists = resolvedPath !== null;
+
+    return NextResponse.json({
+      datasource: {
+        ...datasource,
+        fileExists,  // Let the frontend know if the file is accessible
+      },
+    });
   } catch (error) {
     if (error instanceof Error && error.message === 'Authentication required') {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -63,9 +73,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Delete the file
-    if (fs.existsSync(datasource.filePath)) {
-      fs.unlinkSync(datasource.filePath);
+    // Delete the file — use resolveFilePath for robustness
+    const resolvedPath = findFilePath(datasource.filePath);
+    if (resolvedPath && fs.existsSync(resolvedPath)) {
+      fs.unlinkSync(resolvedPath);
     }
 
     // Delete the database record (cascades will handle related records)

@@ -1,4 +1,4 @@
-import fs from 'fs';
+import { resolveFilePath } from '@/lib/file-utils';
 
 // ============================================================
 // Runtime Detection & Database Adapter
@@ -13,7 +13,7 @@ type DatabaseConnection = {
   close(): void;
 };
 
-function openDatabase(filePath: string, options?: { readonly?: boolean }): DatabaseConnection {
+export function openDatabase(filePath: string, options?: { readonly?: boolean }): DatabaseConnection {
   if (isBun) {
     // Bun runtime — use bun:sqlite
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -99,14 +99,12 @@ export interface SchemaExtractionResult {
 // ============================================================
 
 /**
- * Opens a SQLite database file (read-only) and extracts schema information
+ * Opens a SQLite database file (read-only) and extracts schema information.
+ * Uses resolveFilePath() to handle different deployment environments.
  */
 export function extractSchema(filePath: string): SchemaExtractionResult {
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`Database file not found: ${filePath}`);
-  }
-
-  const db = openDatabase(filePath, { readonly: true });
+  const resolvedPath = resolveFilePath(filePath);
+  const db = openDatabase(resolvedPath, { readonly: true });
 
   try {
     // Get all table names
@@ -181,7 +179,8 @@ export function extractSchema(filePath: string): SchemaExtractionResult {
 // ============================================================
 
 /**
- * Executes a safe SELECT query on a SQLite database file
+ * Executes a safe SELECT query on a SQLite database file.
+ * Uses resolveFilePath() to handle different deployment environments.
  */
 export function executeSelectQuery(
   filePath: string,
@@ -193,7 +192,8 @@ export function executeSelectQuery(
   rowCount: number;
   executionTime: number;
 } {
-  const db = openDatabase(filePath, { readonly: true });
+  const resolvedPath = resolveFilePath(filePath);
+  const db = openDatabase(resolvedPath, { readonly: true });
 
   try {
     // Apply row limit if not already present
