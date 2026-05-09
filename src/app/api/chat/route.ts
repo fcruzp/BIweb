@@ -250,25 +250,30 @@ export async function POST(request: NextRequest) {
   // Create TransformStream — readable side goes to Response,
   // writable side is written to by background processing
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
-  const writer = writable.getWriter();
 
-  // Start heartbeat interval — writes a heartbeat + SSE comment every 3s
-  // This keeps the connection alive and forces Caddy to flush
-  const heartbeatInterval = setInterval(async () => {
-    try {
-      // SSE comment to force flush
-      await writer.write(sseComment());
-      // Heartbeat data event for client elapsed time display
-      await writer.write(sseData({ type: 'heartbeat', elapsed_ms: Date.now() - overallStart }));
-      console.log(`[Chat] 💓 heartbeat sent (elapsed: ${Date.now() - overallStart}ms)`);
-    } catch (e) {
-      // Writer might be closed — ignore
-      console.log('[Chat] Heartbeat write failed (writer closed?)');
-    }
-  }, 3000);
+  // CRITICAL: Start background processing via setTimeout(0).
+  // Without this, the async IIFE runs to completion BEFORE the route handler
+  // returns the Response, because writer.write() resolves instantly (no
+  // backpressure when the readable side isn't being consumed yet). This causes
+  // all SSE events to be buffered and delivered at once.
+  // With setTimeout(0), the route handler returns the Response first, then
+  // the event loop processes the background function, which writes events
+  // that are immediately streamed to the client.
+  setTimeout(() => {
+    const writer = writable.getWriter();
 
-  // Start background processing
-  (async () => {
+    // Start heartbeat interval — writes a heartbeat + SSE comment every 3s
+    const heartbeatInterval = setInterval(async () => {
+      try {
+        await writer.write(sseComment());
+        await writer.write(sseData({ type: 'heartbeat', elapsed_ms: Date.now() - overallStart }));
+      } catch {
+        // Writer might be closed — ignore
+      }
+    }, 3000);
+
+    // Start background processing
+    (async () => {
     try {
       // STEP 0: Send connected event + SSE comment to force header flush
       await writer.write(sseComment()); // Force headers to be sent NOW
@@ -881,15 +886,17 @@ ${JSON.stringify(sampleResults, null, 2)}`,
       // Close writer
       try {
         await writer.close();
-      } catch (closeErr) {
-        console.error('[Chat] Failed to close writer:', serializeError(closeErr));
+      } catch {
+        // Writer already closed
       }
     }
-  })();
+    })(); // end async IIFE
+  }, 0); // end setTimeout
 
   // Return Response IMMEDIATELY — the readable side will stream data
-  // as the background function writes to the writable side
-  console.log('[Chat] Returning SSE stream response (TransformStream)');
+  // as the background function writes to the writable side.
+  // The setTimeout(0) ensures this return happens BEFORE any writes.
+  console.log('[Chat] Returning SSE stream response (TransformStream + setTimeout)');
 
   return new Response(readable, {
     headers: {
