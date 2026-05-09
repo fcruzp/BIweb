@@ -6,6 +6,12 @@
  * 
  * In Phase 2 (Auth + Multi-Tenant), these will be replaced with
  * proper Supabase Auth integration that returns the authenticated user's ID.
+ * 
+ * Usage in API routes:
+ *   import { createClient } from '@/utils/supabase/server'
+ *   const supabase = await createClient()
+ *   const { data: { user } } = await supabase.auth.getUser()
+ *   const userId = user?.id
  */
 
 // Temporary system user ID — all data created during Phase 1 will belong to this user
@@ -14,7 +20,7 @@ export const SYSTEM_USER_ID = 'system'
 /**
  * Gets the current user ID from the request.
  * 
- * Phase 1: Returns the system user ID (no auth yet)
+ * Phase 1: Returns undefined (no auth yet)
  * Phase 2: Will extract from Supabase Auth session
  */
 export function getCurrentUserId(): string | undefined {

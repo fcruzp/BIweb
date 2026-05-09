@@ -1,14 +1,19 @@
-import { createServerClient } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
+import { createServerClient } from "@supabase/ssr";
+import { type NextRequest, NextResponse } from "next/server";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
-    request,
-  })
+    request: {
+      headers: request.headers,
+    },
+  });
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl!,
+    supabaseKey!,
     {
       cookies: {
         getAll() {
@@ -24,8 +29,8 @@ export async function updateSession(request: NextRequest) {
           )
         },
       },
-    }
-  )
+    },
+  );
 
   // IMPORTANT: Avoid writing any logic between createServerClient and
   // supabase.auth.getUser(). A simple mistake could make it very hard to debug
@@ -34,10 +39,8 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // NOTE: Auth protection is disabled for now during Phase 1 migration.
-  // Will be enabled in Phase 2 (Auth + Multi-Tenant).
-  // When enabled, redirect unauthenticated users to /login
-  // except for public routes (/, /login, /register, /api/auth/*)
+  // Phase 2: Auth protection will be enabled here
+  // For now, all routes are accessible without authentication
 
   return supabaseResponse
 }

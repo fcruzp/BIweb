@@ -66,3 +66,30 @@ Stage Summary:
   2. Pooler connection: "Tenant or user not found" — pooler needs to be enabled in Supabase Dashboard
 - ACTION NEEDED: User must go to Supabase Dashboard → Settings → Database → enable Connection Pooling
 - Once pooler is enabled, the migration is just: swap .env lines + db:push
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Update Supabase client utilities to match official Supabase snippets
+
+Work Log:
+- User provided official Supabase Next.js snippets from their project dashboard
+- Key change: env var is `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (not ANON_KEY)
+- Moved Supabase clients from `src/lib/supabase/` to `src/utils/supabase/` (matching official format)
+- Updated server.ts: now exports `createClient` function with `await cookies()` pattern
+- Updated client.ts: matches official snippet exactly
+- Updated middleware.ts: matches official snippet with proper cookie handling
+- Created `src/middleware.ts` that wires up Supabase auth refresh for all routes
+- Updated .env: changed NEXT_PUBLIC_SUPABASE_ANON_KEY → NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+- Removed old `src/lib/supabase/` directory
+- Updated auth-utils.ts with reference to new import path
+- Re-tried PostgreSQL connection: still fails with "Tenant or user not found"
+- App compiles and runs correctly with SQLite
+- All API endpoints verified working
+
+Stage Summary:
+- Supabase client utilities now match the official Next.js snippet format exactly
+- Middleware.ts created with proper Supabase auth session refresh
+- Environment variable naming updated to NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+- PostgreSQL connection still blocked (pooler not enabled on Supabase side)
+- App fully functional with SQLite
