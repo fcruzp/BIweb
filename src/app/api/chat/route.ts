@@ -20,6 +20,20 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 }
 
 // ============================================================
+// Error serializer for consistent logging
+// ============================================================
+
+function serializeError(error: unknown): { message: string; stack?: string; name?: string } {
+  if (error instanceof Error) {
+    return { message: error.message, stack: error.stack, name: error.name };
+  }
+  if (typeof error === 'string') {
+    return { message: error };
+  }
+  return { message: String(error) };
+}
+
+// ============================================================
 // SSE Helpers — send events through a ReadableStream
 // ============================================================
 
@@ -187,14 +201,19 @@ function t(lang: string, key: string): string {
 // POST /api/chat - Process a natural language query (SSE streaming)
 export async function POST(request: NextRequest) {
   const { stream, send, close } = createSSEStream();
+  const overallStart = Date.now();
 
   // Run the main processing in the background so we can return the stream immediately
   (async () => {
     try {
+      console.log('[Chat] === START === New query request');
+
       let user;
       try {
         user = await requireAuth();
-      } catch {
+        console.log(`[Chat] Auth OK: user=${user.id}`);
+      } catch (authError) {
+        console.error('[Chat] Auth FAILED:', serializeError(authError));
         send({ type: 'error', error: 'Authentication required' });
         close();
         return;
@@ -202,6 +221,7 @@ export async function POST(request: NextRequest) {
 
       const body = await request.json();
       const { message, dataSourceId, sessionId, queryRowLimit } = body;
+      console.log(`[Chat] Request: message="${message?.slice(0, 50)}", dataSourceId=${dataSourceId}, sessionId=${sessionId}, queryRowLimit=${queryRowLimit}`);
 
       if (!message || !dataSourceId) {
         send({ type: 'error', error: 'Message and dataSourceId are required' });
@@ -213,6 +233,7 @@ export async function POST(request: NextRequest) {
       const lang = detectLanguage(message);
 
       // Get data source with schema and context
+      console.log(`[Chat] Fetching datasource ${dataSourceId}...`);
       const datasource = await db.dataSource.findUnique({
         where: { id: dataSourceId },
         include: {
@@ -222,10 +243,13 @@ export async function POST(request: NextRequest) {
       });
 
       if (!datasource) {
+        console.error(`[Chat] Datasource NOT FOUND: ${dataSourceId}`);
         send({ type: 'error', error: 'Data source not found' });
         close();
         return;
       }
+
+      console.log(`[Chat] Datasource found: name="${datasource.name}", status="${datasource.status}", filePath="${datasource.filePath}", schemas=${datasource.schemas.length}, contexts=${datasource.contexts.length}`);
 
       // Verify the data source belongs to the authenticated user
       const isDatasourceOwner = await verifyOwnership(datasource.userId);
@@ -238,11 +262,13 @@ export async function POST(request: NextRequest) {
       // Allow queries if schemas exist, even if status is 'analyzing' (AI context is optional)
       // Only block if there are no schemas (meaning the file hasn't been processed at all)
       if (datasource.status === 'error' && datasource.schemas.length === 0) {
+        console.error(`[Chat] Datasource in ERROR state with no schemas`);
         send({ type: 'error', error: 'Data source has errors and no schema available. Please re-upload the file.' });
         close();
         return;
       }
       if (datasource.schemas.length === 0) {
+        console.error(`[Chat] Datasource has no schemas at all`);
         send({ type: 'error', error: 'Data source has no schema information. Please wait for processing or re-upload.' });
         close();
         return;
@@ -257,7 +283,9 @@ export async function POST(request: NextRequest) {
             where: { id: dataSourceId },
             data: { status: 'ready', errorMessage: null },
           });
-        } catch { /* non-critical */ }
+        } catch (fixError) {
+          console.warn('[Chat] Auto-fix DB update failed:', serializeError(fixError));
+        }
       }
 
       // Get or create chat session
@@ -319,6 +347,8 @@ export async function POST(request: NextRequest) {
       const schemaDescription = generateSchemaDescription(tables);
       const semanticContext = datasource.contexts[0]?.semanticContext || '';
 
+      console.log(`[Chat] Stage 1: Generating SQL (schemaLen=${schemaDescription.length}, contextLen=${semanticContext.length})...`);
+
       // Get previous queries for context
       const previousHistory = await db.queryHistory.findMany({
         where: { dataSourceId },
@@ -344,10 +374,11 @@ export async function POST(request: NextRequest) {
           20000,
           'SQL generation'
         );
-        console.log(`[Chat] SQL generation took ${Date.now() - sqlGenStart}ms`);
+        console.log(`[Chat] Stage 1 DONE: SQL generation took ${Date.now() - sqlGenStart}ms, type=${sqlResult.type}, confidence=${sqlResult.confidence}, sql="${sqlResult.sql?.slice(0, 100)}"`);
       } catch (timeoutError) {
-        console.error('SQL generation timed out or failed:', timeoutError);
-        const errorMsg = timeoutError instanceof Error ? timeoutError.message : 'SQL generation failed';
+        const errInfo = serializeError(timeoutError);
+        console.error(`[Chat] Stage 1 FAILED: SQL generation error after ${Date.now() - sqlGenStart}ms:`, errInfo);
+        const errorMsg = errInfo.message || 'SQL generation failed';
 
         const errorContent = `## ${t(lang, 'queryExecutionError')}\n\n${errorMsg}`;
         await db.chatMessage.create({
@@ -369,6 +400,7 @@ export async function POST(request: NextRequest) {
 
       // Handle schema questions — no SQL execution needed
       if (sqlResult.type === 'schema_question') {
+        console.log('[Chat] Schema question — no SQL execution needed');
         const context = datasource.contexts[0];
 
         const tableDetails = datasource.schemas.map((s) => {
@@ -435,6 +467,7 @@ export async function POST(request: NextRequest) {
       }
 
       if (!sqlResult.sql || sqlResult.confidence === 0) {
+        console.log(`[Chat] No SQL generated or confidence=0: explanation="${sqlResult.explanation?.slice(0, 100)}"`);
         const unableContent = `## ${t(lang, 'unableToGenerate')}\n\n${sqlResult.explanation || t(lang, 'unableToGenerateDesc')}`;
         await db.chatMessage.create({
           data: { sessionId: chatSessionId, role: 'assistant', content: unableContent, sqlQuery: sqlResult.sql || null },
@@ -457,6 +490,7 @@ export async function POST(request: NextRequest) {
       // Validate the generated SQL
       const validation = validateSQLQuery(sqlResult.sql);
       if (!validation.isSafe) {
+        console.error(`[Chat] SQL blocked by security: ${validation.errors.join(', ')}`);
         const blockedContent = `## ${t(lang, 'queryBlocked')}\n\n${t(lang, 'queryBlockedDesc')} ${validation.errors.join(', ')}. ${t(lang, 'pleaseRephrase')}`;
         await db.chatMessage.create({
           data: { sessionId: chatSessionId, role: 'assistant', content: blockedContent, sqlQuery: sqlResult.sql },
@@ -486,6 +520,8 @@ export async function POST(request: NextRequest) {
         sql: sanitizeSQL(sqlResult.sql),
       });
 
+      console.log(`[Chat] Stage 2: Executing SQL against filePath="${datasource.filePath}"...`);
+
       const responseRowLimit = typeof queryRowLimit === 'number' ? queryRowLimit : 500;
       const MAX_RETRIES = 2;
       let queryResult;
@@ -497,17 +533,19 @@ export async function POST(request: NextRequest) {
         try {
           queryResult = executeSelectQuery(datasource.filePath, finalSQL);
           lastError = '';
+          console.log(`[Chat] Stage 2: SQL executed OK (attempt ${attempt + 1}), rows=${queryResult.rowCount}, time=${queryResult.executionTime}ms`);
           break;
         } catch (execError) {
           lastError = execError instanceof Error ? execError.message : 'Query execution failed';
+          console.error(`[Chat] Stage 2: SQL execution FAILED (attempt ${attempt + 1}):`, lastError);
 
           if (lastError.includes('file not found') || lastError.includes('Database file not found')) {
-            console.error('[Chat] Database file not found:', lastError);
+            console.error('[Chat] Database file not found — aborting retries');
             break;
           }
 
           if (attempt < MAX_RETRIES && isRetryableExecutionError(lastError)) {
-            console.log(`[Chat] SQL execution failed (attempt ${attempt + 1}): ${lastError}. Retrying with feedback...`);
+            console.log(`[Chat] Retrying with AI feedback (attempt ${attempt + 1}/${MAX_RETRIES})...`);
 
             // Send retry stage
             send({
@@ -527,16 +565,19 @@ export async function POST(request: NextRequest) {
               );
 
               if (!retryResult.sql || retryResult.confidence === 0) {
+                console.log('[Chat] Retry: AI returned no SQL or confidence=0');
                 break;
               }
 
               const retryValidation = validateSQLQuery(retryResult.sql);
               if (!retryValidation.isSafe) {
+                console.log('[Chat] Retry: AI SQL blocked by security');
                 break;
               }
 
               finalSQL = sanitizeSQL(retryResult.sql);
               retryCount++;
+              console.log(`[Chat] Retry: Got new SQL: "${finalSQL.slice(0, 100)}"`);
 
               // Send updated SQL
               send({
@@ -546,7 +587,7 @@ export async function POST(request: NextRequest) {
                 sql: finalSQL,
               });
             } catch (retryTimeoutError) {
-              console.error('[Chat] SQL regeneration timed out:', retryTimeoutError);
+              console.error('[Chat] SQL regeneration timed out or failed:', serializeError(retryTimeoutError));
               break;
             }
           } else {
@@ -558,6 +599,7 @@ export async function POST(request: NextRequest) {
       // If query still failed after retries
       if (!queryResult) {
         const isFileNotFoundError = lastError.includes('file not found') || lastError.includes('Database file not found');
+        console.error(`[Chat] Stage 2 FAILED: No query result. Last error: ${lastError}`);
         const errorContent = isFileNotFoundError
           ? `## ${t(lang, 'fileNotFound')}\n\n${t(lang, 'fileNotFoundDesc')}`
           : `## ${t(lang, 'queryExecutionError')}${retryCount > 0 ? ` (${t(lang, 'retried')} ${retryCount} ${retryCount > 1 ? t(lang, 'times') : t(lang, 'time')} ${t(lang, 'withAIFeedback')})` : ''}\n\n${lastError}`;
@@ -624,9 +666,11 @@ export async function POST(request: NextRequest) {
       });
 
       const sampleResults = queryResult.data.slice(0, 10);
+      const analysisStart = Date.now();
 
       let analysis = '';
       try {
+        console.log('[Chat] Stage 4: Starting AI analysis (timeout: 15s)...');
         const analysisCompletion = await withTimeout(
           createCompletion({
             systemPrompt: `You are a senior business intelligence analyst. Analyze SQL query results concisely.
@@ -673,8 +717,9 @@ ${JSON.stringify(sampleResults, null, 2)}`,
         if (analysisCompletion?.content) {
           analysis = analysisCompletion.content;
         }
+        console.log(`[Chat] Stage 4 DONE: AI analysis took ${Date.now() - analysisStart}ms`);
       } catch (err) {
-        console.error('Analysis failed:', err);
+        console.error(`[Chat] Stage 4 FAILED: AI analysis error after ${Date.now() - analysisStart}ms:`, serializeError(err));
       }
 
       if (!analysis) {
@@ -721,6 +766,8 @@ ${JSON.stringify(sampleResults, null, 2)}`,
         },
       });
 
+      console.log(`[Chat] === END === total=${Date.now() - overallStart}ms, rows=${queryResult.rowCount}, retries=${retryCount}`);
+
       // Send final complete event
       send({
         type: 'complete',
@@ -742,10 +789,12 @@ ${JSON.stringify(sampleResults, null, 2)}`,
         },
       });
     } catch (error) {
-      console.error('Error in chat:', error);
+      const errInfo = serializeError(error);
+      console.error('[Chat] === FATAL ERROR ===:', errInfo);
       send({
         type: 'error',
-        error: error instanceof Error ? error.message : 'Failed to process query',
+        error: errInfo.message || 'Failed to process query',
+        detail: errInfo.stack || undefined,
       });
     } finally {
       close();

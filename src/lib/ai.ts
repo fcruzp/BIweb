@@ -347,7 +347,10 @@ async function createZAICompletion(options: AICompletionOptions): Promise<AIComp
 
     return result;
   } catch (error) {
-    console.error(`[Z-AI] Completion FAILED after ${Date.now() - startTime}ms:`, error instanceof Error ? error.message : error);
+    const errInfo = error instanceof Error
+      ? { message: error.message, name: error.name, stack: error.stack?.slice(0, 500) }
+      : { message: String(error) };
+    console.error(`[Z-AI] Completion FAILED after ${Date.now() - startTime}ms:`, errInfo);
     throw error;
   }
 }

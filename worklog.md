@@ -194,3 +194,32 @@ Stage Summary:
 - Auto-fix for stuck datasources in chat route
 - AI calls have reduced timeouts and better logging
 - Performance improved: 20s max for SQL gen, 15s max for analysis
+
+---
+Task ID: 6
+Agent: main
+Task: Add comprehensive console logging for production debugging
+
+Work Log:
+- Added serializeError() helper to analyze and chat routes for consistent error serialization (message, stack, name)
+- Analyze endpoint: added step-by-step logging [Analyze] Step 1-8 with data at each step
+- Analyze endpoint: error responses now include `detail` field with error message + optional stack trace
+- Chat route: added [Chat] logging at every stage (auth, datasource fetch, SQL gen, execution, analysis)
+- Chat route: SSE error events now include `detail` field with stack trace
+- Chat route: logs datasource status, filePath, schema count, context count at start
+- Client (datasource-upload.tsx): analyze fetch now logs error status + error detail on failure
+- Client (datasource-list.tsx): retry analyze now logs error status + detail, and re-fetches datasource status from DB after failure
+- Client (message-input.tsx): API errors now log full error detail to console
+- Client (message-input.tsx): SSE error events now log detail and display it in chat message
+- FileUtils: resolveFilePath now logs which strategy resolved the path + cwd
+- FileUtils: file-not-found errors now log storedPath, cwd, dataDir, and all checked paths
+- AI module: Z-AI errors now log full error info (message, name, stack)
+- Lint: 0 errors, 1 pre-existing warning
+
+Stage Summary:
+- All server-side routes now have step-by-step console.log with [Tag] prefix
+- All API error responses include `detail` field with actual error message
+- All client-side API calls now log errors to browser console with full details
+- SSE error events include stack traces for production debugging
+- File path resolution logs which strategy was used and cwd on failure
+- When deployed, user can see errors in: 1) browser console (client-side logs), 2) server logs (console.log captured by hosting platform)

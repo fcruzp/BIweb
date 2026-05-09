@@ -56,6 +56,7 @@ export function resolveFilePath(storedPath: string): string {
 
   // Strategy 1: If stored path is absolute and file exists, use it
   if (path.isAbsolute(storedPath) && fs.existsSync(storedPath)) {
+    console.log(`[FileUtils] Resolved via absolute path: ${storedPath}`);
     return storedPath;
   }
 
@@ -65,6 +66,7 @@ export function resolveFilePath(storedPath: string): string {
   // Strategy 2: Try {cwd}/data/{filename}
   const candidatePath = path.join(dataDir, filename);
   if (fs.existsSync(candidatePath)) {
+    console.log(`[FileUtils] Resolved via data dir: ${candidatePath} (storedPath="${storedPath}", cwd="${process.cwd()}")`);
     return candidatePath;
   }
 
@@ -72,6 +74,7 @@ export function resolveFilePath(storedPath: string): string {
   if (!path.isAbsolute(storedPath)) {
     const relativePath = path.join(process.cwd(), storedPath);
     if (fs.existsSync(relativePath)) {
+      console.log(`[FileUtils] Resolved via relative path: ${relativePath}`);
       return relativePath;
     }
   }
@@ -82,9 +85,11 @@ export function resolveFilePath(storedPath: string): string {
     candidatePath,
   ].filter((p, i, arr) => arr.indexOf(p) === i); // deduplicate
 
+  console.error(`[FileUtils] FILE NOT FOUND: storedPath="${storedPath}", cwd="${process.cwd()}", dataDir="${dataDir}", checkedPaths=[${checkedPaths.join(', ')}]`);
+
   throw new Error(
     `Database file not found. Checked paths: ${checkedPaths.join(', ')}. ` +
-    `The file may have been lost during deployment. Please re-upload the database file.`
+    `cwd=${process.cwd()}. The file may have been lost during deployment. Please re-upload the database file.`
   );
 }
 

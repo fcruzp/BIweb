@@ -165,16 +165,28 @@ export function DataSourceUpload({ open, onOpenChange }: DataSourceUploadProps) 
               if (analyzeData.datasource) {
                 updateDataSource(data.datasource!.id, analyzeData.datasource as Parameters<typeof updateDataSource>[1]);
               }
+              console.log('[Upload] AI analysis completed successfully');
+            } else {
+              // Log the error details for debugging
+              let errorDetail = `HTTP ${res.status}`;
+              try {
+                const errorData = await res.json();
+                errorDetail = errorData.detail || errorData.error || errorDetail;
+                console.error('[Upload] AI analysis FAILED:', { status: res.status, error: errorData.error, detail: errorData.detail });
+              } catch {
+                console.error('[Upload] AI analysis FAILED:', errorDetail);
+              }
             }
             setAnalyzeProgress(100);
             setCurrentStep('done');
           })
-          .catch(() => {
+          .catch((err) => {
             if (analyzeTimerRef.current) {
               clearInterval(analyzeTimerRef.current);
               analyzeTimerRef.current = null;
             }
             // Non-critical: analysis can be retried later
+            console.error('[Upload] AI analysis network error:', err);
             setAnalyzeProgress(100);
             setCurrentStep('done');
           });

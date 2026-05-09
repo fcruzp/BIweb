@@ -109,8 +109,10 @@ export function MessageInput() {
         const contentType = res.headers.get('content-type') || '';
         if (contentType.includes('application/json')) {
           const errorData = await res.json();
-          throw new Error(errorData.error || 'Failed to process query');
+          console.error('[Chat] API error response:', { status: res.status, error: errorData.error, detail: errorData.detail });
+          throw new Error(errorData.detail || errorData.error || `Failed to process query (${res.status})`);
         } else {
+          console.error('[Chat] API non-JSON error:', { status: res.status, contentType });
           throw new Error(`Server error: ${res.status}`);
         }
       }
@@ -226,6 +228,8 @@ export function MessageInput() {
 
               case 'error': {
                 const errorMsg = event.error || 'An error occurred';
+                const errorDetail = event.detail || '';
+                console.error('[Chat] SSE error event:', { error: errorMsg, detail: errorDetail });
                 setError(errorMsg);
                 toast.error(errorMsg);
 
@@ -236,7 +240,7 @@ export function MessageInput() {
                 addMessage({
                   id: crypto.randomUUID(),
                   role: 'assistant',
-                  content: `Error: ${errorMsg}`,
+                  content: `Error: ${errorMsg}${errorDetail ? `\n\nDetails: ${errorDetail}` : ''}`,
                   timestamp: new Date(),
                 });
                 break;
@@ -255,6 +259,7 @@ export function MessageInput() {
       setLoading(false);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An error occurred';
+      console.error('[Chat] Fatal error in handleSubmit:', error);
       setError(errorMessage);
       toast.error(errorMessage);
 

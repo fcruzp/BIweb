@@ -123,9 +123,26 @@ export function DataSourceList() {
         if (data.datasource) {
           updateDataSource(id, data.datasource);
         }
+        console.log('[DatasourceList] Retry analysis completed:', id);
+      } else {
+        // Log the full error for debugging
+        let errorDetail = `HTTP ${res.status}`;
+        try {
+          const errorData = await res.json();
+          errorDetail = errorData.detail || errorData.error || errorDetail;
+          console.error('[DatasourceList] Retry analysis FAILED:', { id, status: res.status, error: errorData.error, detail: errorData.detail });
+        } catch {
+          console.error('[DatasourceList] Retry analysis FAILED:', { id, status: res.status });
+        }
+        // Re-fetch to get updated status from DB
+        const refreshRes = await fetch('/api/datasources');
+        if (refreshRes.ok) {
+          const refreshData = await refreshRes.json();
+          setDataSources(refreshData.datasources);
+        }
       }
     } catch (err) {
-      console.error('Failed to retry analysis:', err);
+      console.error('[DatasourceList] Retry analysis network error:', err);
     }
   };
 
