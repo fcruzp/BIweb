@@ -50,13 +50,28 @@ export function DataSourceUpload({ open, onOpenChange }: DataSourceUploadProps) 
       if (res.ok) {
         const data = await res.json();
         addDataSource(data.datasource);
-        toast.success('Data source uploaded and analyzed successfully!');
+        
+        // If the data source is ready, trigger AI analysis in background
+        if (data.datasource?.id && data.datasource?.status === 'ready') {
+          // Fire-and-forget: start AI analysis in background
+          fetch(`/api/datasources/${data.datasource.id}/analyze`, {
+            method: 'POST',
+          }).catch(() => {
+            // Non-critical: analysis can be retried later
+          });
+        }
+
+        toast.success(t('uploadSuccessAnalyzing'));
         setName('');
         setFile(null);
         onOpenChange(false);
       } else {
-        const error = await res.json();
-        toast.error(error.error || 'Failed to upload data source');
+        let errorMsg = 'Failed to upload data source';
+        try {
+          const errorData = await res.json();
+          errorMsg = errorData.error || errorMsg;
+        } catch { /* ignore parse errors */ }
+        toast.error(errorMsg);
       }
     } catch (error) {
       toast.error('Failed to upload data source');

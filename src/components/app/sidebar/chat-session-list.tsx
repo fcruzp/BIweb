@@ -77,9 +77,13 @@ export function ChatSessionList() {
           })
         );
         setChatSessions(sessions);
+      } else {
+        console.error('Failed to fetch chat sessions:', res.status);
+        setChatSessions([]);
       }
     } catch (error) {
       console.error('Failed to fetch chat sessions:', error);
+      setChatSessions([]);
     } finally {
       setChatSessionsLoading(false);
     }

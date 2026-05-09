@@ -223,6 +223,15 @@ export const translations = {
     noSchemaContext: 'No schema or context information available yet.',
     loading: 'Loading...',
 
+    // Error states & async analysis
+    failedToLoadDataSources: 'Failed to load data sources',
+    reAnalyze: 'Re-analyze',
+    analysisInProgress: 'AI analysis in progress...',
+    failedToLoadSchema: 'Failed to load schema',
+    analyzingInProgress: 'AI analysis in progress...',
+    failedToLoadSessions: 'Failed to load chat sessions',
+    uploadSuccessAnalyzing: 'Upload successful! AI analysis is running in the background...',
+
     // Delete confirmations
     deleteDataSource: 'Delete Data Source',
     deleteDataSourceConfirm: 'Are you sure you want to delete this data source? This will also delete all associated schemas, contexts, and query history.',
@@ -447,6 +456,15 @@ export const translations = {
     businessGlossary: 'Glosario de Negocio',
     noSchemaContext: 'Sin información de esquema o contexto disponible aún.',
     loading: 'Cargando...',
+
+    // Error states & async analysis
+    failedToLoadDataSources: 'Error al cargar fuentes de datos',
+    reAnalyze: 'Re-analizar',
+    analysisInProgress: 'Análisis de IA en progreso...',
+    failedToLoadSchema: 'Error al cargar el esquema',
+    analyzingInProgress: 'Análisis de IA en progreso...',
+    failedToLoadSessions: 'Error al cargar sesiones de chat',
+    uploadSuccessAnalyzing: '¡Subida exitosa! El análisis de IA se está ejecutando en segundo plano...',
 
     // Delete confirmations
     deleteDataSource: 'Eliminar Fuente de Datos',

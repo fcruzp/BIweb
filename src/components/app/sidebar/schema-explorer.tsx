@@ -235,6 +235,7 @@ export function SchemaExplorer() {
   const { activeDataSourceId, dataSources } = useAppStore();
   const [schemas, setSchemas] = useState<TableSchemaInfo[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [context, setContext] = useState<string>('');
   const { t } = useI18n();
 
@@ -244,26 +245,36 @@ export function SchemaExplorer() {
     if (!activeDataSourceId) {
       setSchemas([]);
       setContext('');
+      setError(null);
       return;
     }
 
+    let cancelled = false;
+
     async function loadSchema() {
       setLoading(true);
+      setError(null);
       try {
         const res = await fetch(`/api/datasources/${activeDataSourceId}`);
+        if (cancelled) return;
         if (res.ok) {
           const data = await res.json();
           setSchemas(data.datasource?.schemas || []);
           setContext(data.datasource?.contexts?.[0]?.summary || '');
+        } else {
+          setError(`Failed to load schema (${res.status})`);
         }
-      } catch (error) {
-        console.error('Failed to load schema:', error);
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : 'Network error');
+        console.error('Failed to load schema:', err);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
 
     loadSchema();
+    return () => { cancelled = true; };
   }, [activeDataSourceId]);
 
   if (!activeSource) {
@@ -282,6 +293,32 @@ export function SchemaExplorer() {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader2 className="h-6 w-6 animate-spin text-emerald-500" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+        <Database className="h-12 w-12 text-muted-foreground/50 mb-4" />
+        <h3 className="text-lg font-semibold text-muted-foreground">{t('failedToLoadSchema')}</h3>
+        <p className="text-sm text-destructive mt-1">{error}</p>
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-4"
+          onClick={() => {
+            setError(null);
+            // Re-trigger the effect by toggling activeDataSourceId
+            const currentId = activeDataSourceId;
+            if (currentId) {
+              // Force re-render by briefly setting to null then back
+              window.dispatchEvent(new CustomEvent('retry-schema-load'));
+            }
+          }}
+        >
+          {t('retry')}
+        </Button>
       </div>
     );
   }

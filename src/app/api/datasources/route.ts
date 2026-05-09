@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { extractSchema, generateSchemaDescription, generateSampleDataDescription } from '@/lib/sqlite';
-import { analyzeSchemaWithContext } from '@/lib/ai';
 import { requireAuth } from '@/lib/auth-utils';
 import path from 'path';
 import fs from 'fs';
@@ -33,6 +32,8 @@ export async function GET() {
 }
 
 // POST /api/datasources - Upload a new SQLite file
+// Returns immediately after saving file + extracting schema.
+// AI analysis is triggered separately via POST /api/datasources/[id]/analyze
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth();
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(bytes);
     fs.writeFileSync(filePath, buffer);
 
-    // Create data source record with userId
+    // Create data source record with userId — status starts as "uploaded"
     const dataSource = await db.dataSource.create({
       data: {
         name,
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Extract schema
+    // Extract schema (fast, no AI needed)
     try {
       const schemaResult = extractSchema(filePath);
 
@@ -89,46 +90,24 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Update status to analyzing
-      await db.dataSource.update({
-        where: { id: dataSource.id },
-        data: { status: 'analyzing' },
-      });
-
-      // Run AI analysis
-      const schemaDescription = generateSchemaDescription(schemaResult.tables);
-      const sampleDescription = generateSampleDataDescription(schemaResult.tables);
-
-      const analysis = await analyzeSchemaWithContext(schemaDescription, sampleDescription);
-
-      // Save context
-      await db.sourceContext.create({
-        data: {
-          dataSourceId: dataSource.id,
-          semanticContext: analysis.semanticContext,
-          businessGlossary: JSON.stringify(analysis.businessGlossary),
-          relationships: JSON.stringify(analysis.relationships),
-          summary: analysis.summary,
-        },
-      });
-
-      // Update status to ready
+      // Set status to "ready" immediately — schema is usable without AI analysis
+      // AI context is optional enhancement, not required for basic queries
       await db.dataSource.update({
         where: { id: dataSource.id },
         data: { status: 'ready' },
       });
-    } catch (analyzeError) {
-      console.error('Error analyzing schema:', analyzeError);
+    } catch (schemaError) {
+      console.error('Error extracting schema:', schemaError);
       await db.dataSource.update({
         where: { id: dataSource.id },
         data: {
           status: 'error',
-          errorMessage: analyzeError instanceof Error ? analyzeError.message : 'Analysis failed',
+          errorMessage: schemaError instanceof Error ? schemaError.message : 'Schema extraction failed',
         },
       });
     }
 
-    // Return the updated data source
+    // Return the updated data source (with schemas, no contexts yet)
     const result = await db.dataSource.findUnique({
       where: { id: dataSource.id },
       include: { schemas: true, contexts: true },
