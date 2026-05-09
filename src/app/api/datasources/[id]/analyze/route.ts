@@ -16,7 +16,6 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 
 /**
  * Safely serialize an error for JSON responses and console logging.
- * Handles Error instances, plain objects, and unknown types.
  */
 function serializeError(error: unknown): { message: string; stack?: string; name?: string } {
   if (error instanceof Error) {
@@ -39,22 +38,22 @@ export async function POST(
   console.log(`[Analyze] === START === datasource=${id}`);
 
   try {
-    console.log('[Analyze] Step 1: Checking auth...');
+    // Step 1: Auth
+    const t0 = Date.now();
     const user = await requireAuth();
-    console.log(`[Analyze] Step 1: Auth OK (user=${user.id})`);
+    console.log(`[Analyze] ⏱ Auth: ${Date.now() - t0}ms (user=${user.id})`);
 
-    console.log('[Analyze] Step 2: Fetching datasource from DB...');
+    // Step 2: Fetch datasource
+    const t1 = Date.now();
     const datasource = await db.dataSource.findUnique({
       where: { id },
       include: { schemas: true, contexts: true },
     });
+    console.log(`[Analyze] ⏱ Fetch datasource: ${Date.now() - t1}ms (found=${!!datasource})`);
 
     if (!datasource) {
-      console.log('[Analyze] Step 2: Datasource NOT FOUND');
       return NextResponse.json({ error: 'Data source not found', detail: `No datasource with id=${id}` }, { status: 404 });
     }
-
-    console.log(`[Analyze] Step 2: Found datasource: name="${datasource.name}", status="${datasource.status}", schemas=${datasource.schemas.length}, contexts=${datasource.contexts.length}, filePath="${datasource.filePath}"`);
 
     // OPTIMIZATION: Direct comparison instead of verifyOwnership()
     if (datasource.userId !== user.id) {
@@ -74,19 +73,19 @@ export async function POST(
       return NextResponse.json({ datasource, message: 'Already analyzed' });
     }
 
-    // Update status
-    console.log('[Analyze] Step 3: Setting status to "analyzing"...');
+    // Step 3: Set status to analyzing
+    const t3 = Date.now();
     await db.dataSource.update({
       where: { id },
       data: { status: 'analyzing', errorMessage: null },
     });
+    console.log(`[Analyze] ⏱ Set status analyzing: ${Date.now() - t3}ms`);
 
     // ──────────────────────────────────────────────────────────
     // Use existing schemas from DB (already extracted during upload)
-    // This avoids re-opening the SQLite file and potential errors
     // ──────────────────────────────────────────────────────────
     if (datasource.schemas.length === 0) {
-      console.warn(`[Analyze] Datasource has NO schemas — cannot analyze. Setting status to error.`);
+      console.warn(`[Analyze] No schemas — cannot analyze`);
       await db.dataSource.update({
         where: { id },
         data: {
@@ -96,13 +95,12 @@ export async function POST(
       });
       return NextResponse.json({
         error: 'No schema information found',
-        detail: `Datasource ${id} has 0 schemas. The file may not have been processed correctly during upload. Try re-uploading.`,
+        detail: `Datasource ${id} has 0 schemas. Try re-uploading.`,
       }, { status: 400 });
     }
 
-    console.log(`[Analyze] Step 4: Building schema description from ${datasource.schemas.length} existing schemas...`);
-
-    // Build schema descriptions from existing DB records (no file access needed!)
+    // Step 4: Build schema description
+    const t4 = Date.now();
     const tables = datasource.schemas.map((s) => ({
       name: s.tableName,
       columns: JSON.parse(s.columns),
@@ -111,24 +109,26 @@ export async function POST(
     }));
     const schemaDescription = generateSchemaDescription(tables);
     const sampleDescription = generateSampleDataDescription(tables);
-    console.log(`[Analyze] Step 4: Schema description built (${schemaDescription.length} chars)`);
+    console.log(`[Analyze] ⏱ Build schema desc: ${Date.now() - t4}ms (${schemaDescription.length} chars)`);
 
-    // Delete existing contexts (re-analyze from scratch)
-    console.log('[Analyze] Step 5: Deleting old contexts...');
+    // Step 5: Delete old contexts
+    const t5 = Date.now();
     await db.sourceContext.deleteMany({ where: { dataSourceId: id } });
+    console.log(`[Analyze] ⏱ Delete old contexts: ${Date.now() - t5}ms`);
 
-    // Run AI analysis (with 45s timeout)
+    // Step 6: Run AI analysis (with 45s timeout)
     let analysisSucceeded = false;
     try {
-      console.log('[Analyze] Step 6: Calling AI analyzeSchemaWithContext (timeout: 45s)...');
+      console.log('[Analyze] ⏱ Calling AI analyzeSchemaWithContext (timeout: 45s)...');
       const analysis = await withTimeout(
         analyzeSchemaWithContext(schemaDescription, sampleDescription),
         45000,
         'AI analysis'
       );
-      console.log(`[Analyze] Step 6: AI analysis completed in ${Date.now() - startTime}ms`);
+      console.log(`[Analyze] ⏱ AI analysis completed: ${Date.now() - startTime}ms total`);
 
-      console.log('[Analyze] Step 7: Saving AI context to DB...');
+      // Step 7: Save AI context
+      const t7 = Date.now();
       await db.sourceContext.create({
         data: {
           dataSourceId: id,
@@ -138,28 +138,30 @@ export async function POST(
           summary: analysis.summary,
         },
       });
+      console.log(`[Analyze] ⏱ Save AI context: ${Date.now() - t7}ms`);
       analysisSucceeded = true;
-      console.log('[Analyze] Step 7: AI context saved OK');
     } catch (aiError) {
       const errInfo = serializeError(aiError);
-      console.warn(`[Analyze] Step 6 FAILED: AI analysis error (non-critical):`, errInfo);
-      // AI analysis failure is NOT critical — the data source is still usable
-      // Create a minimal context so the summary shows something useful
-      console.log('[Analyze] Step 7 (fallback): Saving minimal context...');
-      await db.sourceContext.create({
-        data: {
-          dataSourceId: id,
-          semanticContext: 'Schema analysis pending. You can still query your data — the AI context will enhance future queries.',
-          businessGlossary: '{}',
-          relationships: '[]',
-          summary: `Database with ${datasource.schemas.length} tables uploaded successfully. AI analysis will be available shortly.`,
-        },
-      });
-      console.log('[Analyze] Step 7 (fallback): Minimal context saved');
+      console.warn(`[Analyze] ⚠ AI analysis failed (non-critical): ${errInfo.message}`);
+
+      // Save fallback context
+      try {
+        await db.sourceContext.create({
+          data: {
+            dataSourceId: id,
+            semanticContext: 'Schema analysis pending. You can still query your data — the AI context will enhance future queries.',
+            businessGlossary: '{}',
+            relationships: '[]',
+            summary: `Database with ${datasource.schemas.length} tables uploaded successfully. AI analysis will be available shortly.`,
+          },
+        });
+      } catch (fallbackErr) {
+        console.error('[Analyze] Fallback context save also failed:', serializeError(fallbackErr).message);
+      }
     }
 
-    // Update status to ready
-    console.log('[Analyze] Step 8: Setting status to "ready"...');
+    // Step 8: Update status to ready
+    const t8 = Date.now();
     await db.dataSource.update({
       where: { id },
       data: {
@@ -167,18 +169,22 @@ export async function POST(
         errorMessage: analysisSucceeded ? null : 'AI context generation timed out — data is still queryable',
       },
     });
+    console.log(`[Analyze] ⏱ Set status ready: ${Date.now() - t8}ms`);
 
-    console.log(`[Analyze] === END === datasource=${id} success=${analysisSucceeded} total=${Date.now() - startTime}ms`);
-
+    // Step 9: Fetch final result
+    const t9 = Date.now();
     const result = await db.dataSource.findUnique({
       where: { id },
       include: { schemas: true, contexts: true },
     });
+    console.log(`[Analyze] ⏱ Fetch final result: ${Date.now() - t9}ms`);
+
+    console.log(`[Analyze] === END === datasource=${id} success=${analysisSucceeded} total=${Date.now() - startTime}ms`);
 
     return NextResponse.json({ datasource: result });
   } catch (error) {
     const errInfo = serializeError(error);
-    console.error(`[Analyze] === FATAL ERROR === datasource=${id}:`, errInfo);
+    console.error(`[Analyze] === FATAL ERROR === datasource=${id} after ${Date.now() - startTime}ms:`, errInfo);
 
     // Try to update status to error — CRITICAL: don't leave it stuck at 'analyzing'
     try {
@@ -189,16 +195,13 @@ export async function POST(
           errorMessage: errInfo.message || 'Analysis failed',
         },
       });
-      console.log(`[Analyze] Status updated to 'error' for datasource=${id}`);
     } catch (dbError) {
-      console.error(`[Analyze] CRITICAL: Failed to update error status for datasource=${id}:`, serializeError(dbError));
+      console.error(`[Analyze] CRITICAL: Failed to update error status:`, serializeError(dbError));
     }
 
-    // Return detailed error info so it shows in the browser console
     return NextResponse.json({
       error: 'Failed to analyze data source',
       detail: errInfo.message,
-      stack: process.env.NODE_ENV === 'development' ? errInfo.stack : undefined,
     }, { status: 500 });
   }
 }

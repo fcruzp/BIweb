@@ -151,19 +151,23 @@ export function DataSourceUpload({ open, onOpenChange }: DataSourceUploadProps) 
           setAnalyzeProgress(Math.round(fakeProgress));
         }, 1000);
 
-        // Fire-and-forget AI analysis
-        fetch(`/api/datasources/${data.datasource.id}/analyze`, {
-          method: 'POST',
-        })
-          .then(async (res) => {
-            if (analyzeTimerRef.current) {
-              clearInterval(analyzeTimerRef.current);
-              analyzeTimerRef.current = null;
-            }
+        // Fire-and-forget AI analysis (with timeout + retry)
+        const analyzeWithRetry = async (datasourceId: string, attempt = 1): Promise<void> => {
+          try {
+            const controller = new AbortController();
+            // 60s timeout — analyze includes AI call which can take 30-45s
+            const timeoutId = setTimeout(() => controller.abort(), 60_000);
+
+            const res = await fetch(`/api/datasources/${datasourceId}/analyze`, {
+              method: 'POST',
+              signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+
             if (res.ok) {
               const analyzeData = await res.json();
               if (analyzeData.datasource) {
-                updateDataSource(data.datasource!.id, analyzeData.datasource as Parameters<typeof updateDataSource>[1]);
+                updateDataSource(datasourceId, analyzeData.datasource as Parameters<typeof updateDataSource>[1]);
               }
               console.log('[Upload] AI analysis completed successfully');
             } else {
@@ -176,17 +180,35 @@ export function DataSourceUpload({ open, onOpenChange }: DataSourceUploadProps) 
               } catch {
                 console.error('[Upload] AI analysis FAILED:', errorDetail);
               }
+
+              // Retry on 502/504 (gateway timeout) — up to 2 attempts
+              if ((res.status === 502 || res.status === 504) && attempt < 3) {
+                console.log(`[Upload] Retrying AI analysis (attempt ${attempt + 1}/3)...`);
+                await new Promise(resolve => setTimeout(resolve, 2000 * attempt)); // Exponential backoff
+                return analyzeWithRetry(datasourceId, attempt + 1);
+              }
             }
-            setAnalyzeProgress(100);
-            setCurrentStep('done');
-          })
-          .catch((err) => {
+          } catch (err) {
+            if (err instanceof DOMException && err.name === 'AbortError') {
+              console.warn('[Upload] AI analysis timed out (60s)');
+              // Retry once on timeout
+              if (attempt < 2) {
+                console.log('[Upload] Retrying AI analysis after timeout...');
+                return analyzeWithRetry(datasourceId, attempt + 1);
+              }
+            } else {
+              // Non-critical: analysis can be retried later
+              console.error('[Upload] AI analysis network error:', err);
+            }
+          }
+        };
+
+        analyzeWithRetry(data.datasource.id)
+          .finally(() => {
             if (analyzeTimerRef.current) {
               clearInterval(analyzeTimerRef.current);
               analyzeTimerRef.current = null;
             }
-            // Non-critical: analysis can be retried later
-            console.error('[Upload] AI analysis network error:', err);
             setAnalyzeProgress(100);
             setCurrentStep('done');
           });
