@@ -6,21 +6,23 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 /**
  * Routes that don't require authentication.
- * All other routes will redirect to home with auth modal if not logged in.
+ * All other PAGE routes will redirect to home with auth modal if not logged in.
  */
 const PUBLIC_ROUTES = [
   '/',           // Home page (shows auth modal if not logged in)
 ]
 
 /**
- * API routes that don't require authentication.
- * These also skip the Supabase Auth getUser() call for performance.
+ * API routes that don't need the middleware to process cookies.
+ * These skip the Supabase Auth getUser() call for performance.
+ *
+ * NOTE: ALL API routes are now passed through by the middleware.
+ * Auth validation is handled by each route handler via requireAuth().
+ * The middleware only protects PAGE routes (redirects unauthenticated users).
  */
 const PUBLIC_API_ROUTES = [
   '/api/auth/user',
-  // NOTE: /api/auth/sync is NOT public — it needs middleware cookie refresh.
-  // If the access token is expired, the middleware must refresh it before
-  // the route handler's getUser() call. Without this, the handler gets 401.
+  '/api/auth/sync',
   '/api/test-ai',
   '/api/test-sse',
   '/api/chat/sse-test',
@@ -43,7 +45,6 @@ const SKIP_PATTERNS = [
 
 /**
  * Check if a route is public (doesn't require auth).
- * Used to skip the expensive Supabase Auth getUser() call.
  */
 function isPublicRoute(pathname: string): boolean {
   if (PUBLIC_ROUTES.includes(pathname)) return true;
@@ -55,23 +56,62 @@ function isPublicRoute(pathname: string): boolean {
 export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
-  // Skip static assets entirely — no Supabase call needed
+  // Skip static assets entirely
   if (SKIP_PATTERNS.some(pattern => pathname.includes(pattern))) {
     return NextResponse.next({
       request: { headers: request.headers },
     });
   }
 
-  // OPTIMIZATION: For public routes, skip the Supabase Auth getUser() call.
-  // This saves 100-500ms per request by avoiding a network round trip
-  // to the Supabase Auth server for routes that don't need auth.
+  // API routes: Pass through — let route handlers validate auth themselves.
+  // The middleware's job is only to refresh cookies and protect PAGE routes.
+  // Route handlers use requireAuth() which does its own getUser() validation.
+  if (pathname.startsWith('/api/')) {
+    // Still try to refresh cookies if possible, but don't block on auth failure
+    let supabaseResponse = NextResponse.next({
+      request: { headers: request.headers },
+    });
+
+    try {
+      const supabase = createServerClient(
+        supabaseUrl!,
+        supabaseKey!,
+        {
+          cookies: {
+            getAll() {
+              return request.cookies.getAll()
+            },
+            setAll(cookiesToSet) {
+              cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+              supabaseResponse = NextResponse.next({
+                request,
+              })
+              cookiesToSet.forEach(({ name, value, options }) =>
+                supabaseResponse.cookies.set(name, value, options)
+              )
+            },
+          },
+        },
+      );
+
+      // Attempt to refresh the session — this sets fresh cookies in the response
+      // If it fails (no cookies, expired session), we still pass through
+      await supabase.auth.getUser();
+    } catch {
+      // Ignore — route handlers will handle auth validation
+    }
+
+    return supabaseResponse;
+  }
+
+  // For public page routes, skip auth check
   if (isPublicRoute(pathname)) {
     return NextResponse.next({
       request: { headers: request.headers },
     });
   }
 
-  // For protected routes, validate the session with Supabase Auth
+  // For protected PAGE routes, validate the session with Supabase Auth
   let supabaseResponse = NextResponse.next({
     request: {
       headers: request.headers,
@@ -99,25 +139,12 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  // IMPORTANT: Avoid writing any logic between createServerClient and
-  // supabase.auth.getUser(). A simple mistake could make it very hard to debug
-  // issues with users being randomly logged out.
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // If user is not authenticated and trying to access a protected route,
-  // redirect to home page (which will show auth modal)
+  // Only protect PAGE routes — redirect unauthenticated users to home
   if (!user) {
-    // For API routes, return 401 instead of redirecting
-    if (pathname.startsWith('/api/')) {
-      return NextResponse.json(
-        { error: 'Authentication required', authenticated: false },
-        { status: 401 }
-      )
-    }
-
-    // For all other protected routes, redirect to home with auth hint
     const redirectUrl = new URL('/', request.url)
     redirectUrl.searchParams.set('auth', 'required')
     return NextResponse.redirect(redirectUrl)

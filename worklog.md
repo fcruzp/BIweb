@@ -253,3 +253,25 @@ Stage Summary:
 - Fix 3: authFetch utility prevents infinite 401 retry loops
 - Fix 4: Global AUTH_EXPIRED event listener handles cascading 401s gracefully
 - All API calls use authFetch for consistent auth error handling
+---
+Task ID: 8
+Agent: Main
+Task: Fix "nothing loading" — server returns 401 on all API routes because no auth cookies
+
+Work Log:
+- Diagnosed: Screenshot showed Usage Plan dialog stuck on "Cargando..." (loading spinner)
+- Added diagnostic logging to middleware and server client
+- Root cause: `request.cookies.getAll()` returns NO auth cookies from the browser
+- The middleware was blocking ALL API routes with 401 before they reached route handlers
+- The `sb_publishable_*` key + `createBrowserClient` without explicit cookies config may not write cookies properly
+- Fix 1: Updated browser client (`src/utils/supabase/client.ts`) with explicit `cookies.getAll()` and `cookies.setAll()` implementations that use `document.cookie` directly
+- Fix 2: Rewrote middleware (`src/utils/supabase/middleware.ts`) — API routes now pass through WITHOUT 401 blocking. The middleware only protects PAGE routes (redirects). API route handlers validate auth themselves via `requireAuth()`.
+- Fix 3: Middleware still attempts cookie refresh for API routes (non-blocking), so sessions get refreshed when possible
+- Fix 4: Removed dead `src/lib/supabase/` directory that used wrong key name
+- Verified: Server stays alive, returns proper 200/401 responses, no crashes
+
+Stage Summary:
+- Middleware no longer blocks API routes with 401 — route handlers handle auth validation
+- Browser client now has explicit cookie read/write implementations
+- API routes return their own 401 via requireAuth(), which authFetch handles gracefully
+- Server is stable (no crashes after multiple requests)
