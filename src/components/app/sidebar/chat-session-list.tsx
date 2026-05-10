@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { useI18n } from '@/hooks/use-i18n';
+import { authFetch, isAuthError } from '@/lib/fetch-utils';
 
 export function ChatSessionList() {
   const {
@@ -62,7 +63,7 @@ export function ChatSessionList() {
 
     if (showLoading) setChatSessionsLoading(true);
     try {
-      const res = await fetch(
+      const res = await authFetch(
         `/api/chat/sessions?dataSourceId=${activeDataSourceId}`
       );
       if (res.ok) {
@@ -84,12 +85,16 @@ export function ChatSessionList() {
         );
         setChatSessions(sessions);
         lastFetchedDsId.current = activeDataSourceId;
+      } else if (isAuthError(res)) {
+        // Don't retry on 401 — AuthProvider will handle session recovery
+        // Keep whatever cached sessions we have
+        if (chatSessions.length === 0) {
+          setChatSessions([]);
+        }
       } else {
-        console.error('Failed to fetch chat sessions:', res.status);
         setChatSessions([]);
       }
     } catch (error) {
-      console.error('Failed to fetch chat sessions:', error);
       setChatSessions([]);
     } finally {
       if (showLoading) setChatSessionsLoading(false);
@@ -124,7 +129,7 @@ export function ChatSessionList() {
   const handleNewChat = async () => {
     if (!activeDataSourceId) return;
     try {
-      const res = await fetch('/api/chat/sessions', {
+      const res = await authFetch('/api/chat/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dataSourceId: activeDataSourceId }),
@@ -143,7 +148,6 @@ export function ChatSessionList() {
         clearMessages();
       }
     } catch (error) {
-      console.error('Failed to create chat session:', error);
       toast.error('Failed to create new chat');
     }
   };
@@ -165,7 +169,7 @@ export function ChatSessionList() {
   const handleConfirmRename = async () => {
     if (!editingId || !editTitle.trim()) return;
     try {
-      const res = await fetch(`/api/chat/sessions/${editingId}`, {
+      const res = await authFetch(`/api/chat/sessions/${editingId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: editTitle.trim() }),
@@ -174,7 +178,6 @@ export function ChatSessionList() {
         updateChatSession(editingId, { title: editTitle.trim() });
       }
     } catch (error) {
-      console.error('Failed to rename session:', error);
       toast.error('Failed to rename chat');
     } finally {
       setEditingId(null);
@@ -191,7 +194,7 @@ export function ChatSessionList() {
   // Delete a session
   const handleDelete = async (id: string) => {
     try {
-      const res = await fetch(`/api/chat/sessions/${id}`, {
+      const res = await authFetch(`/api/chat/sessions/${id}`, {
         method: 'DELETE',
       });
       if (res.ok) {
@@ -202,7 +205,6 @@ export function ChatSessionList() {
         toast.success('Chat deleted');
       }
     } catch (error) {
-      console.error('Failed to delete session:', error);
       toast.error('Failed to delete chat');
     }
   };

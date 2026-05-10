@@ -28,6 +28,7 @@ import { DataTable } from '@/components/app/visualization/data-table';
 import { detectGeographicColumn } from '@/components/app/visualization/dr-map';
 import type { VisualizationConfig } from '@/stores/chat-store';
 import { toast } from 'sonner';
+import { authFetch } from '@/lib/fetch-utils';
 import { useI18n } from '@/hooks/use-i18n';
 
 export type WidgetType = 'chart' | 'table' | 'metric' | 'text' | 'map';
@@ -191,7 +192,7 @@ export function AddWidgetDialog({
 
     setSaving(true);
     try {
-      const res = await fetch('/api/dashboards/widgets', {
+      const res = await authFetch('/api/dashboards/widgets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -21,6 +21,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useI18n } from '@/hooks/use-i18n';
+import { authFetch, isAuthError } from '@/lib/fetch-utils';
 
 export function DataSourceList() {
   const {
@@ -48,20 +49,26 @@ export function DataSourceList() {
     if (showLoading) setDataSourcesLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/datasources');
+      const res = await authFetch('/api/datasources');
       if (res.ok) {
         const data = await res.json();
         setDataSources(data.datasources);
+      } else if (isAuthError(res)) {
+        // Don't retry on 401 — AuthProvider will handle session recovery
+        // Show cached data if available, otherwise show auth error
+        if (dataSources.length === 0) {
+          setError('Session expired. Please sign in again.');
+        }
+        // Don't log 401s to avoid console spam
       } else {
         setError(`Failed to load data sources (${res.status})`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error');
-      console.error('Failed to load data sources:', err);
     } finally {
       if (showLoading) setDataSourcesLoading(false);
     }
-  }, [setDataSources, setDataSourcesLoading]);
+  }, [setDataSources, setDataSourcesLoading, dataSources.length]);
 
   // Initial fetch — background refresh if we have cached data, blocking if empty
   useEffect(() => {
@@ -79,7 +86,15 @@ export function DataSourceList() {
     if (hasAnalyzing && !pollingRef.current) {
       pollingRef.current = setInterval(async () => {
         try {
-          const res = await fetch('/api/datasources');
+          const res = await authFetch('/api/datasources');
+          if (isAuthError(res)) {
+            // Stop polling on 401 — session expired
+            if (pollingRef.current) {
+              clearInterval(pollingRef.current);
+              pollingRef.current = null;
+            }
+            return;
+          }
           if (res.ok) {
             const data = await res.json();
             setDataSources(data.datasources);
@@ -109,7 +124,7 @@ export function DataSourceList() {
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      const res = await fetch(`/api/datasources/${id}`, { method: 'DELETE' });
+      const res = await authFetch(`/api/datasources/${id}`, { method: 'DELETE' });
       if (res.ok) {
         removeDataSource(id);
         if (activeDataSourceId === id) {
@@ -126,7 +141,7 @@ export function DataSourceList() {
     try {
       // Update local state immediately
       updateDataSource(id, { status: 'analyzing' });
-      const res = await fetch(`/api/datasources/${id}/analyze`, { method: 'POST' });
+      const res = await authFetch(`/api/datasources/${id}/analyze`, { method: 'POST' });
       if (res.ok) {
         const data = await res.json();
         if (data.datasource) {

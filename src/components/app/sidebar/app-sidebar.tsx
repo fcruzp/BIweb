@@ -36,6 +36,7 @@ import { LocaleSwitcher } from '@/components/app/locale-switcher';
 import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
 import { useI18n } from '@/hooks/use-i18n';
+import { authFetch } from '@/lib/fetch-utils';
 
 export function AppSidebar() {
   const { currentView, setCurrentView, activeDataSourceId, setActiveSession, addChatSession } =
@@ -59,7 +60,7 @@ export function AppSidebar() {
   const handleNewChat = async () => {
     if (!activeDataSourceId) return;
     try {
-      const res = await fetch('/api/chat/sessions', {
+      const res = await authFetch('/api/chat/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dataSourceId: activeDataSourceId }),
@@ -77,7 +78,7 @@ export function AppSidebar() {
         clearMessages();
       }
     } catch (error) {
-      console.error('Failed to create chat:', error);
+      // Silently ignore — authFetch handles 401 globally
     }
   };
 

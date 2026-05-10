@@ -18,7 +18,9 @@ const PUBLIC_ROUTES = [
  */
 const PUBLIC_API_ROUTES = [
   '/api/auth/user',
-  '/api/auth/sync',
+  // NOTE: /api/auth/sync is NOT public — it needs middleware cookie refresh.
+  // If the access token is expired, the middleware must refresh it before
+  // the route handler's getUser() call. Without this, the handler gets 401.
   '/api/test-ai',
   '/api/test-sse',
   '/api/chat/sse-test',

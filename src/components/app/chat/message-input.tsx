@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Send, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useI18n } from '@/hooks/use-i18n';
+import { authFetch } from '@/lib/fetch-utils';
 
 // Step log entry for display in console
 interface StepLogEntry {
@@ -79,7 +80,7 @@ export function MessageInput() {
       // If no active session, create one first
       let sessionId = activeSessionId;
       if (!sessionId) {
-        const sessionRes = await fetch('/api/chat/sessions', {
+        const sessionRes = await authFetch('/api/chat/sessions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

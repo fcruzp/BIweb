@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import type { User } from '@supabase/supabase-js';
+import { AUTH_EXPIRED_EVENT } from '@/lib/fetch-utils';
 
 interface AuthContextValue {
   user: User | null;
@@ -67,6 +68,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Track if we've already synced the user this session
   const hasSyncedRef = useRef(false);
+  // Guard against concurrent sync calls
+  const syncingRef = useRef(false);
 
   const openAuthModal = useCallback((tab: AuthTab = 'signin') => {
     setAuthModalTab(tab);
@@ -85,11 +88,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     hasSyncedRef.current = false;
   }, []);
 
-  const syncDbUser = useCallback(async () => {
+  const syncDbUser = useCallback(async (retryCount = 0): Promise<void> => {
+    // Prevent concurrent sync calls
+    if (syncingRef.current) return;
+    syncingRef.current = true;
+
     try {
       const controller = new AbortController();
       // 10s timeout — if /auth/sync takes longer, something is very wrong
-      // and we shouldn't block the app from loading
       const timeoutId = setTimeout(() => controller.abort(), 10_000);
 
       const res = await fetch('/api/auth/sync', {
@@ -113,6 +119,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           });
           hasSyncedRef.current = true;
         }
+      } else if (res.status === 401 && retryCount < 2) {
+        // 401 usually means the session cookies haven't been written yet
+        // (race condition after sign-in) or the access token expired.
+        // Try refreshing the session and retrying.
+        console.warn(`[AuthProvider] /api/auth/sync returned 401 (attempt ${retryCount + 1}/3)`);
+
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.refreshSession();
+
+        if (session) {
+          // Wait a tick for cookies to be written to the browser
+          await new Promise(resolve => setTimeout(resolve, 300));
+          syncingRef.current = false;
+          return syncDbUser(retryCount + 1);
+        } else {
+          // Session is truly invalid — sign out
+          console.warn('[AuthProvider] Session refresh failed — signing out');
+          await supabase.auth.signOut();
+          setUser(null);
+          setDbUser(null);
+        }
+      } else if (res.status === 401) {
+        // Max retries exceeded — session is invalid
+        console.warn('[AuthProvider] /api/auth/sync returned 401 after retries — signing out');
+        const supabase = createClient();
+        await supabase.auth.signOut();
+        setUser(null);
+        setDbUser(null);
       } else {
         console.warn('[AuthProvider] /api/auth/sync returned:', res.status);
       }
@@ -123,6 +157,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         console.warn('[AuthProvider] /api/auth/sync failed:', err instanceof Error ? err.message : err);
       }
+    } finally {
+      syncingRef.current = false;
     }
   }, []);
 
@@ -150,7 +186,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsLoading(false);
 
         // Sync user to our DB if authenticated
+        // Small delay to ensure cookies are written to the browser
         if (!hasSyncedRef.current) {
+          await new Promise(resolve => setTimeout(resolve, 200));
           await syncDbUser();
         }
       } else {
@@ -178,6 +216,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (session?.user) {
           setIsAuthModalOpen(false);
           if (!hasSyncedRef.current || event === 'SIGNED_IN') {
+            // Delay sync to ensure cookies are written — the onAuthStateChange
+            // callback fires BEFORE the browser has finished persisting cookies
+            await new Promise(resolve => setTimeout(resolve, 300));
             await syncDbUser();
           }
           // Clean up URL params
@@ -190,6 +231,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       subscription.unsubscribe();
+    };
+  }, [syncDbUser]);
+
+  // Listen for global auth-expired events from authFetch
+  // When any API call returns 401, authFetch dispatches this event.
+  // We debounce it — if we see multiple 401s in quick succession, only
+  // handle the first one.
+  useEffect(() => {
+    let handlingExpired = false;
+
+    const handleAuthExpired = async () => {
+      if (handlingExpired) return;
+      handlingExpired = true;
+
+      console.warn('[AuthProvider] Auth expired event received — attempting session recovery');
+
+      // Don't sign out immediately — try refreshing the session first
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.refreshSession();
+
+      if (session) {
+        // Session refreshed successfully — retry sync
+        console.log('[AuthProvider] Session refreshed after auth expiry — retrying sync');
+        await syncDbUser();
+      } else {
+        // Can't recover — sign out
+        console.warn('[AuthProvider] Cannot recover session — signing out');
+        await supabase.auth.signOut();
+        setUser(null);
+        setDbUser(null);
+        hasSyncedRef.current = false;
+      }
+
+      // Reset after 5s to prevent continuous handling
+      setTimeout(() => { handlingExpired = false; }, 5000);
+    };
+
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+    return () => {
+      window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
     };
   }, [syncDbUser]);
 

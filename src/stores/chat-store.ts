@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { authFetch } from '@/lib/fetch-utils';
 
 export interface VisualizationConfig {
   chartType: 'bar' | 'line' | 'pie' | 'scatter' | 'area' | 'table' | 'metric' | 'heatmap';
@@ -105,7 +106,7 @@ export const useChatStore = create<ChatState>((set) => ({
   loadMessages: async (sessionId: string) => {
     try {
       set({ isLoading: true, error: null });
-      const res = await fetch(`/api/chat/sessions/${sessionId}/messages`);
+      const res = await authFetch(`/api/chat/sessions/${sessionId}/messages`);
       if (!res.ok) {
         throw new Error('Failed to load messages');
       }

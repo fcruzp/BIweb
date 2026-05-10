@@ -15,6 +15,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Pin, Loader2, LayoutDashboard } from 'lucide-react';
 import { toast } from 'sonner';
+import { authFetch } from '@/lib/fetch-utils';
 import { useI18n } from '@/hooks/use-i18n';
 
 interface PinToDashboardButtonProps {
@@ -40,14 +41,14 @@ export function PinToDashboardButton({
   // Load dashboards if not already loaded
   useEffect(() => {
     if (dashboards.length === 0 && !loaded) {
-      fetch('/api/dashboards')
+      authFetch('/api/dashboards')
         .then((res) => res.json())
         .then((data) => {
           if (data.dashboards) {
             setDashboards(data.dashboards);
           }
         })
-        .catch(console.error)
+        .catch(() => {})
         .finally(() => setLoaded(true));
     }
   }, [dashboards.length, loaded, setDashboards]);
@@ -55,7 +56,7 @@ export function PinToDashboardButton({
   const handlePin = async (dashboard: DashboardInfo) => {
     setPinning(dashboard.id);
     try {
-      const res = await fetch('/api/dashboards/widgets', {
+      const res = await authFetch('/api/dashboards/widgets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

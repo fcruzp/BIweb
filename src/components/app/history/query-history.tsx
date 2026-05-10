@@ -9,6 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { History, Clock, CheckCircle2, AlertCircle, Play, Copy, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { authFetch } from '@/lib/fetch-utils';
 import { useI18n } from '@/hooks/use-i18n';
 
 interface HistoryItem {
@@ -38,13 +39,13 @@ export function QueryHistory() {
     async function loadHistory() {
       setLoadingState(true);
       try {
-        const res = await fetch(`/api/history?dataSourceId=${activeDataSourceId}&limit=50`);
+        const res = await authFetch(`/api/history?dataSourceId=${activeDataSourceId}&limit=50`);
         if (res.ok) {
           const data = await res.json();
           setHistory(data.history || []);
         }
-      } catch (error) {
-        console.error('Failed to load history:', error);
+      } catch {
+        // silently ignore — toast not needed for background load
       } finally {
         setLoadingState(false);
       }
@@ -64,7 +65,7 @@ export function QueryHistory() {
 
     setLoading(true);
     try {
-      const res = await fetch('/api/chat', {
+      const res = await authFetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

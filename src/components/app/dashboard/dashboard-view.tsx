@@ -42,6 +42,7 @@ import { toast } from 'sonner';
 import { AddWidgetDialog, type WidgetType } from './add-widget-dialog';
 import { WidgetRenderer } from './widget-renderer';
 import { useI18n } from '@/hooks/use-i18n';
+import { authFetch } from '@/lib/fetch-utils';
 
 export function DashboardView() {
   const {
@@ -68,13 +69,13 @@ export function DashboardView() {
     async function loadDashboards() {
       setDashboardsLoading(true);
       try {
-        const res = await fetch('/api/dashboards');
+        const res = await authFetch('/api/dashboards');
         if (res.ok) {
           const data = await res.json();
           setDashboards(data.dashboards || []);
         }
       } catch (error) {
-        console.error('Failed to load dashboards:', error);
+        // Silently ignore — authFetch handles 401 globally
       } finally {
         setDashboardsLoading(false);
       }
@@ -89,7 +90,7 @@ export function DashboardView() {
     }
 
     try {
-      const res = await fetch('/api/dashboards', {
+      const res = await authFetch('/api/dashboards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newName, description: newDescription }),
@@ -113,7 +114,7 @@ export function DashboardView() {
 
   const handleDelete = async (id: string) => {
     try {
-      const res = await fetch(`/api/dashboards/${id}`, { method: 'DELETE' });
+      const res = await authFetch(`/api/dashboards/${id}`, { method: 'DELETE' });
       if (res.ok) {
         removeDashboard(id);
         toast.success('Dashboard deleted');
@@ -126,7 +127,7 @@ export function DashboardView() {
   const handleDeleteWidget = async (dashboardId: string, widgetId: string) => {
     setDeletingWidgetId(widgetId);
     try {
-      const res = await fetch(`/api/dashboards/widgets/${widgetId}`, { method: 'DELETE' });
+      const res = await authFetch(`/api/dashboards/widgets/${widgetId}`, { method: 'DELETE' });
       if (res.ok) {
         removeWidget(dashboardId, widgetId);
         toast.success('Widget removed');

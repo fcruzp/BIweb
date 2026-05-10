@@ -214,3 +214,42 @@ Stage Summary:
 - All export buttons use emerald-500/600 styling for consistency
 - SAAS-PLAN.md updated to reflect current project progress
 - Phase 3 is now partially completed (Landing + Export + Plans + Usage all done; Onboarding flow still pending)
+---
+Task ID: 7
+Agent: Main
+Task: Fix 401 Unauthorized errors and infinite retry loop on session entry
+
+Work Log:
+- Diagnosed root cause of 401 cascade:
+  1. `/api/auth/sync` was in PUBLIC_API_ROUTES → middleware skipped it → no cookie refresh
+  2. When access token expired, route handler's getUser() failed → 401
+  3. Race condition: onAuthStateChange fires before cookies are written to browser
+  4. No retry logic on 401 → once sync fails, cascading 401s on all API routes
+  5. Infinite console spam from Supabase client's internal retry cycle
+- Created `/src/lib/fetch-utils.ts` — authFetch wrapper that:
+  - Dispatches global AUTH_EXPIRED event on 401 (prevents infinite retry loops)
+  - isAuthError() helper for conditional error handling
+- Fixed middleware (`/src/utils/supabase/middleware.ts`):
+  - Removed `/api/auth/sync` from PUBLIC_API_ROUTES so middleware processes and refreshes cookies
+- Fixed AuthProvider (`/src/components/auth/AuthProvider.tsx`):
+  - Added retry logic with session refresh on 401 (up to 2 retries)
+  - Added 200-300ms delays after sign-in to let cookies settle
+  - Added concurrent sync guard (syncingRef) to prevent duplicate calls
+  - Added AUTH_EXPIRED event listener for global 401 handling with debouncing
+  - Signs out only after all retry attempts exhausted
+- Updated all API-calling components to use authFetch:
+  - datasource-list.tsx, chat-session-list.tsx, app-sidebar.tsx
+  - dashboard-view.tsx, add-widget-dialog.tsx, pin-to-dashboard-button.tsx
+  - query-history.tsx, usage-plan-dialog.tsx, chat-store.ts
+  - message-input.tsx (session creation, not SSE streaming)
+  - use-widget-data.ts
+- Removed console.error spam from catch blocks (authFetch handles 401 globally)
+- 401 on datasource-list/chat-session-list now stops retrying and shows cached data
+
+Stage Summary:
+- Root cause: middleware skipping cookie refresh for /api/auth/sync + race condition after sign-in
+- Fix 1: Middleware now processes /api/auth/sync (refreshes cookies if needed)
+- Fix 2: AuthProvider retries sync on 401 with session refresh
+- Fix 3: authFetch utility prevents infinite 401 retry loops
+- Fix 4: Global AUTH_EXPIRED event listener handles cascading 401s gracefully
+- All API calls use authFetch for consistent auth error handling

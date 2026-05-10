@@ -35,6 +35,7 @@ import { useI18n } from '@/hooks/use-i18n';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { PLANS, PLAN_ORDER, getPlan, type PlanId } from '@/lib/plans';
 import { toast } from 'sonner';
+import { authFetch } from '@/lib/fetch-utils';
 
 // ── Types matching API response ──────────────────────────────────────────────
 
@@ -135,7 +136,7 @@ export function UsagePlanDialog({ open, onOpenChange }: UsagePlanDialogProps) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/usage');
+      const res = await authFetch('/api/usage');
       if (!res.ok) {
         throw new Error('Failed to fetch usage data');
       }

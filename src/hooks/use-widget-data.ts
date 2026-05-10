@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { authFetch } from '@/lib/fetch-utils';
 
 interface WidgetDataResult {
   data: Array<Record<string, unknown>>;
@@ -61,7 +62,7 @@ export function useWidgetData(
     setError(null);
 
     try {
-      const res = await fetch('/api/query/execute', {
+      const res = await authFetch('/api/query/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -118,7 +119,7 @@ export async function executeWidgetQuery(
   dataSourceId: string,
   sqlQuery: string
 ): Promise<WidgetDataResult> {
-  const res = await fetch('/api/query/execute', {
+  const res = await authFetch('/api/query/execute', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
