@@ -102,10 +102,24 @@ function HeroSection({
   t: (key: string) => string;
 }) {
   return (
-    <section className="relative bg-gray-950 pt-28 pb-20 sm:pt-36 sm:pb-28 overflow-hidden">
-      {/* Gradient background effect */}
-      <div className="absolute inset-0 bg-gradient-to-br from-emerald-600/10 via-gray-950 to-gray-950" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] bg-emerald-600/5 rounded-full blur-3xl" />
+    <section className="relative bg-gray-950 pt-28 pb-20 sm:pt-36 sm:pb-28 overflow-hidden min-h-[600px] sm:min-h-[700px] flex items-center">
+      {/* Background video */}
+      <video
+        className="absolute inset-0 w-full h-full object-cover"
+        autoPlay
+        loop
+        muted
+        playsInline
+        poster="/hero/datamind-hero.png"
+      >
+        <source src="/hero/datamind-hero-movie.mp4" type="video/mp4" />
+      </video>
+
+      {/* Dark overlay to ensure text readability */}
+      <div className="absolute inset-0 bg-gray-950/60" />
+
+      {/* Gradient accent */}
+      <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-transparent to-gray-950/40" />
 
       <div className="relative max-w-4xl mx-auto px-4 sm:px-6 text-center">
         {/* Badge */}
