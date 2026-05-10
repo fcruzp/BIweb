@@ -21,7 +21,10 @@ import {
   Loader2,
   UserCircle,
   CreditCard,
+  BarChart3,
 } from 'lucide-react';
+import { useI18n } from '@/hooks/use-i18n';
+import { UsagePlanDialog } from '@/components/app/settings/usage-plan-dialog';
 
 function getInitials(name: string | undefined | null, email: string | undefined | null): string {
   if (name) {
@@ -47,6 +50,8 @@ const PLAN_LABELS: Record<string, { label: string; color: string }> = {
 
 export function UserMenu() {
   const { user, isAuthenticated, isLoading, openAuthModal, signOut, dbUser } = useAuth();
+  const { t } = useI18n();
+  const [usagePlanOpen, setUsagePlanOpen] = React.useState(false);
 
   const displayName = user?.user_metadata?.full_name || user?.email || '';
   const userEmail = user?.email ?? '';
@@ -80,6 +85,7 @@ export function UserMenu() {
   }
 
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
@@ -120,6 +126,13 @@ export function UserMenu() {
             <UserCircle className="mr-2 h-4 w-4" />
             Profile
           </DropdownMenuItem>
+          <DropdownMenuItem
+            className="text-gray-300 focus:text-white focus:bg-gray-800 cursor-pointer"
+            onClick={() => setUsagePlanOpen(true)}
+          >
+            <BarChart3 className="mr-2 h-4 w-4" />
+            {t('usageAndPlans')}
+          </DropdownMenuItem>
           <DropdownMenuItem className="text-gray-300 focus:text-white focus:bg-gray-800 cursor-pointer">
             <CreditCard className="mr-2 h-4 w-4" />
             Subscription
@@ -139,5 +152,7 @@ export function UserMenu() {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    <UsagePlanDialog open={usagePlanOpen} onOpenChange={setUsagePlanOpen} />
+    </>
   );
 }

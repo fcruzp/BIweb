@@ -1,6 +1,6 @@
 # 🚀 DataMind BI — Plan SaaS Consolidado
 
-> Última actualización: Mayo 2025 | Progreso: ✅ Fase 1 COMPLETADA — App corriendo en Supabase PostgreSQL
+> Última actualización: Mayo 2025 | Progreso: ✅ Fase 1-2 COMPLETADAS — ✅ Fase 3 PARCIAL (Landing + Export + Plans + Usage)
 
 ---
 
@@ -188,11 +188,18 @@
 
 | Tarea | Estado |
 |-------|--------|
-| Ruta `/` = Landing page (Hero, features, pricing, FAQ, CTA) | ⬜ Pendiente |
-| Mover app actual a ruta `/app` | ⬜ Pendiente |
+| Ruta `/` = Landing page (Hero, features, pricing, FAQ, CTA) | ✅ Completado — Navbar, Hero, Features, How It Works, Pricing (5 planes), FAQ (6 preguntas), Final CTA, Footer |
+| Mover app actual a ruta `/app` | ⬜ No requerido — Misma ruta `/`, landing = no autenticado, app = autenticado |
 | Página de Onboarding (demo + CTA upload) | ⬜ Pendiente |
 | Redirección post-login (a `/app` si tiene datos, onboarding si es nuevo) | ⬜ Pendiente |
-| i18n de la landing (ES + EN) | ⬜ Pendiente |
+| i18n de la landing (ES + EN) | ✅ Completado — ~90 claves de traducción en EN y ES |
+| Export functionality (CSV, Excel, JSON) | ✅ Completado — Botones de export prominentes en chat y tablas |
+| Plan/Pricing configuration | ✅ Completado — `plans.ts` con 5 tiers, `/api/usage` endpoint |
+| Usage & Plan UI dialog | ✅ Completado — Accesible desde UserMenu con barras de progreso |
+| Usage limit enforcement (chat queries) | ✅ Completado — Middleware en `/api/chat/route.ts` |
+
+> ✅ **FASE 3 PARCIALMENTE COMPLETADA**: Landing page, export, plans y usage tracking implementados.
+> Pendiente: Onboarding flow para nuevos usuarios y redirección post-login.
 
 ### Estimación: 1 semana
 
@@ -450,14 +457,14 @@ Con Z-AI (sin costo de IA):
 
 ## ⚡ Próximo Paso
 
-**Fase 1 COMPLETADA** ✅ — La app está corriendo en Supabase PostgreSQL.
+**Fase 1-2 COMPLETADAS** ✅ — Supabase PostgreSQL + Auth + Multi-Tenant operativos.
+**Fase 3 PARCIAL** ✅ — Landing page, export, plans, usage tracking implementados.
 
-### Siguiente: Fase 2 — Auth + Multi-Tenant
+### Siguiente: Fase 3 pendiente + Fase 4 — Onboarding + Stripe Payments
 
-1. ⬜ Crear páginas de Auth (Login, Register, Forgot Password)
-2. ⬜ Implementar `useAuth()` hook con Supabase Auth
-3. ⬜ Proteger API routes con verificación de sesión
-4. ⬜ Configurar RLS policies en PostgreSQL
-5. ⬜ Sync: Supabase Auth → tabla User
-6. ⬜ Configurar Google OAuth en Supabase Dashboard
-7. 🔴 Obtener **service_role key** de Supabase (Settings → API)
+1. ⬜ Onboarding flow para nuevos usuarios (demo con datos de ejemplo)
+2. ⬜ Redirección post-login inteligente
+3. ⬜ Integrar Stripe (`stripe` + `@stripe/stripe-js` + webhooks)
+4. ⬜ Crear productos y precios en Stripe (5 planes)
+5. ⬜ Checkout flow (seleccionar plan → Stripe Checkout → webhook confirma)
+6. ⬜ Portal de cliente Stripe (cambiar plan, cancelar, ver facturas)

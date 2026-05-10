@@ -25,6 +25,9 @@ import {
   ShieldCheck,
   MapPin,
   Download,
+  FileText,
+  FileSpreadsheet,
+  FileJson,
 } from 'lucide-react';
 import { useState, useCallback } from 'react';
 import { ReportMarkdown } from './report-markdown';
@@ -180,6 +183,40 @@ export function MessageItem({ message }: MessageItemProps) {
                 {t('geographicMap')}
               </div>
             )}
+            {/* Prominent export button in metadata strip */}
+            {message.queryResult.data && message.queryResult.data.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-md px-2.5 py-1 transition-colors font-medium">
+                    <Download className="h-3 w-3" />
+                    {t('export')}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48">
+                  <DropdownMenuItem
+                    onClick={() => exportAsCSV(message.queryResult!.data, message.queryResult!.columns, generateExportFilename('datamind-query', 'csv'))}
+                    className="gap-2 text-xs cursor-pointer"
+                  >
+                    <FileText className="h-3.5 w-3.5 text-emerald-500" />
+                    {t('exportCSV')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => exportAsHTML(message.queryResult!.data, message.queryResult!.columns, generateExportFilename('datamind-query', 'xls'), message.visualization?.title)}
+                    className="gap-2 text-xs cursor-pointer"
+                  >
+                    <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-500" />
+                    {t('exportExcel')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => exportAsJSON(message.queryResult!.data, generateExportFilename('datamind-query', 'json'))}
+                    className="gap-2 text-xs cursor-pointer"
+                  >
+                    <FileJson className="h-3.5 w-3.5 text-emerald-500" />
+                    {t('exportJSON')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         )}
 
@@ -219,10 +256,44 @@ export function MessageItem({ message }: MessageItemProps) {
         {message.visualization && message.queryResult && (
           <Card className="border-border/40 shadow-sm overflow-hidden">
             <CardHeader className="pb-2 pt-3 px-4 bg-muted/20 border-b border-border/30">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-emerald-500" />
-                {message.visualization.title}
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-emerald-500" />
+                  {message.visualization.title}
+                </CardTitle>
+                {/* Export in card header */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-6 gap-1.5 text-[10px] border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10">
+                      <Download className="h-3 w-3" />
+                      {t('export')}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem
+                      onClick={() => exportAsCSV(message.queryResult!.data, message.queryResult!.columns, generateExportFilename('datamind-query', 'csv'))}
+                      className="gap-2 text-xs cursor-pointer"
+                    >
+                      <FileText className="h-3.5 w-3.5 text-emerald-500" />
+                      {t('exportCSV')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => exportAsHTML(message.queryResult!.data, message.queryResult!.columns, generateExportFilename('datamind-query', 'xls'), message.visualization?.title)}
+                      className="gap-2 text-xs cursor-pointer"
+                    >
+                      <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-500" />
+                      {t('exportExcel')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => exportAsJSON(message.queryResult!.data, generateExportFilename('datamind-query', 'json'))}
+                      className="gap-2 text-xs cursor-pointer"
+                    >
+                      <FileJson className="h-3.5 w-3.5 text-emerald-500" />
+                      {t('exportJSON')}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </CardHeader>
             <CardContent className="px-4 pb-3 pt-3">
               {/* For heatmap: show both a bar chart AND the map, stacked vertically */}
@@ -269,40 +340,6 @@ export function MessageItem({ message }: MessageItemProps) {
                   <Table2 className="h-3 w-3" />
                   {showTable ? t('hideRawData') : t('showRawData')}
                 </Button>
-
-                {/* Export dropdown */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-xs h-7 gap-1.5 text-muted-foreground hover:text-foreground"
-                    >
-                      <Download className="h-3 w-3" />
-                      {t('export')}
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-44">
-                    <DropdownMenuItem
-                      onClick={() => exportAsCSV(message.queryResult!.data, message.queryResult!.columns, generateExportFilename('datamind-query', 'csv'))}
-                      className="gap-2 text-xs"
-                    >
-                      CSV
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => exportAsHTML(message.queryResult!.data, message.queryResult!.columns, generateExportFilename('datamind-query', 'xls'), message.visualization?.title)}
-                      className="gap-2 text-xs"
-                    >
-                      Excel (.xls)
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => exportAsJSON(message.queryResult!.data, generateExportFilename('datamind-query', 'json'))}
-                      className="gap-2 text-xs"
-                    >
-                      JSON
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
               </div>
               {showTable && (
                 <div className="mt-2">
@@ -313,9 +350,48 @@ export function MessageItem({ message }: MessageItemProps) {
           </Card>
         )}
 
-        {/* If no visualization but has data, show table */}
+        {/* If no visualization but has data, show table with export header */}
         {message.queryResult?.data && !message.visualization && (
-          <Card className="border-border/40 shadow-sm">
+          <Card className="border-border/40 shadow-sm overflow-hidden">
+            <CardHeader className="pb-2 pt-3 px-4 bg-muted/20 border-b border-border/30">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Table2 className="h-4 w-4 text-emerald-500" />
+                  {t('dataRows', { count: message.queryResult.data.length })}
+                </CardTitle>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-6 gap-1.5 text-[10px] border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10">
+                      <Download className="h-3 w-3" />
+                      {t('export')}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem
+                      onClick={() => exportAsCSV(message.queryResult!.data, message.queryResult!.columns || [], generateExportFilename('datamind-query', 'csv'))}
+                      className="gap-2 text-xs cursor-pointer"
+                    >
+                      <FileText className="h-3.5 w-3.5 text-emerald-500" />
+                      {t('exportCSV')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => exportAsHTML(message.queryResult!.data, message.queryResult!.columns || [], generateExportFilename('datamind-query', 'xls'))}
+                      className="gap-2 text-xs cursor-pointer"
+                    >
+                      <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-500" />
+                      {t('exportExcel')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => exportAsJSON(message.queryResult!.data, generateExportFilename('datamind-query', 'json'))}
+                      className="gap-2 text-xs cursor-pointer"
+                    >
+                      <FileJson className="h-3.5 w-3.5 text-emerald-500" />
+                      {t('exportJSON')}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </CardHeader>
             <CardContent className="p-4">
               <DataTable data={message.queryResult.data} columns={message.queryResult.columns || []} />
             </CardContent>
