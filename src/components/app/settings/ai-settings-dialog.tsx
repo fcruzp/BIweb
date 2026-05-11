@@ -78,7 +78,7 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
   const handleTestConnection = async () => {
     setTesting(true);
     try {
-      const res = await fetch('/api/ai/test', {
+      const res = await fetch('/api/ai/check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -88,15 +88,18 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
         }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        toast.success(`Connection successful! Model: ${data.model || getEffectiveModelId()}`);
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(`✅ Connection successful! Model: ${data.model || getEffectiveModelId()}`);
       } else {
-        const error = await res.json();
-        toast.error(error.error || 'Connection failed');
+        const errorMsg = data.error || data.hint || 'Connection failed';
+        toast.error(`❌ ${errorMsg}`);
+        console.error('[AI Test] Failed:', data);
       }
     } catch (error) {
-      toast.error('Failed to test connection');
+      const msg = error instanceof Error ? error.message : 'Failed to test connection';
+      toast.error(`❌ ${msg}`);
+      console.error('[AI Test] Error:', error);
     } finally {
       setTesting(false);
     }
