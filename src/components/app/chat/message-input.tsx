@@ -31,7 +31,7 @@ export function MessageInput() {
     setCurrentSQL, setCurrentQueryResult, setCurrentVisualization,
     setStreamingElapsedMs,
   } = useChatStore();
-  const { queryRowLimit } = useAIConfigStore();
+  const { provider, modelId, openrouterApiKey, customModelId, useCustomModel, queryRowLimit } = useAIConfigStore();
   const { t } = useI18n();
 
   // Refs for streaming state that needs to be accessible across SSE events
@@ -153,6 +153,12 @@ export function MessageInput() {
             dataSourceId: activeDataSourceId,
             sessionId: sessionId,
             queryRowLimit: queryRowLimit,
+            // AI config from client-side store (server doesn't have access to localStorage)
+            aiConfig: {
+              provider,
+              modelId: useCustomModel && customModelId ? customModelId : modelId,
+              apiKey: provider === 'openrouter' ? openrouterApiKey : undefined,
+            },
           }),
           signal: abortController.signal,
         });

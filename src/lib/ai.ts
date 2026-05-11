@@ -280,6 +280,13 @@ export interface AICompletionOptions {
   apiKey?: string;
 }
 
+/** AI config passed from client-side to server-side API routes */
+export interface AIClientConfig {
+  provider?: 'z-ai' | 'openrouter';
+  modelId?: string;
+  apiKey?: string;
+}
+
 export interface AICompletionResult {
   content: string;
   parsedJson?: unknown;
@@ -294,12 +301,22 @@ export interface AICompletionResult {
 // ============================================================
 
 let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null;
+let zaiAvailable: boolean | null = null;
 
 async function getZAI() {
-  if (!zaiInstance) {
-    zaiInstance = await ZAI.create();
+  if (zaiAvailable === false) {
+    throw new Error('Z-AI is not available in this environment. Please configure OpenRouter in Settings.');
   }
-  return zaiInstance;
+  try {
+    if (!zaiInstance) {
+      zaiInstance = await ZAI.create();
+      zaiAvailable = true;
+    }
+    return zaiInstance;
+  } catch (error) {
+    zaiAvailable = false;
+    throw new Error('Z-AI is not available in this environment. Please configure OpenRouter in Settings.');
+  }
 }
 
 async function createZAICompletion(options: AICompletionOptions): Promise<AICompletionResult> {
@@ -485,7 +502,8 @@ export async function createCompletion(options: AICompletionOptions): Promise<AI
 
 export async function analyzeSchemaWithContext(
   schemaInfo: string,
-  sampleData: string
+  sampleData: string,
+  aiConfig?: AIClientConfig
 ): Promise<{
   semanticContext: string;
   businessGlossary: Record<string, string>;
@@ -512,6 +530,7 @@ Respond with a JSON object with these fields:
 }`,
     responseFormat: 'json',
     temperature: 0.3,
+    ...aiConfig,
   });
 
   if (result.parsedJson) {
@@ -539,7 +558,8 @@ export async function generateSQLFromNaturalLanguage(
   schemaInfo: string,
   semanticContext: string,
   previousQueries?: Array<{ question: string; sql: string }>,
-  queryRowLimit?: number
+  queryRowLimit?: number,
+  aiConfig?: AIClientConfig
 ): Promise<SQLGenerationResult> {
   const contextMessages = previousQueries?.map(q => [
     { role: 'user' as const, content: q.question },
@@ -587,6 +607,7 @@ Respond with valid JSON only. No explanation outside the JSON object.`,
     contextMessages,
     responseFormat: 'json',
     temperature: 0.1,
+    ...aiConfig,
   });
 
   if (result.parsedJson) {
@@ -631,7 +652,8 @@ export async function regenerateSQLWithFeedback(
   executionError: string,
   schemaInfo: string,
   semanticContext: string,
-  queryRowLimit?: number
+  queryRowLimit?: number,
+  aiConfig?: AIClientConfig
 ): Promise<SQLGenerationResult> {
   const result = await createCompletion({
     systemPrompt: `You are an expert SQL analyst. A previous SQL query you generated FAILED when executed against the database. You must fix it.
@@ -683,6 +705,7 @@ Fix the SQL query. Pay close attention to:
 Respond with valid JSON only. No explanation outside the JSON object.`,
     responseFormat: 'json',
     temperature: 0.1,
+    ...aiConfig,
   });
 
   if (result.parsedJson) {
@@ -745,7 +768,8 @@ export function isRetryableExecutionError(errorMessage: string): boolean {
 export async function suggestVisualization(
   sqlQuery: string,
   resultData: Array<Record<string, unknown>>,
-  naturalQuery: string
+  naturalQuery: string,
+  aiConfig?: AIClientConfig
 ): Promise<{
   chartType: 'bar' | 'line' | 'pie' | 'scatter' | 'area' | 'table' | 'metric' | 'heatmap';
   title: string;
@@ -915,6 +939,7 @@ TOTAL ROWS: ${resultData.length}
 Recommend the best visualization for this data.`,
     responseFormat: 'json',
     temperature: 0.3,
+    ...aiConfig,
   });
 
   if (result.parsedJson) {

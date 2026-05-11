@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
-import { generateSQLFromNaturalLanguage, regenerateSQLWithFeedback, isRetryableExecutionError, createCompletion, detectLanguage } from '@/lib/ai';
+import { generateSQLFromNaturalLanguage, regenerateSQLWithFeedback, isRetryableExecutionError, createCompletion, detectLanguage, type AIClientConfig } from '@/lib/ai';
 import { executeSelectQuery, generateSchemaDescription } from '@/lib/sqlite';
 import { validateSQLQuery, sanitizeSQL } from '@/lib/sql-security';
 import { requireAuth } from '@/lib/auth-utils';
@@ -348,9 +348,9 @@ export async function POST(request: NextRequest) {
         send({ type: 'log', ...parseLog });
 
         const body = await request.json();
-        const { message, dataSourceId, sessionId, queryRowLimit } = body;
+        const { message, dataSourceId, sessionId, queryRowLimit, aiConfig } = body;
 
-        const parseDone = log.endStep('parse_body', `message="${message?.slice(0, 50)}", dataSourceId=${dataSourceId}`);
+        const parseDone = log.endStep('parse_body', `message="${message?.slice(0, 50)}", dataSourceId=${dataSourceId}, provider=${aiConfig?.provider || 'default'}`);
         send({ type: 'log', ...parseDone });
 
         if (!message || !dataSourceId) {
@@ -493,7 +493,7 @@ export async function POST(request: NextRequest) {
         try {
           sqlResult = await withTimeout(
             generateSQLFromNaturalLanguage(
-              message, schemaDescription, semanticContext, previousQueries, queryRowLimit
+              message, schemaDescription, semanticContext, previousQueries, queryRowLimit, aiConfig as AIClientConfig
             ),
             60_000,
             'SQL generation'
@@ -681,7 +681,7 @@ export async function POST(request: NextRequest) {
               try {
                 const retryResult = await withTimeout(
                   regenerateSQLWithFeedback(
-                    message, finalSQL, lastError, schemaDescription, semanticContext, queryRowLimit
+                    message, finalSQL, lastError, schemaDescription, semanticContext, queryRowLimit, aiConfig as AIClientConfig
                   ),
                   60_000,
                   'SQL regeneration'
@@ -839,6 +839,7 @@ Sample results:
 ${JSON.stringify(sampleResults, null, 2)}`,
               temperature: 0.3,
               maxTokens: 1500,
+              ...(aiConfig as AIClientConfig),
             }),
             60_000,
             'Result analysis'

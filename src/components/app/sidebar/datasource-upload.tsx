@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Upload, Database, AlertCircle, CheckCircle2, Loader2, Sparkles, FileSearch, X } from 'lucide-react';
 import { useAppStore } from '@/stores/app-store';
+import { useAIConfigStore } from '@/stores/ai-config-store';
 import { toast } from 'sonner';
 import { useI18n } from '@/hooks/use-i18n';
 import { Progress } from '@/components/ui/progress';
@@ -41,6 +42,7 @@ export function DataSourceUpload({ open, onOpenChange }: DataSourceUploadProps) 
   const [analyzeProgress, setAnalyzeProgress] = useState(0);
   const analyzeTimerRef = useRef<NodeJS.Timeout | null>(null);
   const { addDataSource, updateDataSource } = useAppStore();
+  const { provider, modelId, openrouterApiKey, customModelId, useCustomModel } = useAIConfigStore();
   const { t } = useI18n();
 
   const resetState = useCallback(() => {
@@ -160,6 +162,14 @@ export function DataSourceUpload({ open, onOpenChange }: DataSourceUploadProps) 
 
             const res = await fetch(`/api/datasources/${datasourceId}/analyze`, {
               method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                aiConfig: {
+                  provider,
+                  modelId: useCustomModel && customModelId ? customModelId : modelId,
+                  apiKey: provider === 'openrouter' ? openrouterApiKey : undefined,
+                },
+              }),
               signal: controller.signal,
             });
             clearTimeout(timeoutId);

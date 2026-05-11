@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAppStore } from '@/stores/app-store';
+import { useAIConfigStore } from '@/stores/ai-config-store';
 import {
   SidebarMenu,
   SidebarMenuButton,
@@ -34,6 +35,7 @@ export function DataSourceList() {
     removeDataSource,
     updateDataSource,
   } = useAppStore();
+  const { provider, modelId, openrouterApiKey, customModelId, useCustomModel } = useAIConfigStore();
 
   const [infoDataSourceId, setInfoDataSourceId] = useState<string | null>(null);
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
@@ -141,7 +143,17 @@ export function DataSourceList() {
     try {
       // Update local state immediately
       updateDataSource(id, { status: 'analyzing' });
-      const res = await authFetch(`/api/datasources/${id}/analyze`, { method: 'POST' });
+      const res = await authFetch(`/api/datasources/${id}/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          aiConfig: {
+            provider,
+            modelId: useCustomModel && customModelId ? customModelId : modelId,
+            apiKey: provider === 'openrouter' ? openrouterApiKey : undefined,
+          },
+        }),
+      });
       if (res.ok) {
         const data = await res.json();
         if (data.datasource) {

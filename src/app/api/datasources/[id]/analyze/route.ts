@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { generateSchemaDescription, generateSampleDataDescription } from '@/lib/sqlite';
-import { analyzeSchemaWithContext } from '@/lib/ai';
+import { analyzeSchemaWithContext, type AIClientConfig } from '@/lib/ai';
 import { requireAuth } from '@/lib/auth-utils';
 
 // Timeout wrapper — rejects if the promise takes longer than `ms` milliseconds
@@ -36,6 +36,15 @@ export async function POST(
   const { id } = await params;
   const startTime = Date.now();
   console.log(`[Analyze] === START === datasource=${id}`);
+
+  // Parse AI config from request body (client-side store is not available on server)
+  let aiConfig: AIClientConfig | undefined;
+  try {
+    const body = await request.json();
+    aiConfig = body.aiConfig;
+  } catch {
+    // No body or invalid JSON — use default (z-ai)
+  }
 
   try {
     // Step 1: Auth
@@ -121,7 +130,7 @@ export async function POST(
     try {
       console.log('[Analyze] ⏱ Calling AI analyzeSchemaWithContext (timeout: 45s)...');
       const analysis = await withTimeout(
-        analyzeSchemaWithContext(schemaDescription, sampleDescription),
+        analyzeSchemaWithContext(schemaDescription, sampleDescription, aiConfig),
         45000,
         'AI analysis'
       );
