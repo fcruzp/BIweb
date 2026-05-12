@@ -5,6 +5,9 @@ import { NextRequest, NextResponse } from 'next/server'
  *
  * Mock Stripe checkout page. In live mode, this is never called.
  * Simulates the Stripe Checkout experience with a simple HTML page.
+ *
+ * Flow: "Suscribirme" → calls /api/stripe/success (has auth cookies) →
+ *        server processes checkout + redirects to /?billing=success
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -122,6 +125,16 @@ export async function GET(request: NextRequest) {
       color: #f59e0b;
       line-height: 1.5;
     }
+    .error-msg {
+      margin-top: 12px;
+      padding: 12px;
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 8px;
+      font-size: 13px;
+      color: #ef4444;
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -142,6 +155,7 @@ export async function GET(request: NextRequest) {
     <button class="btn btn-cancel" onclick="cancelCheckout()">
       Cancelar
     </button>
+    <div id="errorMsg" class="error-msg"></div>
     <div class="test-info">
       ⚠️ Esto es un checkout de prueba. No se realizará ningún cobro real.
       Al hacer clic en "Suscribirme", tu plan se actualizará inmediatamente.
@@ -150,31 +164,24 @@ export async function GET(request: NextRequest) {
   <script>
     async function completeCheckout() {
       const btn = document.getElementById('payBtn');
+      const errEl = document.getElementById('errorMsg');
       btn.textContent = 'Procesando...';
       btn.disabled = true;
+      errEl.style.display = 'none';
 
       try {
-        // Call webhook to complete the checkout
-        const res = await fetch('/api/stripe/webhook', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'checkout.session.completed',
-            userId: '${sessionId.split('_').slice(2).join('_')}',
-            planId: '${planId}',
-            billingPeriod: '${period}',
-          }),
+        // Call the success endpoint which has auth context (cookies)
+        // It will process the checkout and redirect us
+        const params = new URLSearchParams({
+          session_id: '${sessionId}',
+          plan: '${planId}',
+          period: '${period}',
         });
-
-        // Also call the success endpoint
-        await fetch('/api/stripe/success?session_id=${sessionId}&plan=${planId}&period=${period}', {
-          method: 'GET',
-        });
-
-        // Redirect to app
-        window.location.href = '/?billing=success';
+        window.location.href = '/api/stripe/success?' + params.toString();
       } catch (err) {
-        btn.textContent = 'Error — Reintentar';
+        errEl.textContent = 'Error al procesar. Intenta de nuevo.';
+        errEl.style.display = 'block';
+        btn.textContent = 'Suscribirme';
         btn.disabled = false;
       }
     }

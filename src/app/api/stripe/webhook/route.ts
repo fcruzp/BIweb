@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { handleCheckoutComplete } from '@/lib/stripe/service'
 import { isStripeLive } from '@/lib/stripe/config'
 import { db } from '@/lib/db'
+import { getSupabaseAuthUser } from '@/lib/auth-utils'
 
 /**
  * POST /api/stripe/webhook
  *
  * Handles Stripe webhook events.
- * In mock mode, this is called by the mock checkout flow.
+ * In mock mode, this is called by the mock portal (cancel/reactivate).
  * In live mode, this receives real Stripe webhook events.
  */
 export async function POST(request: NextRequest) {
@@ -100,17 +101,66 @@ export async function POST(request: NextRequest) {
   }
 
   // MOCK MODE — Accept mock events directly
+  // Used by mock-portal for cancel/reactivate actions
   try {
     const event = JSON.parse(body)
-    const { type, userId, planId, billingPeriod } = event as {
+    const { type, planId, billingPeriod, reactivate } = event as {
       type: string
-      userId: string
-      planId: string
-      billingPeriod: 'monthly' | 'yearly'
+      userId?: string
+      planId?: string
+      billingPeriod?: 'monthly' | 'yearly'
+      reactivate?: boolean
     }
 
-    if (type === 'checkout.session.completed' && userId && planId) {
-      await handleCheckoutComplete(userId, planId, billingPeriod ?? 'monthly')
+    if (type === 'checkout.session.completed' && planId) {
+      // Try to get user from auth context (cookies)
+      const authUser = await getSupabaseAuthUser()
+      if (authUser) {
+        await handleCheckoutComplete(
+          authUser.id,
+          planId,
+          billingPeriod ?? 'monthly'
+        )
+      }
+    }
+
+    if (type === 'customer.subscription.deleted') {
+      // Cancel subscription — get user from auth context
+      const authUser = await getSupabaseAuthUser()
+      if (authUser) {
+        const subscription = await db.subscription.findUnique({
+          where: { userId: authUser.id },
+        })
+        if (subscription) {
+          await db.subscription.update({
+            where: { userId: authUser.id },
+            data: {
+              plan: 'free',
+              status: 'canceled',
+              cancelAtPeriodEnd: false,
+            },
+          })
+        }
+      }
+    }
+
+    if (type === 'customer.subscription.updated' && reactivate) {
+      // Reactivate subscription — get user from auth context
+      const authUser = await getSupabaseAuthUser()
+      if (authUser) {
+        const subscription = await db.subscription.findUnique({
+          where: { userId: authUser.id },
+        })
+        if (subscription) {
+          await db.subscription.update({
+            where: { userId: authUser.id },
+            data: {
+              status: 'active',
+              cancelAtPeriodEnd: false,
+            },
+          })
+        }
+      }
     }
 
     return NextResponse.json({ received: true })

@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.19';
-export const VERSION_NAME = 'Fix Stripe Checkout localhost URL Bug';
+export const VERSION = '0.3.20';
+export const VERSION_NAME = 'Fix Mock Checkout Webhook 400 + Redirect 0.0.0.0';

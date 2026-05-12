@@ -4,6 +4,29 @@ import { db } from '@/lib/db'
 import { PLANS } from '@/lib/plans'
 
 /**
+ * Derive the public origin URL from request headers.
+ * Handles reverse proxies (Caddy, Nginx, Cloudflare) that set
+ * X-Forwarded-Host / X-Forwarded-Proto headers.
+ */
+function getPublicOrigin(request: NextRequest): string {
+  const forwardedHost = request.headers.get('x-forwarded-host')
+  const forwardedProto = request.headers.get('x-forwarded-proto')
+  const host = request.headers.get('host')
+
+  if (forwardedHost && forwardedProto) {
+    return `${forwardedProto}://${forwardedHost}`
+  }
+  if (forwardedHost) {
+    return `https://${forwardedHost}`
+  }
+  if (host) {
+    const proto = host.startsWith('localhost') ? 'http' : 'https'
+    return `${proto}://${host}`
+  }
+  return new URL(request.url).origin
+}
+
+/**
  * GET /api/stripe/mock-portal
  *
  * Mock Stripe Customer Portal page. In live mode, this is never called.
@@ -14,7 +37,8 @@ export async function GET(request: NextRequest) {
   try {
     await requireAuth()
   } catch {
-    return NextResponse.redirect(new URL('/?auth=required', request.url))
+    const origin = getPublicOrigin(request)
+    return NextResponse.redirect(new URL('/?auth=required', origin))
   }
 
   const { searchParams } = new URL(request.url)
