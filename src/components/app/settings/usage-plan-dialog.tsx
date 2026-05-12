@@ -158,9 +158,31 @@ export function UsagePlanDialog({ open, onOpenChange }: UsagePlanDialogProps) {
     }
   }, [open, fetchUsage]);
 
-  const handleUpgrade = (planId: PlanId) => {
-    const plan = PLANS[planId];
-    toast.info(`${t('upgradePlan')}: ${locale === 'es' ? plan.nameEs : plan.name} — Coming soon!`);
+  const [upgradingPlanId, setUpgradingPlanId] = useState<PlanId | null>(null);
+
+  const handleUpgrade = async (planId: PlanId) => {
+    setUpgradingPlanId(planId);
+    try {
+      const res = await authFetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planId, billingPeriod: 'monthly' }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to create checkout session');
+      }
+
+      const data = await res.json();
+      if (data.url) {
+        // Redirect to Stripe checkout (or mock checkout)
+        window.location.href = data.url;
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to start checkout');
+    } finally {
+      setUpgradingPlanId(null);
+    }
   };
 
   const planName = locale === 'es' ? currentPlan.nameEs : currentPlan.name;
@@ -420,9 +442,14 @@ export function UsagePlanDialog({ open, onOpenChange }: UsagePlanDialogProps) {
                                 size="sm"
                                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1"
                                 onClick={() => handleUpgrade(pid)}
+                                disabled={upgradingPlanId !== null}
                               >
-                                <ArrowUpRight className="h-3 w-3" />
-                                {t('upgradePlan')}
+                                {upgradingPlanId === pid ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <ArrowUpRight className="h-3 w-3" />
+                                )}
+                                {upgradingPlanId === pid ? '...' : t('upgradePlan')}
                               </Button>
                             ) : (
                               <div className="text-center text-[10px] text-muted-foreground pt-1">

@@ -115,6 +115,9 @@ export async function ensureUser(): Promise<User | null> {
     },
   })
 
+  // New users have NOT completed onboarding yet
+  // onboardingCompleted defaults to false in the schema
+
   return user
 }
 

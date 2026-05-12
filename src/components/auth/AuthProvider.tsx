@@ -15,6 +15,8 @@ interface AuthContextValue {
   authModalTab: AuthTab;
   signOut: () => Promise<void>;
   dbUser: DbUser | null;
+  showOnboarding: boolean;
+  completeOnboarding: (interestArea?: string) => Promise<void>;
 }
 
 export type AuthTab = 'signin' | 'signup' | 'forgot-password';
@@ -27,6 +29,8 @@ export interface DbUser {
   role: string;
   preferredLang: string;
   company: string | null;
+  onboardingCompleted: boolean;
+  interestArea: string | null;
   subscription: {
     plan: string;
     status: string;
@@ -61,6 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [dbUser, setDbUser] = useState<DbUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Initialize auth modal state from URL params
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(() => getInitialAuthModalState().isOpen);
@@ -85,8 +90,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
     setUser(null);
     setDbUser(null);
+    setShowOnboarding(false);
     hasSyncedRef.current = false;
   }, []);
+
+  const completeOnboarding = useCallback(async (interestArea?: string) => {
+    try {
+      await fetch('/api/onboarding/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ interestArea }),
+      });
+      setShowOnboarding(false);
+      // Update local dbUser state
+      if (dbUser) {
+        setDbUser({ ...dbUser, onboardingCompleted: true, interestArea: interestArea ?? dbUser.interestArea });
+      }
+    } catch (err) {
+      console.warn('[AuthProvider] Failed to complete onboarding:', err);
+      // Still close onboarding locally even if API fails
+      setShowOnboarding(false);
+    }
+  }, [dbUser]);
 
   const syncDbUser = useCallback(async function sync(retryCount = 0): Promise<void> {
     // Prevent concurrent sync calls
@@ -107,7 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (res.ok) {
         const data = await res.json();
         if (data.user) {
-          setDbUser({
+          const dbUserData: DbUser = {
             id: data.user.id,
             email: data.user.email,
             name: data.user.name,
@@ -115,8 +140,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             role: data.user.role,
             preferredLang: data.user.preferredLang,
             company: data.user.company,
+            onboardingCompleted: data.onboardingCompleted ?? false,
+            interestArea: data.interestArea ?? null,
             subscription: data.subscription ?? null,
-          });
+          };
+          setDbUser(dbUserData);
+          // Show onboarding for new users who haven't completed it
+          setShowOnboarding(!dbUserData.onboardingCompleted);
           hasSyncedRef.current = true;
         }
       } else if (res.status === 401 && retryCount < 2) {
@@ -284,6 +314,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     authModalTab,
     signOut,
     dbUser,
+    showOnboarding,
+    completeOnboarding,
   };
 
   return (

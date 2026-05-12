@@ -301,3 +301,53 @@ Stage Summary:
 - Database connection working (Supabase PostgreSQL)
 - Project version: 0.3.11
 - Phase 3 partial: Landing + Export + Plans + Usage ✅ | Onboarding + Stripe ⬜
+
+---
+Task ID: 10
+Agent: Main
+Task: Onboarding flow + Stripe mock integration (Phase 3 completion + Phase 4 partial)
+
+Work Log:
+- Added `onboardingCompleted` and `interestArea` fields to User Prisma model
+- Ran `bun run db:push` — schema updated in Supabase PostgreSQL
+- Updated `/api/auth/sync` to return `onboardingCompleted` and `interestArea` in response
+- Updated `AuthProvider` to track `showOnboarding` state and `completeOnboarding()` function
+- Updated `DbUser` interface with new fields
+- Created `/api/onboarding/complete` — POST endpoint that marks onboarding complete + saves interest area
+- Created `/api/onboarding/demo` — POST endpoint that creates demo SQLite DB with:
+  - 20 productos (Electrónica, Ropa, Hogar, Alimentos, Deportes)
+  - 120 ventas (Ene-Jun 2025 across 7 DR provinces)
+  - 10 clientes (regular, premium, vip segments)
+  - Auto-creates DataSource + SourceSchema + SourceContext records
+  - Falls back to static context if AI analysis fails
+- Integrated OnboardingScreen into page.tsx:
+  - Shows onboarding if `showOnboarding` is true (new users who haven't completed it)
+  - On complete with demo data: creates demo DB + sets active data source
+  - On complete without demo: just marks onboarding as done
+  - Shows loading spinner while creating demo data
+- Created Stripe integration (`src/lib/stripe/`):
+  - `config.ts` — STRIPE_MODE (mock/live), price IDs, plan prices
+  - `service.ts` — Checkout, portal, webhook handlers with mock + live modes
+  - Dynamic Stripe SDK import (only loaded in live mode)
+- Created Stripe API routes:
+  - `/api/stripe/checkout` — POST creates checkout session (mock or live)
+  - `/api/stripe/portal` — POST creates customer portal session
+  - `/api/stripe/webhook` — POST handles Stripe events (signature verified in live mode)
+  - `/api/stripe/mock-checkout` — GET serves mock checkout HTML page
+  - `/api/stripe/success` — GET handles post-checkout redirect
+- Updated UsagePlanDialog:
+  - Upgrade button now calls `/api/stripe/checkout` and redirects to checkout URL
+  - Loading state while processing
+  - Disabled state for other plans during upgrade
+- Added billing notification toasts in page.tsx (success/cancelled from checkout)
+- Added i18n keys for billing (EN + ES): billingSuccess, billingCancelled, billingLoading, etc.
+- Updated version: 0.3.12 → 0.3.13
+- Updated SAAS-PLAN.md: Phase 3 marked as COMPLETED, Phase 4 marked as PARTIAL
+- Lint passes: 0 errors, 1 pre-existing TanStack Table warning
+
+Stage Summary:
+- Onboarding flow fully integrated: 4-step wizard → demo data creation → app
+- User model tracks onboardingCompleted + interestArea
+- Stripe mock checkout works end-to-end (upgrade plan → mock checkout → webhook → DB update)
+- Stripe live mode ready (just set STRIPE_SECRET_KEY env var)
+- Phase 3 COMPLETE ✅ | Phase 4 PARTIAL 🔄

@@ -295,6 +295,15 @@ export const translations = {
     lowerPlan: 'Lower plan',
     freeForever: 'Free forever',
 
+    // Billing
+    billingSuccess: 'Plan upgraded successfully!',
+    billingCancelled: 'Checkout cancelled.',
+    billingLoading: 'Processing subscription...',
+    mockCheckoutTitle: 'Test Mode Checkout',
+    subscribeBtn: 'Subscribe',
+    yearly: 'yearly',
+    monthly: 'monthly',
+
     // Landing Page — Navbar
     landingSignIn: 'Sign In',
     landingGetStarted: 'Get Started Free',
@@ -678,6 +687,15 @@ export const translations = {
     exportRows: 'Exportar hasta',
     lowerPlan: 'Plan inferior',
     freeForever: 'Gratis para siempre',
+
+    // Facturación
+    billingSuccess: '¡Plan actualizado exitosamente!',
+    billingCancelled: 'Checkout cancelado.',
+    billingLoading: 'Procesando suscripción...',
+    mockCheckoutTitle: 'Checkout en Modo Prueba',
+    subscribeBtn: 'Suscribirme',
+    yearly: 'anual',
+    monthly: 'mensual',
 
     // Landing Page — Navbar
     landingSignIn: 'Iniciar Sesión',

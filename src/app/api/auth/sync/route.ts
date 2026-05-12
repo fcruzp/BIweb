@@ -53,7 +53,12 @@ export async function POST() {
 
     console.log(`[auth/sync] ⏱ TOTAL: ${Date.now() - startTime}ms`)
 
-    return NextResponse.json({ user, subscription })
+    return NextResponse.json({
+      user,
+      subscription,
+      onboardingCompleted: user.onboardingCompleted,
+      interestArea: user.interestArea,
+    })
   } catch (error) {
     console.error('[auth/sync] Error syncing user:', error)
     return NextResponse.json(

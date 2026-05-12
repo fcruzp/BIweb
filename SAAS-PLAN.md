@@ -1,6 +1,6 @@
 # 🚀 DataMind BI — Plan SaaS Consolidado
 
-> Última actualización: Mayo 2025 | Progreso: ✅ Fase 1-2 COMPLETADAS — ✅ Fase 3 PARCIAL (Landing + Export + Plans + Usage)
+> Última actualización: Mayo 2025 | Progreso: ✅ Fase 1-2 COMPLETADAS — ✅ Fase 3 COMPLETADA — 🔄 Fase 4 PARCIAL (Stripe Mock)
 
 ---
 
@@ -190,16 +190,16 @@
 |-------|--------|
 | Ruta `/` = Landing page (Hero, features, pricing, FAQ, CTA) | ✅ Completado — Navbar, Hero, Features, How It Works, Pricing (5 planes), FAQ (6 preguntas), Final CTA, Footer |
 | Mover app actual a ruta `/app` | ⬜ No requerido — Misma ruta `/`, landing = no autenticado, app = autenticado |
-| Página de Onboarding (demo + CTA upload) | ⬜ Pendiente |
-| Redirección post-login (a `/app` si tiene datos, onboarding si es nuevo) | ⬜ Pendiente |
+| Página de Onboarding (demo + CTA upload) | ✅ Completado — 4-step wizard con Framer Motion, carga demo RD, selección área interés |
+| Redirección post-login (a `/app` si tiene datos, onboarding si es nuevo) | ✅ Completado — Auto-detecta onboardingCompleted en AuthProvider |
 | i18n de la landing (ES + EN) | ✅ Completado — ~90 claves de traducción en EN y ES |
 | Export functionality (CSV, Excel, JSON) | ✅ Completado — Botones de export prominentes en chat y tablas |
 | Plan/Pricing configuration | ✅ Completado — `plans.ts` con 5 tiers, `/api/usage` endpoint |
 | Usage & Plan UI dialog | ✅ Completado — Accesible desde UserMenu con barras de progreso |
 | Usage limit enforcement (chat queries) | ✅ Completado — Middleware en `/api/chat/route.ts` |
 
-> ✅ **FASE 3 PARCIALMENTE COMPLETADA**: Landing page, export, plans y usage tracking implementados.
-> Pendiente: Onboarding flow para nuevos usuarios y redirección post-login.
+> ✅ **FASE 3 COMPLETADA**: Landing page, export, plans, usage tracking y onboarding implementados.
+> Pendiente: Ninguno (Fase 3 completa).
 
 ### Estimación: 1 semana
 
@@ -244,10 +244,10 @@
 
 | Tarea | Estado |
 |-------|--------|
-| Integrar Stripe (`stripe` + `@stripe/stripe-js` + webhooks) | ⬜ Pendiente |
-| Crear productos y precios en Stripe (5 planes) | ⬜ Pendiente |
-| Checkout flow (seleccionar plan → Stripe Checkout → webhook confirma) | ⬜ Pendiente |
-| Portal de cliente Stripe (cambiar plan, cancelar, ver facturas) | ⬜ Pendiente |
+| Integrar Stripe (`stripe` + `@stripe/stripe-js` + webhooks) | ✅ Completado — Mock mode + live mode con SDK dinámico |
+| Crear productos y precios en Stripe (5 planes) | 🔄 Parcial — Price IDs definidos en config, pendiente crear en Stripe Dashboard |
+| Checkout flow (seleccionar plan → Stripe Checkout → webhook confirma) | ✅ Completado — Mock checkout UI + live checkout con redirect |
+| Portal de cliente Stripe (cambiar plan, cancelar, ver facturas) | 🔄 Parcial — API creada, pendiente UI del portal |
 | ITBIS 18% para clientes RD (detectar país al registro) | ⬜ Pendiente |
 | Solicitar NCF si es empresa | ⬜ Pendiente |
 | Límites por plan (middleware verifica antes de ejecutar) | ⬜ Pendiente |
@@ -579,14 +579,15 @@ Con Z-AI (sin costo de IA):
 
 ## ⚡ Próximo Paso
 
-**Fase 1-2 COMPLETADAS** ✅ — Supabase PostgreSQL + Auth + Multi-Tenant operativos.
-**Fase 3 PARCIAL** ✅ — Landing page, export, plans, usage tracking implementados.
+**Fase 1-3 COMPLETADAS** ✅ — Supabase PostgreSQL + Auth + Multi-Tenant + Landing + Onboarding.
+**Fase 4 PARCIAL** 🔄 — Stripe mock integrado, pendiente crear productos en Stripe Dashboard + portal UI.
 
-### Siguiente: Fase 3 pendiente + Fase 4 — Onboarding + Stripe (Mock) + PostgreSQL Local
+### Siguiente: Fase 4 completar + Fase 5 — Stripe Live + Map Library
 
-1. ⬜ Onboarding flow para nuevos usuarios (demo con datos de ejemplo)
-2. ⬜ Redirección post-login inteligente
-3. ⬜ Migrar a PostgreSQL local (Coolify service) — mantener Supabase Auth
-4. ⬜ Integrar Stripe mock (UI completa, sin llamadas reales)
-5. ⬜ Activar Stripe real cuando VPS nuevo + dominio estén listos
+1. ✅ Onboarding flow para nuevos usuarios (demo con datos de ejemplo)
+2. ✅ Redirección post-login inteligente (onboardingCompleted check)
+3. 🔄 Crear productos/precios en Stripe Dashboard cuando VPS + dominio estén listos
+4. ✅ Integrar Stripe mock (checkout UI, webhooks, service layer)
+5. 🔄 Activar Stripe real cuando VPS nuevo + dominio estén listos (solo set STRIPE_SECRET_KEY)
 6. ⬜ Fase 5: Biblioteca de Mapas SVG (multi-país + custom uploads)
+7. ⬜ Fase 6: Dashboard de Uso + Métricas (gráficos, proyecciones, alertas)

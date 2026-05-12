@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.12';
-export const VERSION_NAME = 'Git Credentials Setup + Push Config';
+export const VERSION = '0.3.13';
+export const VERSION_NAME = 'Onboarding Flow + Stripe Mock Integration';

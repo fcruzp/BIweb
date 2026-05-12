@@ -23,8 +23,10 @@ model User {
   role           String         @default("user") // admin, user
   country        String?        // For ITBIS detection (e.g., "DO" for Dominican Republic)
   taxId          String?        @map("tax_id") // NCF / RNC for Dominican companies
-  preferredLang  String         @default("es") @map("preferred_lang") // es, en
-  openRouterKey  String?        @map("open_router_key") // User's own OpenRouter API key
+  preferredLang      String         @default("es") @map("preferred_lang") // es, en
+  openRouterKey      String?        @map("open_router_key") // User's own OpenRouter API key
+  onboardingCompleted Boolean       @default(false) @map("onboarding_completed") // Whether user completed the onboarding flow
+  interestArea      String?        @map("interest_area") // ventas, marketing, finanzas, operaciones, rrhh, otro
 
   // Relationships
   dataSources    DataSource[]
