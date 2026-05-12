@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.24';
-export const VERSION_NAME = 'Fix middleware + ensureUser re-registration + auto-signin';
+export const VERSION = '0.3.25';
+export const VERSION_NAME = 'Admin DB reset + file cleanup endpoints';
