@@ -104,7 +104,7 @@ function HeroSection({
 }) {
   return (
     <section className="relative bg-gray-950 h-svh overflow-hidden flex items-center">
-      {/* Background video */}
+      {/* Background video — testing without overlays */}
       <video
         className="absolute inset-0 w-full h-full object-cover"
         autoPlay
@@ -112,21 +112,13 @@ function HeroSection({
         muted
         playsInline
         preload="auto"
+        controls
       >
         <source src="/hero/datamind-hero-movie.mp4" type="video/mp4" />
       </video>
 
-      {/* Dark overlay for text readability */}
-      <div className="absolute inset-0 bg-gray-950/60" style={{ zIndex: 2 }} />
-
-      {/* Gradient fade at bottom */}
-      <div
-        className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/20 to-gray-950/40"
-        style={{ zIndex: 3 }}
-      />
-
       {/* Content */}
-      <div className="relative max-w-4xl mx-auto px-4 sm:px-6 text-center" style={{ zIndex: 5 }}>
+      <div className="relative max-w-4xl mx-auto px-4 sm:px-6 text-center z-10">
         {/* Badge */}
         <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 mb-8">
           <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
