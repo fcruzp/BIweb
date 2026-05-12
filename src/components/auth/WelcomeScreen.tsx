@@ -24,6 +24,7 @@ import {
   Check,
   Globe,
   ChevronUp,
+  Loader2,
 } from 'lucide-react';
 
 // ─── Navbar ──────────────────────────────────────────────────────────
@@ -101,18 +102,38 @@ function HeroSection({
   openAuthModal: (tab: 'signin' | 'signup') => void;
   t: (key: string) => string;
 }) {
+  const [videoReady, setVideoReady] = React.useState(false);
+
   return (
     <section className="relative bg-gray-950 h-svh overflow-hidden flex items-center">
-      {/* Background video */}
+      {/* Poster image — visible while video loads, hidden after */}
+      <img
+        src="/hero/datamind-hero.png"
+        alt=""
+        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${
+          videoReady ? 'opacity-0' : 'opacity-100'
+        }`}
+      />
+
+      {/* Small loading spinner — corner, unobtrusive */}
+      {!videoReady && (
+        <div className="absolute bottom-4 right-4 z-10">
+          <Loader2 className="h-4 w-4 animate-spin text-emerald-400/60" />
+        </div>
+      )}
+
+      {/* Background video — hidden until ready */}
       <video
-        className="absolute inset-0 w-full h-full object-cover"
+        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${
+          videoReady ? 'opacity-100' : 'opacity-0'
+        }`}
         src="/hero/datamind-hero-movie.mp4"
         autoPlay
         loop
         muted
         playsInline
         preload="auto"
-        poster="/hero/datamind-hero.png"
+        onCanPlay={() => setVideoReady(true)}
       />
 
       {/* Dark overlay to ensure text readability */}
