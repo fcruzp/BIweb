@@ -91,7 +91,12 @@ export const useAppStore = create<AppState>()(
       chatSessionsLoading: false,
 
       setActiveDataSource: (id) =>
-        set({ activeDataSourceId: id, activeSessionId: null, chatSessions: [] }),
+        set((state) => {
+          // No-op if clicking the same data source — avoid wiping chatSessions
+          if (state.activeDataSourceId === id) return {};
+          // Only clear sessions when actually switching data sources
+          return { activeDataSourceId: id, activeSessionId: null, chatSessions: [] };
+        }),
       setActiveDashboard: (id) => set({ activeDashboardId: id }),
       setActiveSession: (id) => set({ activeSessionId: id }),
       setCurrentView: (view) => set({ currentView: view }),
