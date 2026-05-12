@@ -102,7 +102,7 @@ function HeroSection({
   t: (key: string) => string;
 }) {
   return (
-    <section className="relative bg-gray-950 pt-28 pb-20 sm:pt-36 sm:pb-28 overflow-hidden min-h-[600px] sm:min-h-[700px] flex items-center">
+    <section className="relative bg-gray-950 h-svh overflow-hidden flex items-center">
       {/* Background video */}
       <video
         className="absolute inset-0 w-full h-full object-cover"
@@ -118,8 +118,8 @@ function HeroSection({
       {/* Dark overlay to ensure text readability */}
       <div className="absolute inset-0 bg-gray-950/60" />
 
-      {/* Gradient accent */}
-      <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-transparent to-gray-950/40" />
+      {/* Gradient: subtle top + strong bottom fade into next section */}
+      <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/20 to-gray-950/40" />
 
       <div className="relative max-w-4xl mx-auto px-4 sm:px-6 text-center">
         {/* Badge */}
@@ -189,6 +189,20 @@ function HeroSection({
           </div>
         </div>
       </div>
+
+      {/* Scroll indicator */}
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
+        <button
+          onClick={() => {
+            const el = document.getElementById('features');
+            el?.scrollIntoView({ behavior: 'smooth' });
+          }}
+          className="flex flex-col items-center gap-1 text-gray-400 hover:text-emerald-400 transition-colors"
+          aria-label="Scroll down"
+        >
+          <ChevronUp className="h-5 w-5 rotate-180" />
+        </button>
+      </div>
     </section>
   );
 }
@@ -217,7 +231,7 @@ function FeaturesSection({ t }: { t: (key: string) => string }) {
   ];
 
   return (
-    <section className="py-20 sm:py-24 bg-background">
+    <section id="features" className="py-20 sm:py-24 bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
