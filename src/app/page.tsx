@@ -10,15 +10,18 @@ import { useAppStore } from '@/stores/app-store';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { WelcomeScreen } from '@/components/auth/WelcomeScreen';
 import { Loader2 } from 'lucide-react';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useI18n } from '@/hooks/use-i18n';
+import { getPendingUpgradePlan, clearPendingUpgradePlan } from '@/lib/pending-plan';
+import { authFetch } from '@/lib/fetch-utils';
 
 export default function Home() {
   const { currentView, setActiveDataSource } = useAppStore();
-  const { isAuthenticated, isLoading, showOnboarding, completeOnboarding } = useAuth();
+  const { isAuthenticated, isLoading, showOnboarding, completeOnboarding, dbUser } = useAuth();
   const [isCreatingDemo, setIsCreatingDemo] = useState(false);
   const { t } = useI18n();
+  const checkoutTriggeredRef = useRef(false);
 
   // Handle billing redirect notifications
   useEffect(() => {
@@ -29,9 +32,54 @@ export default function Home() {
       window.history.replaceState({}, '', '/');
     } else if (billing === 'cancelled') {
       toast.info(t('billingCancelled'));
-      window.history.replaceState({}, '', '/');
+      window.history.replaceState({}, '/');
     }
   }, [t]);
+
+  // Auto-trigger checkout for pending upgrade plan
+  // When a user signs up from a pricing CTA, they have a plan saved in sessionStorage.
+  // After onboarding completes (or is skipped), we auto-trigger the Stripe checkout.
+  useEffect(() => {
+    if (checkoutTriggeredRef.current) return;
+    if (!isAuthenticated || isLoading || showOnboarding) return;
+
+    const pendingPlan = getPendingUpgradePlan();
+    if (!pendingPlan) return;
+
+    checkoutTriggeredRef.current = true;
+
+    const triggerCheckout = async () => {
+      try {
+        const res = await authFetch('/api/stripe/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ planId: pendingPlan, billingPeriod: 'monthly' }),
+        });
+
+        if (!res.ok) {
+          throw new Error('Failed to create checkout session');
+        }
+
+        const data = await res.json();
+        // Clear the pending plan before navigating away
+        clearPendingUpgradePlan();
+
+        if (data.url) {
+          // Navigate to Stripe checkout (or mock checkout)
+          window.location.href = data.url;
+        }
+      } catch (err) {
+        console.warn('[Home] Auto-checkout failed:', err);
+        clearPendingUpgradePlan();
+        // Show a toast so the user knows something was supposed to happen
+        toast.info(t('billingUpgradePending'));
+      }
+    };
+
+    // Small delay to ensure the app is fully loaded and auth state is settled
+    const timer = setTimeout(triggerCheckout, 800);
+    return () => clearTimeout(timer);
+  }, [isAuthenticated, isLoading, showOnboarding, t]);
 
   const handleOnboardingComplete = useCallback(async (loadDemoData: boolean) => {
     if (loadDemoData) {

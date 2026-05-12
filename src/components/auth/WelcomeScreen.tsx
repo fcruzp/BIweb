@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './AuthProvider';
 import { useI18n } from '@/hooks/use-i18n';
-import { PLANS, PLAN_ORDER } from '@/lib/plans';
+import { PLANS, PLAN_ORDER, type PlanId } from '@/lib/plans';
+import { setPendingUpgradePlan } from '@/lib/pending-plan';
 import { type TranslationFn } from '@/lib/i18n';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -377,6 +378,14 @@ function PricingSection({
     openAuthModal: (tab: 'signin' | 'signup') => void;
     t: TranslationFn;
 }) {
+    const handlePlanCta = (planId: string) => {
+        // For paid plans, remember which plan they want so we can
+        // auto-trigger checkout after registration + onboarding
+        if (planId !== 'free') {
+            setPendingUpgradePlan(planId);
+        }
+        openAuthModal('signup');
+    };
     const getPlanFeatures = (planId: string) => {
         const plan = PLANS[planId as keyof typeof PLANS];
         const features: string[] = [];
@@ -489,7 +498,7 @@ function PricingSection({
                                                 ? 'bg-gray-100 hover:bg-gray-200 text-gray-900 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-100'
                                                 : 'bg-primary hover:bg-primary/90 text-primary-foreground'
                                     }`}
-                                    onClick={() => openAuthModal('signup')}
+                                    onClick={() => handlePlanCta(planId)}
                                 >
                                     {t('pricingCta')}
                                 </Button>
