@@ -87,7 +87,6 @@ export default function Home() {
         toast.info(t('billingUpgradePending'));
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, isLoading, showOnboarding, dbUser]);
 
   const handleOnboardingComplete = useCallback(async (loadDemoData: boolean) => {

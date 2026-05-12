@@ -16,7 +16,7 @@ import { useI18n } from '@/hooks/use-i18n';
 import { useAuth } from '@/components/auth/AuthProvider';
 
 export function QueryHistory() {
-  const { activeDataSourceId } = useAppStore();
+  const { activeDataSourceId, dataSources } = useAppStore();
   const { addMessage, setLoading } = useChatStore();
   const { history, historyLoading, lastDataSourceId, setHistory, setHistoryLoading, setLastDataSourceId } = useHistoryStore();
   const { t } = useI18n();
@@ -30,6 +30,11 @@ export function QueryHistory() {
       return;
     }
     if (!isAuthenticated) return; // Don't fetch if not authenticated
+
+    // VALIDATION: Don't fetch history for a datasource that's not in our list.
+    // This prevents 403 floods when activeDataSourceId is stale (e.g., after DB reset).
+    const isActiveSourceValid = dataSources.some(ds => ds.id === activeDataSourceId);
+    if (!isActiveSourceValid) return;
 
     async function loadHistory() {
       setHistoryLoading(true);
@@ -48,7 +53,7 @@ export function QueryHistory() {
     }
 
     loadHistory();
-  }, [activeDataSourceId, setHistory, setHistoryLoading, setLastDataSourceId]);
+  }, [activeDataSourceId, dataSources, isAuthenticated, setHistory, setHistoryLoading, setLastDataSourceId]);
 
   const handleReRun = async (item: HistoryItem) => {
     addMessage({

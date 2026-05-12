@@ -64,6 +64,15 @@ export function DataSourceList() {
       if (res.ok) {
         const data = await res.json();
         setDataSources(data.datasources);
+        // VALIDATION: Clear stale activeDataSourceId if it's no longer in the list.
+        // This happens after DB resets, account changes, or when datasources are deleted
+        // from another session. Without this, components keep fetching with a stale ID → 404 floods.
+        const currentActiveId = useAppStore.getState().activeDataSourceId;
+        if (currentActiveId && !data.datasources.some((ds: { id: string }) => ds.id === currentActiveId)) {
+          console.log(`[DataSourceList] Clearing stale activeDataSourceId: ${currentActiveId} (not in fetched list)`);
+          setActiveDataSource(null);
+          clearMessages();
+        }
       } else if (isAuthError(res)) {
         // Don't retry on 401 — AuthProvider will handle session recovery
         // Show cached data if available, otherwise show auth error
@@ -79,7 +88,7 @@ export function DataSourceList() {
     } finally {
       if (showLoading) setDataSourcesLoading(false);
     }
-  }, [setDataSources, setDataSourcesLoading, dataSources.length]);
+  }, [setDataSources, setDataSourcesLoading, dataSources.length, setActiveDataSource, clearMessages]);
 
   // Initial fetch — background refresh if we have cached data, blocking if empty
   useEffect(() => {

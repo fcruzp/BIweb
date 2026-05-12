@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useAppStore } from '@/stores/app-store';
+import { useChatStore } from '@/stores/chat-store';
 import { Badge } from '@/components/ui/badge';
 import {
   Accordion,
@@ -234,7 +235,8 @@ function TableDataPreview({
 }
 
 export function SchemaExplorer() {
-  const { activeDataSourceId, dataSources } = useAppStore();
+  const { activeDataSourceId, dataSources, setActiveDataSource } = useAppStore();
+  const { clearMessages } = useChatStore();
   const [schemas, setSchemas] = useState<TableSchemaInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -270,6 +272,14 @@ export function SchemaExplorer() {
           const data = await res.json();
           setSchemas(data.datasource?.schemas || []);
           setContext(data.datasource?.contexts?.[0]?.summary || '');
+        } else if (res.status === 404) {
+          // Datasource no longer exists (DB reset, deleted, etc.) — clear stale state
+          console.log(`[SchemaExplorer] Datasource ${activeDataSourceId} not found (404), clearing stale state`);
+          setActiveDataSource(null);
+          clearMessages();
+          setSchemas([]);
+          setContext('');
+          setError(null); // Don't show error — the ID was stale, just reset
         } else {
           setError(`Failed to load schema (${res.status})`);
         }

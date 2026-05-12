@@ -32,6 +32,7 @@ export function ChatSessionList() {
     activeSessionId,
     chatSessions,
     chatSessionsLoading,
+    dataSources,
     setChatSessions,
     setChatSessionsLoading,
     setActiveSession,
@@ -110,6 +111,15 @@ export function ChatSessionList() {
     }
     if (!isAuthenticated) return; // Don't fetch if not authenticated
 
+    // VALIDATION: Don't fetch sessions for a datasource that's not in our list.
+    // This prevents 403/404 floods when activeDataSourceId is stale (e.g., after DB reset).
+    const isActiveSourceValid = dataSources.some(ds => ds.id === activeDataSourceId);
+    if (!isActiveSourceValid) {
+      // The active datasource doesn't exist in our list — skip fetching sessions.
+      // DataSourceList or SchemaExplorer will eventually clear the stale ID.
+      return;
+    }
+
     // If we're switching to a different dataSource, clear sessions and fetch
     // If same dataSource (e.g., page refresh), use cached data + background refresh
     const isDifferentDs = lastFetchedDsId.current !== activeDataSourceId;
@@ -126,7 +136,7 @@ export function ChatSessionList() {
       // We have cached data — refresh in background, no spinner
       fetchSessions(false);
     }
-  }, [activeDataSourceId]);
+  }, [activeDataSourceId, dataSources]);
 
   // Create a new chat session
   const handleNewChat = async () => {

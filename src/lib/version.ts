@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.27';
-export const VERSION_NAME = 'Fix race condition: wait for DB sync before rendering';
+export const VERSION = '0.3.28';
+export const VERSION_NAME = 'Fix stale datasource ID: validate + clear on 404 after DB reset';
