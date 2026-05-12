@@ -104,6 +104,30 @@ function HeroSection({
 }) {
     const [isVideoLoaded, setIsVideoLoaded] = React.useState(false);
 
+    // Diagnóstico: verificar si el archivo MP4 es accesible desde el servidor
+    React.useEffect(() => {
+        const videoPath = '/hero/datamind-hero-movie.mp4';
+        console.log('[DataMind Hero] 🔍 Checking if MP4 file is accessible at', videoPath);
+        fetch(videoPath, { method: 'HEAD' })
+            .then((res) => {
+                if (res.ok) {
+                    console.log('[DataMind Hero] ✅ MP4 file reachable', {
+                        status: res.status,
+                        contentType: res.headers.get('content-type'),
+                        contentLength: res.headers.get('content-length'),
+                    });
+                } else {
+                    console.error('[DataMind Hero] ❌ MP4 file NOT reachable!', {
+                        status: res.status,
+                        statusText: res.statusText,
+                    });
+                }
+            })
+            .catch((err) => {
+                console.error('[DataMind Hero] ❌ Fetch failed for MP4 file:', err.message);
+            });
+    }, []);
+
     return (
         <section className="relative bg-gray-950 h-svh overflow-hidden flex items-center">
             {/* Layer 1: Background video */}
@@ -112,10 +136,49 @@ function HeroSection({
                 loop
                 muted
                 playsInline
-                onCanPlay={() => setIsVideoLoaded(true)}
-                onLoadedData={() => setIsVideoLoaded(true)}
-                onLoadedMetadata={() => setIsVideoLoaded(true)}
-                onError={() => setIsVideoLoaded(true)}
+                onLoadStart={() => console.log('[DataMind Hero] 🎬 Video load started')}
+                onLoadedMetadata={(e) => {
+                    const v = e.currentTarget;
+                    console.log('[DataMind Hero] 📋 Metadata loaded', {
+                        duration: v.duration,
+                        videoWidth: v.videoWidth,
+                        videoHeight: v.videoHeight,
+                        readyState: v.readyState,
+                    });
+                }}
+                onLoadedData={() => {
+                    console.log('[DataMind Hero] ✅ Data loaded — video ready');
+                    setIsVideoLoaded(true);
+                }}
+                onCanPlay={() => {
+                    console.log('[DataMind Hero] ▶️ Can play — video should be visible');
+                    setIsVideoLoaded(true);
+                }}
+                onCanPlayThrough={() => console.log('[DataMind Hero] 🚀 Can play through without buffering')}
+                onWaiting={() => console.warn('[DataMind Hero] ⏳ Video waiting for data…')}
+                onStalled={() => console.warn('[DataMind Hero] ⚠️ Video download stalled')}
+                onSuspend={() => console.warn('[DataMind Hero] ⏸️ Video download suspended by browser')}
+                onError={(e) => {
+                    const v = e.currentTarget;
+                    const err = v.error;
+                    let reason = 'Unknown error';
+                    if (err) {
+                        switch (err.code) {
+                            case err.MEDIA_ERR_ABORTED: reason = 'Load aborted by user'; break;
+                            case err.MEDIA_ERR_NETWORK: reason = 'Network error while downloading'; break;
+                            case err.MEDIA_ERR_DECODE: reason = 'Decode error (file may be corrupted)'; break;
+                            case err.MEDIA_ERR_SRC_NOT_SUPPORTED: reason = 'Format not supported or src not found'; break;
+                        }
+                    }
+                    console.error('[DataMind Hero] ❌ Video FAILED to load!', {
+                        reason,
+                        code: err?.code,
+                        currentSrc: v.currentSrc,
+                        networkState: v.networkState,
+                        readyState: v.readyState,
+                    });
+                    setIsVideoLoaded(true); // still hide image loader
+                }}
                 className="absolute inset-0 w-full h-full object-cover"
             >
                 <source src="/hero/datamind-hero-movie.mp4" type="video/mp4" />
