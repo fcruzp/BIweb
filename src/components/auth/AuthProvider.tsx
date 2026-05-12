@@ -248,6 +248,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log(`[AuthProvider] onAuthStateChange: event=${event}, hasSession=${!!session}, email=${session?.user?.email}`);
+
         // Handle session recovery failures
         if ((event as string) === 'TOKEN_REFRESH_FAILED' || event === 'SIGNED_OUT') {
           setUser(null);
@@ -264,10 +266,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (session?.user) {
           setIsAuthModalOpen(false);
           if (!hasSyncedRef.current || event === 'SIGNED_IN') {
+            console.log(`[AuthProvider] Syncing DB user after ${event}...`);
             // Delay sync to ensure cookies are written — the onAuthStateChange
             // callback fires BEFORE the browser has finished persisting cookies
             await new Promise(resolve => setTimeout(resolve, 300));
             await syncDbUser();
+            console.log('[AuthProvider] DB user sync complete');
           }
           // Clean up URL params
           if (window.location.search.includes('auth=')) {

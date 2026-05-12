@@ -40,16 +40,22 @@ export default function Home() {
   // Auto-trigger checkout for pending upgrade plan
   // When a user signs up from a pricing CTA, they have a plan saved in sessionStorage.
   // After onboarding completes (or is skipped), we auto-trigger the Stripe checkout.
+  //
+  // CRITICAL: We check BOTH showOnboarding AND dbUser to prevent a race condition:
+  //   - onAuthStateChange sets isAuthenticated=true BEFORE syncDbUser finishes
+  //   - Without the dbUser check, this effect would fire and redirect to checkout
+  //     BEFORE the onboarding screen is even shown
   useEffect(() => {
-    // Skip if already attempted, not ready, or still in onboarding
     if (checkoutAttemptedRef.current) return;
-    if (!isAuthenticated || isLoading || showOnboarding) return;
+    if (!isAuthenticated || isLoading || showOnboarding || !dbUser) return;
 
     const pendingPlan = getPendingUpgradePlan() as PlanId | null;
     if (!pendingPlan || !PLANS[pendingPlan]) return;
 
     // Mark as attempted immediately to prevent double-trigger
     checkoutAttemptedRef.current = true;
+
+    console.log(`[Home] Auto-checkout triggered for plan: ${pendingPlan}`);
 
     // Use an IIFE inside useEffect (not setTimeout) to avoid cleanup race conditions.
     // The checkout redirect (window.location.href) will unmount the entire app anyway.
@@ -82,7 +88,7 @@ export default function Home() {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, isLoading, showOnboarding]);
+  }, [isAuthenticated, isLoading, showOnboarding, dbUser]);
 
   const handleOnboardingComplete = useCallback(async (loadDemoData: boolean) => {
     if (loadDemoData) {
@@ -121,6 +127,22 @@ export default function Home() {
     return <WelcomeScreen />;
   }
 
+  // CRITICAL: Wait for DB sync to complete before rendering anything else.
+  // This prevents a race condition where:
+  //   1. onAuthStateChange sets isAuthenticated=true
+  //   2. But syncDbUser() hasn't finished yet → dbUser is null, showOnboarding is false
+  //   3. The main app renders briefly (or auto-checkout fires prematurely)
+  if (!dbUser) {
+    return (
+      <div className="flex h-svh items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
+          <p className="text-sm text-muted-foreground">Sincronizando tu cuenta...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Show onboarding for new users
   if (showOnboarding) {
     if (isCreatingDemo) {
@@ -136,7 +158,7 @@ export default function Home() {
     return <OnboardingScreen onComplete={handleOnboardingComplete} />;
   }
 
-  // Show the main app when authenticated
+  // Show the main app when authenticated + synced + onboarded
   return (
     <AppLayout>
       <div className="h-full overflow-hidden">

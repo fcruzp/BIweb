@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.26';
-export const VERSION_NAME = 'Fix proxy.ts conflict — Next.js 16 uses proxy not middleware';
+export const VERSION = '0.3.27';
+export const VERSION_NAME = 'Fix race condition: wait for DB sync before rendering';
