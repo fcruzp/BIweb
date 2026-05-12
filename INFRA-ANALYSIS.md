@@ -105,12 +105,13 @@ Una vez PostgreSQL local esté funcionando, se procede con la integración Strip
 | **3 (cierre)** | Onboarding + Redirect | ⬜ Pendiente | Rápido, 1-2 sesiones |
 | **4.0** | PostgreSQL Local (Staging) | ⬜ Pendiente | Migrar DB a Coolify PostgreSQL, Auth sigue en Supabase |
 | **4.1-4.6** | Stripe Mock | ⬜ Pendiente | UI completa, sin llamadas reales a Stripe |
-| **5** | Usage Dashboard + Métricas | ⬜ Pendiente | |
-| **6** | Admin Panel | ⬜ Pendiente | |
-| **7** | VPS Nuevo + Dominio Producción | ⬜ Pendiente | Comprar VPS + `datamind.bi`, configurar Coolify |
-| **7.5** | Stripe Live | ⬜ Pendiente | Activar Stripe real en producción |
-| **8** | Seguridad + Legal | ⬜ Pendiente | ToS, Privacidad, GDPR, cookies |
-| **9** | Onboarding + UX Polish | ⬜ Pendiente | Tutorial, demo data, animaciones |
+| **5** | Biblioteca de Mapas SVG | ⬜ Pendiente | Multi-país + SVGs custom de usuario + detección automática |
+| **6** | Usage Dashboard + Métricas | ⬜ Pendiente | |
+| **7** | Admin Panel | ⬜ Pendiente | |
+| **8** | VPS Nuevo + Dominio Producción | ⬜ Pendiente | Comprar VPS + `datamind.bi`, configurar Coolify |
+| **8.5** | Stripe Live | ⬜ Pendiente | Activar Stripe real en producción |
+| **9** | Seguridad + Legal | ⬜ Pendiente | ToS, Privacidad, GDPR, cookies |
+| **10** | Onboarding + UX Polish | ⬜ Pendiente | Tutorial, demo data, animaciones |
 
 ---
 

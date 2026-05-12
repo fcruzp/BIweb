@@ -259,7 +259,128 @@
 
 ---
 
-## Fase 5: Dashboard de Uso + Métricas
+## Fase 5: Biblioteca de Mapas SVG (Multi-País + Custom)
+
+### Estado Actual
+
+Actualmente el sistema solo soporta mapas de República Dominicana:
+- `src/lib/dr-map-constants.ts` — Paths SVG y códigos de provincias DR
+- `src/lib/dr-map-data.json` — Datos de georreferenciación DR
+- `src/components/app/visualization/dr-map.tsx` — Componente de heatmap DR
+- Normalización de nombres de provincias DR (aliases, acentos, abreviaturas)
+
+### Objetivo
+
+Expandir el sistema de mapas para soportar múltiples países y permitir a los usuarios subir sus propios SVGs.
+
+### Mapas del Sistema (Pre-cargados)
+
+| País | Código ISO | Regiones | Prioridad | Fuente SVG |
+|------|-----------|----------|-----------|------------|
+| 🇩🇴 Rep. Dominicana | DO | 32 provincias | ✅ Ya existe | Incluido |
+| 🇺🇸 Estados Unidos | US | 50 estados | Alta | svg-map npm / Natural Earth |
+| 🇲🇽 México | MX | 32 estados | Alta | svg-map npm / Natural Earth |
+| 🇨🇴 Colombia | CO | 32 departamentos | Alta | svg-map npm / Natural Earth |
+| 🇦🇷 Argentina | AR | 23 provincias | Media | svg-map npm / Natural Earth |
+| 🇨🇱 Chile | CL | 16 regiones | Media | svg-map npm / Natural Earth |
+| 🇵🇪 Perú | PE | 25 departamentos | Media | svg-map npm / Natural Earth |
+| 🇧🇷 Brasil | BR | 27 estados | Media | svg-map npm / Natural Earth |
+| 🇪🇸 España | ES | 17 CCAA | Media | svg-map npm / Natural Earth |
+| 🇵🇦 Panamá | PA | 10 provincias | Baja | Custom / Natural Earth |
+| 🇪🇨 Ecuador | EC | 24 provincias | Baja | Custom / Natural Earth |
+| 🇺🇾 Uruguay | UY | 19 departamentos | Baja | Custom / Natural Earth |
+| 🇻🇪 Venezuela | VE | 23 estados | Baja | Custom / Natural Earth |
+| 🇨🇷 Costa Rica | CR | 7 provincias | Baja | Custom / Natural Earth |
+| 🇬🇹 Guatemala | GT | 22 departamentos | Baja | Custom / Natural Earth |
+
+### Detección Automática de País
+
+El sistema debe detectar automáticamente qué mapa usar basándose en:
+
+1. **Columna geográfica** — Si los valores coinciden con regiones de un país específico
+2. **Contexto del DataSource** — Si el schema menciona un país (ej: "ventas_mexico.db")
+3. **Selección manual** — Si la IA no puede determinar el país, sugerir opciones al usuario
+4. **Preferencia del usuario** — País predeterminado en Settings
+
+### Flujo de Detección
+
+```
+Datos con columna geográfica
+  → AI analiza valores de la columna
+  → Coincide con regiones de país X? → Usar mapa de país X
+  → Coincide con múltiples países? → Mostrar selector al usuario
+  → No coincide con ninguno? → Mostrar opción de subir SVG custom
+```
+
+### SVGs Custom del Usuario (Librería Personal)
+
+Los usuarios podrán subir sus propios SVGs para regiones no cubiertas por el sistema.
+
+#### Requisitos del SVG
+
+| Requisito | Detalle |
+|-----------|---------|
+| **Formato** | SVG válido, con `<path>` por cada región |
+| **atributo `data-name`** | Cada `<path>` debe tener `data-name="Nombre de región"` |
+| **atributo `data-id`** | Opcional: código único de la región (ej: `data-id="MX-CDMX"`) |
+| **Sin estilos inline** | El sistema aplica colores programáticamente |
+| **viewBox** | Debe tener viewBox definido |
+| **Tamaño máximo** | 2MB |
+| **Idioma** | Nombres de regiones en el idioma del usuario |
+
+#### Ejemplo de SVG válido
+
+```xml
+<svg viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
+  <path data-name="Ciudad de México" data-id="MX-CDMX" d="M 100 200 L 150 250 ..." />
+  <path data-name="Jalisco" data-id="MX-JAL" d="M 200 100 L 250 150 ..." />
+  <path data-name="Nuevo León" data-id="MX-NLE" d="M 300 50 L 350 100 ..." />
+</svg>
+```
+
+#### Modelo de Datos
+
+```
+Model: MapLibrary
+  id          String   @id @default(cuid())
+  userId      String   // null = sistema, String = librería personal
+  name        String   // "México - Estados"
+  countryCode String?  // ISO 3166-1 alpha-2 (ej: "MX")
+  svgContent  String   // SVG completo almacenado como texto
+  regions     Json     // Array de { name, id, aliases[] }
+  source      String   // "system" | "user"
+  isPublic    Boolean  @default(false) // futuro: compartir con otros usuarios
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User? @relation(fields: [userId], references: [id])
+```
+
+### Tareas
+
+| Tarea | Estado |
+|-------|--------|
+| Refactorizar dr-map.tsx → mapa genérico (recibe SVG + regions config) | ⬜ Pendiente |
+| Crear modelo MapLibrary en Prisma | ⬜ Pendiente |
+| API: `GET /api/maps` — Lista mapas disponibles (sistema + usuario) | ⬜ Pendiente |
+| API: `POST /api/maps/upload` — Subir SVG custom con validación | ⬜ Pendiente |
+| API: `DELETE /api/maps/[id]` — Eliminar mapa custom | ⬜ Pendiente |
+| API: `POST /api/maps/detect-country` — Detectar país de datos | ⬜ Pendiente |
+| Componente: `GeoMap` genérico (reemplaza DRHeatMap) | ⬜ Pendiente |
+| Componente: Selector de país/mapa | ⬜ Pendiente |
+| Componente: Upload de SVG custom con preview y validación | ⬜ Pendiente |
+| Componente: Editor de aliases de regiones | ⬜ Pendiente |
+| Integración con AI: detectar país y sugerir mapa | ⬜ Pendiente |
+| Agregar SVGs de países priorizados (US, MX, CO, AR) | ⬜ Pendiente |
+| Agregar SVGs de países secundarios | ⬜ Pendiente |
+| Migrar mapa DR existente al nuevo sistema genérico | ⬜ Pendiente |
+| Normalización de nombres por país (como PROVINCE_ALIASES pero por país) | ⬜ Pendiente |
+
+### Estimación: 2-3 semanas
+
+---
+
+## Fase 6: Dashboard de Uso + Métricas
 
 ### Métricas a Mostrar (TODAS)
 
@@ -303,7 +424,7 @@
 
 ---
 
-## Fase 6: Panel de Admin
+## Fase 7: Panel de Admin
 
 ### Funciones (TODAS)
 
@@ -332,7 +453,7 @@
 
 ---
 
-## Fase 7: Hosting + Dominio
+## Fase 8: Hosting + Dominio
 
 | Decisión | Elección |
 |----------|----------|
@@ -358,7 +479,7 @@
 
 ---
 
-## Fase 8: Seguridad + Legal
+## Fase 9: Seguridad + Legal
 
 | Decisión | Elección |
 |----------|----------|
@@ -387,7 +508,7 @@
 
 ---
 
-## Fase 9: Onboarding + UX Polish
+## Fase 10: Onboarding + UX Polish
 
 ### Tareas
 
@@ -445,13 +566,14 @@ Con Z-AI (sin costo de IA):
 | 1. Supabase + PostgreSQL | 1.5-2 | Semana 2 |
 | 2. Auth + Multi-Tenant | 1.5-2 | Semana 4 |
 | 3. Landing + Onboarding | 1 | Semana 5 |
-| 4. Pricing + Pagos | 1.5 | Semana 6.5 |
-| 5. Dashboard de Uso | 1.5 | Semana 8 |
-| 6. Panel Admin | 1 | Semana 9 |
-| 7. Hosting + Dominio | 0.5 | Semana 9.5 |
-| 8. Seguridad + Legal | 0.5 | Semana 10 |
-| 9. Onboarding + Polish | 1 | Semana 11 |
-| **Total estimado** | **~10-11 semanas** | |
+| 4. Pricing + Pagos (Stripe) | 1.5 | Semana 6.5 |
+| 5. Biblioteca de Mapas SVG | 2-3 | Semana 9 |
+| 6. Dashboard de Uso + Métricas | 1.5 | Semana 10.5 |
+| 7. Panel Admin | 1 | Semana 11.5 |
+| 8. Hosting + Dominio | 0.5 | Semana 12 |
+| 9. Seguridad + Legal | 0.5 | Semana 12.5 |
+| 10. Onboarding + Polish | 1 | Semana 13.5 |
+| **Total estimado** | **~12-14 semanas** | |
 
 ---
 
@@ -460,11 +582,11 @@ Con Z-AI (sin costo de IA):
 **Fase 1-2 COMPLETADAS** ✅ — Supabase PostgreSQL + Auth + Multi-Tenant operativos.
 **Fase 3 PARCIAL** ✅ — Landing page, export, plans, usage tracking implementados.
 
-### Siguiente: Fase 3 pendiente + Fase 4 — Onboarding + Stripe Payments
+### Siguiente: Fase 3 pendiente + Fase 4 — Onboarding + Stripe (Mock) + PostgreSQL Local
 
 1. ⬜ Onboarding flow para nuevos usuarios (demo con datos de ejemplo)
 2. ⬜ Redirección post-login inteligente
-3. ⬜ Integrar Stripe (`stripe` + `@stripe/stripe-js` + webhooks)
-4. ⬜ Crear productos y precios en Stripe (5 planes)
-5. ⬜ Checkout flow (seleccionar plan → Stripe Checkout → webhook confirma)
-6. ⬜ Portal de cliente Stripe (cambiar plan, cancelar, ver facturas)
+3. ⬜ Migrar a PostgreSQL local (Coolify service) — mantener Supabase Auth
+4. ⬜ Integrar Stripe mock (UI completa, sin llamadas reales)
+5. ⬜ Activar Stripe real cuando VPS nuevo + dominio estén listos
+6. ⬜ Fase 5: Biblioteca de Mapas SVG (multi-país + custom uploads)
