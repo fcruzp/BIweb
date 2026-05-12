@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.7';
-export const VERSION_NAME = 'Usage Dialog Glassmorphism';
+export const VERSION = '0.3.8';
+export const VERSION_NAME = 'Hero Video Fix';

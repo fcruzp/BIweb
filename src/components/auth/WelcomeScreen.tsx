@@ -106,20 +106,20 @@ function HeroSection({
       {/* Background video */}
       <video
         className="absolute inset-0 w-full h-full object-cover"
+        src="/hero/datamind-hero-movie.mp4"
         autoPlay
         loop
         muted
         playsInline
+        preload="auto"
         poster="/hero/datamind-hero.png"
-      >
-        <source src="/hero/datamind-hero-movie.mp4" type="video/mp4" />
-      </video>
+      />
 
       {/* Dark overlay to ensure text readability */}
-      <div className="absolute inset-0 bg-gray-950/60" />
+      <div className="absolute inset-0 bg-gray-950/40" />
 
       {/* Gradient: subtle top + strong bottom fade into next section */}
-      <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/20 to-gray-950/40" />
+      <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-transparent to-gray-950/20" />
 
       <div className="relative max-w-4xl mx-auto px-4 sm:px-6 text-center">
         {/* Badge */}
