@@ -39,11 +39,10 @@ import { useI18n } from '@/hooks/use-i18n';
 import { authFetch } from '@/lib/fetch-utils';
 
 export function AppSidebar() {
-  const { currentView, setCurrentView, activeDataSourceId, setActiveSession, addChatSession } =
+  const { currentView, setCurrentView, activeDataSourceId, setActiveSession, addChatSession, uploadDialogOpen, setUploadDialogOpen } =
     useAppStore();
   const { clearMessages } = useChatStore();
   const { provider, isConfigured } = useAIConfigStore();
-  const [uploadOpen, setUploadOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { t } = useI18n();
 
@@ -125,7 +124,7 @@ export function AppSidebar() {
         {/* Data Sources */}
         <SidebarGroup>
           <SidebarGroupLabel>{t('datasources')}</SidebarGroupLabel>
-          <SidebarGroupAction onClick={() => setUploadOpen(true)} title={t('uploadDataSource')}>
+          <SidebarGroupAction onClick={() => setUploadDialogOpen(true)} title={t('uploadDataSource')}>
             <Plus className="h-4 w-4" />
           </SidebarGroupAction>
           <SidebarGroupContent>
@@ -189,7 +188,7 @@ export function AppSidebar() {
         </div>
       </SidebarFooter>
 
-      <DataSourceUpload open={uploadOpen} onOpenChange={setUploadOpen} />
+      <DataSourceUpload open={uploadDialogOpen} onOpenChange={setUploadDialogOpen} />
       <AISettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </Sidebar>
   );

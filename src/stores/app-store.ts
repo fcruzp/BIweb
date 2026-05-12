@@ -43,6 +43,7 @@ interface AppState {
   // UI state
   sidebarOpen: boolean;
   sidebarCollapsed: boolean;
+  uploadDialogOpen: boolean;
 
   // Data sources cache — PERSISTED for instant sidebar rendering
   dataSources: DataSourceInfo[];
@@ -60,6 +61,7 @@ interface AppState {
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
+  setUploadDialogOpen: (open: boolean) => void;
   setDataSources: (sources: DataSourceInfo[]) => void;
   setDataSourcesLoading: (loading: boolean) => void;
   addDataSource: (source: DataSourceInfo) => void;
@@ -82,6 +84,7 @@ export const useAppStore = create<AppState>()(
       currentView: 'chat',
       sidebarOpen: true,
       sidebarCollapsed: false,
+      uploadDialogOpen: false,
       dataSources: [],
       dataSourcesLoading: false,
       chatSessions: [],
@@ -95,6 +98,7 @@ export const useAppStore = create<AppState>()(
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
+      setUploadDialogOpen: (open) => set({ uploadDialogOpen: open }),
       setDataSources: (sources) => set({ dataSources: sources }),
       setDataSourcesLoading: (loading) => set({ dataSourcesLoading: loading }),
       addDataSource: (source) =>

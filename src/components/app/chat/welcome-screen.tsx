@@ -7,7 +7,7 @@ import { useAppStore } from '@/stores/app-store';
 import { useI18n } from '@/hooks/use-i18n';
 
 export function WelcomeScreen() {
-  const { dataSources } = useAppStore();
+  const { dataSources, setUploadDialogOpen } = useAppStore();
   const hasDataSources = dataSources.length > 0;
   const { t } = useI18n();
 
@@ -70,13 +70,7 @@ export function WelcomeScreen() {
       ) : (
         <Button
           className="bg-emerald-600 hover:bg-emerald-700 gap-2"
-          onClick={() => {
-            // The upload dialog is triggered from sidebar, show a hint
-            const sidebarTrigger = document.querySelector('[data-sidebar="trigger"]');
-            if (sidebarTrigger instanceof HTMLElement) {
-              sidebarTrigger.click();
-            }
-          }}
+          onClick={() => setUploadDialogOpen(true)}
         >
           <Upload className="h-4 w-4" />
           {t('uploadFirstDatabase')}

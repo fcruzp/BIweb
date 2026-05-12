@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.2';
-export const VERSION_NAME = 'Fullscreen Hero';
+export const VERSION = '0.3.3';
+export const VERSION_NAME = 'Upload Dialog Fix';
