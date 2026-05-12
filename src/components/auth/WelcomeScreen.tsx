@@ -102,11 +102,9 @@ function HeroSection({
   openAuthModal: (tab: 'signin' | 'signup') => void;
   t: (key: string) => string;
 }) {
-  const [videoReady, setVideoReady] = React.useState(false);
-
   return (
     <section className="relative bg-gray-950 h-svh overflow-hidden flex items-center">
-      {/* Layer 0: Video (bottom layer) */}
+      {/* Background video */}
       <video
         className="absolute inset-0 w-full h-full object-cover"
         autoPlay
@@ -114,42 +112,20 @@ function HeroSection({
         muted
         playsInline
         preload="auto"
-        onCanPlay={() => setVideoReady(true)}
       >
         <source src="/hero/datamind-hero-movie.mp4" type="video/mp4" />
       </video>
 
-      {/* Layer 1: Poster image overlay — shows while video loads, fades when ready */}
-      <div
-        className={`absolute inset-0 transition-opacity duration-700 ${
-          videoReady ? 'opacity-0' : 'opacity-100'
-        }`}
-        style={{ zIndex: 1 }}
-      >
-        <img
-          src="/hero/datamind-hero.png"
-          alt=""
-          className="w-full h-full object-cover"
-        />
-      </div>
-
-      {/* Layer 2: Dark overlay for text readability */}
+      {/* Dark overlay for text readability */}
       <div className="absolute inset-0 bg-gray-950/60" style={{ zIndex: 2 }} />
 
-      {/* Layer 3: Gradient fade at bottom */}
+      {/* Gradient fade at bottom */}
       <div
         className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/20 to-gray-950/40"
         style={{ zIndex: 3 }}
       />
 
-      {/* Spinner — small, bottom-right, only while loading */}
-      {!videoReady && (
-        <div className="absolute bottom-4 right-4" style={{ zIndex: 4 }}>
-          <Loader2 className="h-4 w-4 animate-spin text-emerald-400/60" />
-        </div>
-      )}
-
-      {/* Layer 5: Content — text, buttons, etc. */}
+      {/* Content */}
       <div className="relative max-w-4xl mx-auto px-4 sm:px-6 text-center" style={{ zIndex: 5 }}>
         {/* Badge */}
         <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 mb-8">
