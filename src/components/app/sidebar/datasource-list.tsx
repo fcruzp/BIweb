@@ -3,6 +3,9 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAppStore } from '@/stores/app-store';
 import { useAIConfigStore } from '@/stores/ai-config-store';
+import { useDashboardStore } from '@/stores/dashboard-store';
+import { useHistoryStore } from '@/stores/history-store';
+import { useChatStore } from '@/stores/chat-store';
 import {
   SidebarMenu,
   SidebarMenuButton,
@@ -33,9 +36,13 @@ export function DataSourceList() {
     activeDataSourceId,
     setActiveDataSource,
     removeDataSource,
+    removeChatSessionsByDataSourceId,
     updateDataSource,
   } = useAppStore();
   const { provider, modelId, openrouterApiKey, customModelId, useCustomModel } = useAIConfigStore();
+  const { removeWidgetsByDataSourceId } = useDashboardStore();
+  const { clearHistoryByDataSourceId } = useHistoryStore();
+  const { clearMessages } = useChatStore();
 
   const [infoDataSourceId, setInfoDataSourceId] = useState<string | null>(null);
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
@@ -128,9 +135,15 @@ export function DataSourceList() {
     try {
       const res = await authFetch(`/api/datasources/${id}`, { method: 'DELETE' });
       if (res.ok) {
+        // Clean up all stores that reference this dataSource
         removeDataSource(id);
+        removeChatSessionsByDataSourceId(id);
+        removeWidgetsByDataSourceId(id);
+        clearHistoryByDataSourceId(id);
+        // If this was the active dataSource, clear chat messages and reset selection
         if (activeDataSourceId === id) {
           setActiveDataSource(null);
+          clearMessages();
         }
       }
     } catch (error) {

@@ -22,6 +22,7 @@ interface HistoryState {
   setLastDataSourceId: (id: string | null) => void;
   addHistoryItem: (item: HistoryItem) => void;
   clearHistory: () => void;
+  clearHistoryByDataSourceId: (dataSourceId: string) => void;
 }
 
 export const useHistoryStore = create<HistoryState>()(
@@ -37,6 +38,15 @@ export const useHistoryStore = create<HistoryState>()(
       addHistoryItem: (item) =>
         set((state) => ({ history: [item, ...state.history] })),
       clearHistory: () => set({ history: [] }),
+      clearHistoryByDataSourceId: (dataSourceId) =>
+        set((state) => {
+          // History items are loaded per-dataSource and tracked via lastDataSourceId.
+          // If the deleted dataSource is the one currently shown, clear everything.
+          if (state.lastDataSourceId === dataSourceId) {
+            return { history: [], lastDataSourceId: null };
+          }
+          return state;
+        }),
     }),
     {
       name: 'datamind-history-state',

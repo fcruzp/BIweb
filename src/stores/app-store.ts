@@ -70,6 +70,7 @@ interface AppState {
   addChatSession: (session: ChatSessionInfo) => void;
   removeChatSession: (id: string) => void;
   updateChatSession: (id: string, updates: Partial<ChatSessionInfo>) => void;
+  removeChatSessionsByDataSourceId: (dataSourceId: string) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -122,6 +123,19 @@ export const useAppStore = create<AppState>()(
             s.id === id ? { ...s, ...updates } : s
           ),
         })),
+      removeChatSessionsByDataSourceId: (dataSourceId) =>
+        set((state) => {
+          const remainingSessions = state.chatSessions.filter(
+            (s) => s.dataSourceId !== dataSourceId
+          );
+          return {
+            chatSessions: remainingSessions,
+            activeSessionId:
+              state.activeSessionId && !remainingSessions.some((s) => s.id === state.activeSessionId)
+                ? null
+                : state.activeSessionId,
+          };
+        }),
     }),
     {
       name: 'datamind-app-state',

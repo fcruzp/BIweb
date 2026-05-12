@@ -87,12 +87,21 @@ export async function DELETE(
       fs.unlinkSync(resolvedPath);
     }
 
-    // Delete the database record (cascades will handle related records)
+    // Delete DashboardWidgets that reference this dataSource
+    // (not a Prisma relation, so no cascade — must delete manually)
+    const deletedWidgets = await db.dashboardWidget.deleteMany({
+      where: { dataSourceId: id },
+    });
+
+    // Delete the database record (cascades handle schemas, contexts, sessions, messages, queries)
     await db.dataSource.delete({
       where: { id },
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({
+      success: true,
+      deletedWidgets: deletedWidgets.count,
+    });
   } catch (error) {
     if (error instanceof Error && error.message === 'Authentication required') {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });

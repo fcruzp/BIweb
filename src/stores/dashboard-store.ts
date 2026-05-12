@@ -42,6 +42,7 @@ interface DashboardState {
   addWidget: (dashboardId: string, widget: WidgetConfig) => void;
   removeWidget: (dashboardId: string, widgetId: string) => void;
   updateWidget: (dashboardId: string, widgetId: string, updates: Partial<WidgetConfig>) => void;
+  removeWidgetsByDataSourceId: (dataSourceId: string) => void;
 }
 
 export const useDashboardStore = create<DashboardState>()(
@@ -109,6 +110,16 @@ export const useDashboardStore = create<DashboardState>()(
             state.activeDashboard?.id === dashboardId
               ? { ...state.activeDashboard, widgets: state.activeDashboard.widgets.map((w) => w.id === widgetId ? { ...w, ...updates } : w) }
               : state.activeDashboard,
+        })),
+      removeWidgetsByDataSourceId: (dataSourceId) =>
+        set((state) => ({
+          dashboards: state.dashboards.map((d) => ({
+            ...d,
+            widgets: d.widgets.filter((w) => w.dataSourceId !== dataSourceId),
+          })),
+          activeDashboard: state.activeDashboard
+            ? { ...state.activeDashboard, widgets: state.activeDashboard.widgets.filter((w) => w.dataSourceId !== dataSourceId) }
+            : null,
         })),
     }),
     {
