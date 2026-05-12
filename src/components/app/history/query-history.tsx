@@ -13,12 +13,14 @@ import { toast } from 'sonner';
 import { authFetch } from '@/lib/fetch-utils';
 import { generateId } from '@/lib/client-uuid';
 import { useI18n } from '@/hooks/use-i18n';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 export function QueryHistory() {
   const { activeDataSourceId } = useAppStore();
   const { addMessage, setLoading } = useChatStore();
   const { history, historyLoading, lastDataSourceId, setHistory, setHistoryLoading, setLastDataSourceId } = useHistoryStore();
   const { t } = useI18n();
+  const { isAuthenticated } = useAuth();
 
   // Stale-while-revalidate: show cached data immediately, refresh in background
   useEffect(() => {
@@ -27,6 +29,7 @@ export function QueryHistory() {
       setLastDataSourceId(null);
       return;
     }
+    if (!isAuthenticated) return; // Don't fetch if not authenticated
 
     async function loadHistory() {
       setHistoryLoading(true);

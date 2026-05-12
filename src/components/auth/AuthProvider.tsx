@@ -267,35 +267,70 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Listen for global auth-expired events from authFetch
   // When any API call returns 401, authFetch dispatches this event.
   // We debounce it — if we see multiple 401s in quick succession, only
-  // handle the first one.
+  // handle the first one. Once recovery fails, we immediately sign out
+  // and DO NOT retry (prevents the 401 cascade loop).
   useEffect(() => {
     let handlingExpired = false;
+    let permanentlyExpired = false;
 
     const handleAuthExpired = async () => {
+      // If we already determined the session is unrecoverable, ignore all future events
+      if (permanentlyExpired) return;
       if (handlingExpired) return;
       handlingExpired = true;
 
       console.warn('[AuthProvider] Auth expired event received — attempting session recovery');
 
-      // Don't sign out immediately — try refreshing the session first
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.refreshSession();
+      try {
+        // Don't sign out immediately — try refreshing the session first
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.refreshSession();
 
-      if (session) {
-        // Session refreshed successfully — retry sync
-        console.log('[AuthProvider] Session refreshed after auth expiry — retrying sync');
-        await syncDbUser();
-      } else {
-        // Can't recover — sign out
-        console.warn('[AuthProvider] Cannot recover session — signing out');
-        await supabase.auth.signOut();
+        if (session) {
+          // Session refreshed successfully — retry sync
+          console.log('[AuthProvider] Session refreshed after auth expiry — retrying sync');
+          await syncDbUser();
+          // Recovery worked — reset the flag
+          permanentlyExpired = false;
+        } else {
+          // Can't recover — sign out immediately and permanently
+          console.warn('[AuthProvider] Cannot recover session — signing out permanently');
+          permanentlyExpired = true;
+          await supabase.auth.signOut();
+          setUser(null);
+          setDbUser(null);
+          setShowOnboarding(false);
+          hasSyncedRef.current = false;
+          setIsLoading(false);
+
+          // Clear all auth cookies manually to prevent stale cookies
+          try {
+            document.cookie.split(';').forEach(cookie => {
+              const name = cookie.trim().split('=')[0];
+              if (name.startsWith('sb-') || name.startsWith('sb_')) {
+                document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+              }
+            });
+          } catch {
+            // Ignore cookie clearing errors
+          }
+        }
+      } catch (err) {
+        // refreshSession itself failed — session is definitely unrecoverable
+        console.warn('[AuthProvider] Session recovery threw error — signing out permanently:', err);
+        permanentlyExpired = true;
+        const supabase = createClient();
+        try { await supabase.auth.signOut(); } catch {}
         setUser(null);
         setDbUser(null);
+        setShowOnboarding(false);
         hasSyncedRef.current = false;
+        setIsLoading(false);
       }
 
-      // Reset after 5s to prevent continuous handling
-      setTimeout(() => { handlingExpired = false; }, 5000);
+      // Reset handling flag after 3s (shorter than before to avoid pileup)
+      // But keep permanentlyExpired = true if recovery failed
+      setTimeout(() => { handlingExpired = false; }, 3000);
     };
 
     window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);

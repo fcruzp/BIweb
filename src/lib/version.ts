@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.17';
-export const VERSION_NAME = 'Fix Missing libstdc++ in Docker Runner';
+export const VERSION = '0.3.18';
+export const VERSION_NAME = 'Fix 401 Auth Cascade Loop';

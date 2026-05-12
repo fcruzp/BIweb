@@ -43,6 +43,7 @@ import { AddWidgetDialog, type WidgetType } from './add-widget-dialog';
 import { WidgetRenderer } from './widget-renderer';
 import { useI18n } from '@/hooks/use-i18n';
 import { authFetch } from '@/lib/fetch-utils';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 export function DashboardView() {
   const {
@@ -64,10 +65,12 @@ export function DashboardView() {
   const [addWidgetOpen, setAddWidgetOpen] = useState(false);
   const [deletingWidgetId, setDeletingWidgetId] = useState<string | null>(null);
   const { t } = useI18n();
+  const { isAuthenticated } = useAuth();
 
   // Stale-while-revalidate: show cached dashboards immediately, refresh in background
   // Only fetch on mount — cached data comes from Zustand persist
   useEffect(() => {
+    if (!isAuthenticated) return; // Don't fetch if not authenticated
     let cancelled = false;
     async function loadDashboards() {
       // Only show full loading spinner if no cached data

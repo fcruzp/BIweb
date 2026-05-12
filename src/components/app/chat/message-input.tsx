@@ -145,7 +145,7 @@ export function MessageInput() {
 
       let res: Response;
       try {
-        res = await fetch('/api/chat', {
+        res = await authFetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

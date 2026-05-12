@@ -24,6 +24,7 @@ import {
 import { toast } from 'sonner';
 import { useI18n } from '@/hooks/use-i18n';
 import { authFetch, isAuthError } from '@/lib/fetch-utils';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 export function ChatSessionList() {
   const {
@@ -41,6 +42,7 @@ export function ChatSessionList() {
 
   const { loadMessages, clearMessages } = useChatStore();
   const { t } = useI18n();
+  const { isAuthenticated } = useAuth();
 
   // Inline rename state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -106,6 +108,7 @@ export function ChatSessionList() {
       lastFetchedDsId.current = null;
       return;
     }
+    if (!isAuthenticated) return; // Don't fetch if not authenticated
 
     // If we're switching to a different dataSource, clear sessions and fetch
     // If same dataSource (e.g., page refresh), use cached data + background refresh

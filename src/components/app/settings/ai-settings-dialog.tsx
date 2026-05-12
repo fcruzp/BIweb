@@ -40,6 +40,7 @@ import {
 import { LocaleSwitcher } from '@/components/app/locale-switcher';
 import { toast } from 'sonner';
 import { useI18n } from '@/hooks/use-i18n';
+import { authFetch } from '@/lib/fetch-utils';
 
 interface AISettingsDialogProps {
   open: boolean;
@@ -78,7 +79,7 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
   const handleTestConnection = async () => {
     setTesting(true);
     try {
-      const res = await fetch('/api/ai/check', {
+      const res = await authFetch('/api/ai/check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

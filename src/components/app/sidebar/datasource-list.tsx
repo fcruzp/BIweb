@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useI18n } from '@/hooks/use-i18n';
 import { authFetch, isAuthError } from '@/lib/fetch-utils';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 export function DataSourceList() {
   const {
@@ -50,6 +51,7 @@ export function DataSourceList() {
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const initialFetchDone = useRef(false);
   const { t } = useI18n();
+  const { isAuthenticated } = useAuth();
 
   // Background refresh — fetches latest data and updates the store silently.
   // If cached data exists (from Zustand persist), we render it immediately
@@ -82,11 +84,12 @@ export function DataSourceList() {
   // Initial fetch — background refresh if we have cached data, blocking if empty
   useEffect(() => {
     if (initialFetchDone.current) return;
+    if (!isAuthenticated) return; // Don't fetch if not authenticated
     initialFetchDone.current = true;
     // If we already have cached data, refresh in background (no spinner)
     // If no cached data, show loading spinner
     loadDataSources(dataSources.length === 0);
-  }, []);
+  }, [isAuthenticated]);
 
   // Poll for "analyzing" status changes
   useEffect(() => {
