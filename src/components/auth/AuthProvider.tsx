@@ -87,11 +87,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     const supabase = createClient();
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // signOut can fail if the user was deleted from Supabase.
+      // That's fine — we still need to clean up local state.
+    }
+    // Always clear local state regardless of signOut result
     setUser(null);
     setDbUser(null);
     setShowOnboarding(false);
     hasSyncedRef.current = false;
+
+    // Force-clear all Supabase auth cookies in case signOut failed
+    try {
+      document.cookie.split(';').forEach(cookie => {
+        const name = cookie.trim().split('=')[0];
+        if (name.startsWith('sb-') || name.startsWith('sb_')) {
+          document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+        }
+      });
+    } catch {
+      // Ignore cookie clearing errors
+    }
   }, []);
 
   const completeOnboarding = useCallback(async (interestArea?: string) => {

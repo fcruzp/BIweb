@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.21';
-export const VERSION_NAME = 'Auto-Checkout from Landing Page Plan CTA';
+export const VERSION = '0.3.22';
+export const VERSION_NAME = 'Fix signOut for deleted Supabase users';
