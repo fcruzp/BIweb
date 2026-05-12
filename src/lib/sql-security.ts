@@ -57,7 +57,9 @@ export function validateSQLQuery(sql: string): SQLValidationResult {
   }
 
   // Check for semicolons (prevent multi-statement injection)
-  const statements = trimmedSql.split(';').filter((s) => s.trim().length > 0);
+  // Strip trailing semicolons first — they're harmless in SQLite
+  const sqlNoTrailingSemicolon = trimmedSql.replace(/;\s*$/, '');
+  const statements = sqlNoTrailingSemicolon.split(';').filter((s) => s.trim().length > 0);
   if (statements.length > 1) {
     result.isSafe = false;
     result.errors.push('Multiple SQL statements are not allowed');
@@ -71,18 +73,22 @@ export function validateSQLQuery(sql: string): SQLValidationResult {
   // Try to parse the SQL
   try {
     const parser = new Parser();
-    const ast = parser.astify(trimmedSql);
+    const ast = parser.astify(sqlNoTrailingSemicolon);
 
-    if (Array.isArray(ast)) {
+    // node-sql-parser sometimes returns an array even for single statements
+    // (especially with certain SQLite syntax). An array of length 1 is still a single statement.
+    const astNodes = Array.isArray(ast) ? ast : [ast];
+    if (astNodes.length > 1) {
       result.isSafe = false;
       result.errors.push('Multiple SQL statements are not allowed');
       return result;
     }
 
     // Check that it's a SELECT statement
-    if (ast.type !== 'select') {
+    const mainAst = astNodes[0];
+    if (mainAst && mainAst.type !== 'select') {
       result.isSafe = false;
-      result.errors.push(`Only SELECT queries are allowed. Got: ${ast.type}`);
+      result.errors.push(`Only SELECT queries are allowed. Got: ${mainAst.type}`);
     }
   } catch {
     // If parsing fails, it might be invalid SQL
