@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.9';
-export const VERSION_NAME = 'Middleware Static Assets Fix';
+export const VERSION = '0.3.10';
+export const VERSION_NAME = 'Static Assets Fix and Session Recovery';
