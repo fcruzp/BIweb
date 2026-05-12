@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.13';
-export const VERSION_NAME = 'Onboarding Flow + Stripe Mock Integration';
+export const VERSION = '0.3.14';
+export const VERSION_NAME = 'Pre-Phase 4 Push';
