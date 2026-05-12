@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-utils'
 import { createPortalSession } from '@/lib/stripe/service'
 
@@ -8,11 +8,14 @@ import { createPortalSession } from '@/lib/stripe/service'
  * Creates a Stripe Customer Portal session for managing subscriptions.
  * In mock mode, returns a simulated portal URL.
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuth()
+    await requireAuth()
 
-    const session = await createPortalSession()
+    // Derive base URL from the incoming request for live Stripe mode
+    const baseUrl = new URL(request.url).origin
+
+    const session = await createPortalSession(baseUrl)
 
     return NextResponse.json({
       sessionId: session.id,

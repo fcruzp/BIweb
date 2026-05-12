@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-utils'
 import { createCheckoutSession } from '@/lib/stripe/service'
 import { PLANS } from '@/lib/plans'
@@ -9,7 +9,7 @@ import { PLANS } from '@/lib/plans'
  * Creates a Stripe Checkout session for plan upgrade.
  * In mock mode, returns a simulated checkout URL.
  */
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth()
     const body = await request.json()
@@ -34,7 +34,10 @@ export async function POST(request: Request) {
       )
     }
 
-    const session = await createCheckoutSession(planId, billingPeriod)
+    // Derive base URL from the incoming request for live Stripe mode
+    const baseUrl = new URL(request.url).origin
+
+    const session = await createCheckoutSession(planId, billingPeriod, baseUrl)
 
     return NextResponse.json({
       sessionId: session.id,
