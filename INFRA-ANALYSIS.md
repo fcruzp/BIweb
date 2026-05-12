@@ -8,77 +8,138 @@
 |-----------|-------|----------|
 | **App** | Hostinger VPS + Coolify | ✅ Funciona |
 | **Base de datos** | Supabase Free Tier | ⚠️ 500MB límite, dependencia de terceros |
-| **Auth** | Supabase Auth | ⚠️ Atado al ecosistema Supabase |
+| **Auth** | Supabase Auth | ✅ Funciona bien, se mantiene |
 | **Dominio** | `datamind.mooo.com` | ❌ No es profesional para cobrar |
 
-## Opciones Evaluadas
+## Estrategia de Dos VPS
 
-### Opción A: Supabase Free + VPS actual
-- **Costo**: ~$5-10/mes (solo VPS)
-- **Pros**: Ya funciona, sin cambios
-- **Contras**: Dominio no profesional, límite 500MB DB, dependencia total de Supabase
+| Ambiente | VPS | Dominio | Propósito |
+|----------|-----|---------|-----------|
+| **Staging** | VPS actual (Hostinger) | `datamind.mooo.com` | Pruebas, desarrollo, QA |
+| **Producción** | VPS nuevo | `datamind.bi` (por comprar) | Clientes reales, pagos Stripe |
 
-### Opción B: Supabase Pro + VPS nuevo
-- **Costo**: ~$35/mes ($25 Supabase + $10 VPS)
-- **Pros**: Soporte oficial, más recursos
-- **Contras**: Caro para empezar sin clientes, sigue siendo dependencia
-
-### Opción C: PostgreSQL propio + Supabase Auth free (RECOMENDADA)
-- **Costo**: ~$10-15/mes (VPS nuevo)
-- **Pros**: Dueño de tus datos, sin límites artificiales, auth gratis (50K MAU), dominio propio
-- **Contras**: Migración de DB necesaria, Supabase Auth sigue siendo externo
-
-### Opción D: Todo self-hosted (PostgreSQL + NextAuth)
-- **Costo**: ~$10-15/mes (VPS nuevo)
-- **Pros**: Máximo control, cero dependencias externas
-- **Contras**: Reescribir auth = semanas de trabajo, Google OAuth más complejo
-
-## Arquitectura Recomendada (Opción C)
+### Flujo de trabajo
 
 ```
-Nuevo VPS (Coolify)
-├── DataMind BI App (Next.js)
-├── PostgreSQL (Coolify service)    ← Tus datos aquí
-└── Supabase Auth (SaaS free tier)  ← Solo auth, sigue gratis
+Desarrollo local → Push a GitHub → Staging (auto-deploy) → Testing → Producción (manual deploy)
 ```
 
-- **PostgreSQL propio** para los datos de negocio (Prisma solo necesita cambiar `DATABASE_URL`)
-- **Supabase Auth** sigue manejando login/registro/Google OAuth (free tier cubre 50K MAU)
-- Así **eres dueño de tus datos** sin reescribir el auth
+- Staging se actualiza automáticamente con cada push (Coolify webhook)
+- Producción solo se actualiza cuando se verifica en staging
 
-## Plan de Migración
+---
 
-1. **Consigue el VPS nuevo + dominio propio** (`datamind.bi` o similar)
-2. **Instala Coolify + PostgreSQL como servicio**
-3. **Migra la base de datos** (cambiar `DATABASE_URL` en Prisma, correr `db push`)
-4. **Mantén Supabase Auth** en modo free (solo para login, sin datos de negocio ahí)
-5. **Configura Stripe** sobre la nueva infraestructura
+## Arquitectura por Ambiente
 
-## Notas sobre Auth
+### Staging (VPS actual)
 
-El auth con Supabase está profundamente integrado en el proyecto:
+```
+VPS Hostinger (Coolify)
+├── DataMind BI App (Next.js)       ← datamind.mooo.com
+├── PostgreSQL (Coolify service)     ← Datos de prueba
+└── Supabase Auth (SaaS free tier)  ← Auth compartido
+```
 
-- `src/middleware.ts` — Middleware de sesión
-- `src/utils/supabase/` — Client helpers (client, server, middleware)
-- `src/components/auth/` — AuthProvider, AuthModal, UserMenu
-- `src/app/api/auth/` — Sync y user endpoints
-- `src/hooks/use-auth.ts` — Hook de autenticación
-- Google OAuth configurado
+### Producción (VPS nuevo)
 
-Reescribir todo esto a NextAuth/self-hosted es posible pero representa semanas de trabajo. Conviene hacerlo cuando haya revenue entrando, no antes.
+```
+VPS Nuevo (Coolify)
+├── DataMind BI App (Next.js)       ← datamind.bi
+├── PostgreSQL (Coolify service)     ← Datos reales de clientes
+└── Supabase Auth (SaaS free tier)  ← Mismo Auth, misma cuenta
+```
 
-## Fases Pendientes del Roadmap
+**Auth es compartido** — Supabase Auth funciona para ambos dominios (configurar como additional domain en Supabase Dashboard). Un usuario creado en staging funciona en producción y viceversa.
 
-| Fase | Nombre | Status | Prioridad |
-|------|--------|--------|-----------|
-| 3 (cierre) | Onboarding + Redirect | ⬜ Pendiente | Alta — rápido, 1-2 sesiones |
-| 4 | Stripe Payments | ⬜ Pendiente | Alta — clave para monetizar |
-| 5 | Usage Dashboard + Métricas | ⬜ Pendiente | Media |
-| 6 | Admin Panel | ⬜ Pendiente | Media |
-| 7 | Hosting + Dominio | ⬜ Pendiente | Alta — credibilidad para cobrar |
-| 8 | Seguridad + Legal | ⬜ Pendiente | Alta — necesario antes de vender |
-| 9 | Onboarding + UX Polish | ⬜ Pendiente | Baja — iterar con feedback |
+**PostgreSQL es independiente** — Cada VPS tiene su propia base de datos. Datos de prueba en staging, datos reales en producción.
+
+---
+
+## Fase 4 Revisada: PostgreSQL Local + Stripe Mock
+
+### 4.0 — Migrar a PostgreSQL local (en VPS actual/staging)
+
+**Objetivo**: Dejar de depender de Supabase como base de datos. Solo usar Supabase para Auth.
+
+#### Pasos:
+
+1. **Instalar PostgreSQL como servicio en Coolify** (VPS actual)
+2. **Actualizar Prisma** — Cambiar provider y connection string
+3. **Crear la base de datos** — `bun run db push` contra PostgreSQL local
+4. **Migrar datos existentes** — Exportar de Supabase PostgreSQL → Importar a local
+5. **Actualizar variables de entorno** en Coolify:
+   - `DATABASE_URL=postgresql://user:pass@localhost:5432/datamind`
+   - Mantener `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (para Auth)
+6. **Verificar** — Todo funciona igual pero con DB local
+7. **Redeploy** en Coolify
+
+#### Lo que NO cambia:
+
+- `src/utils/supabase/` — Client helpers siguen funcionando (solo para Auth)
+- `src/components/auth/` — AuthProvider, AuthModal, UserMenu intactos
+- `src/middleware.ts` — Sesión sigue con Supabase Auth
+- Google OAuth — Sigue funcionando
+
+#### Lo que SÍ cambia:
+
+- `prisma/schema.prisma` — `provider = "postgresql"` (ya lo es, pero apunta a DB local)
+- `DATABASE_URL` — Apunta a PostgreSQL local en vez de Supabase
+- Datos ahora viven en el VPS, no en Supabase
+
+#### Rollback plan:
+
+Si algo falla, solo hay que cambiar `DATABASE_URL` de vuelta a Supabase y redeployear. La DB en Supabase sigue existiendo hasta que confirmemos que todo funciona.
+
+---
+
+### 4.1 a 4.6 — Stripe Mock (según STRIPE-PLAN.md)
+
+Una vez PostgreSQL local esté funcionando, se procede con la integración Stripe en modo mock.
+
+---
+
+## Fases Pendientes del Roadmap (Actualizado)
+
+| Fase | Nombre | Status | Notas |
+|------|--------|--------|-------|
+| **3 (cierre)** | Onboarding + Redirect | ⬜ Pendiente | Rápido, 1-2 sesiones |
+| **4.0** | PostgreSQL Local (Staging) | ⬜ Pendiente | Migrar DB a Coolify PostgreSQL, Auth sigue en Supabase |
+| **4.1-4.6** | Stripe Mock | ⬜ Pendiente | UI completa, sin llamadas reales a Stripe |
+| **5** | Usage Dashboard + Métricas | ⬜ Pendiente | |
+| **6** | Admin Panel | ⬜ Pendiente | |
+| **7** | VPS Nuevo + Dominio Producción | ⬜ Pendiente | Comprar VPS + `datamind.bi`, configurar Coolify |
+| **7.5** | Stripe Live | ⬜ Pendiente | Activar Stripe real en producción |
+| **8** | Seguridad + Legal | ⬜ Pendiente | ToS, Privacidad, GDPR, cookies |
+| **9** | Onboarding + UX Polish | ⬜ Pendiente | Tutorial, demo data, animaciones |
+
+---
+
+## Checklist para Producción
+
+Cuando el VPS nuevo y dominio estén listos:
+
+- [ ] Comprar VPS nuevo
+- [ ] Comprar dominio `datamind.bi`
+- [ ] Instalar Coolify en VPS nuevo
+- [ ] Configurar PostgreSQL como servicio
+- [ ] Configurar Supabase Auth para dominio `datamind.bi` (additional redirect URL)
+- [ ] Crear cuenta Stripe Live
+- [ ] Configurar productos/precios en Stripe Dashboard
+- [ ] Setear `STRIPE_MODE=live` en VPS nuevo
+- [ ] Configurar webhook Stripe → `https://datamind.bi/api/billing/webhook`
+- [ ] Deploy DataMind BI en VPS nuevo
+- [ ] Verificar flujo completo end-to-end
+- [ ] DNS: apuntar `datamind.bi` al VPS nuevo
+- [ ] SSL: Let's Encrypt via Coolify/Traefik
+
+---
 
 ## Conclusión
 
-El enfoque híbrido (PostgreSQL propio + Supabase Auth free) ofrece el mejor equilibrio entre control, costo y tiempo de implementación. Permite empezar a cobrar rápido con dominio profesional, siendo dueño de los datos de negocio, sin retrasarse semanas reescribiendo autenticación. La migración completa a self-hosted auth queda como tarea futura cuando haya revenue que la justifique.
+La estrategia de dos VPS (staging + producción) con PostgreSQL local y Supabase Auth ofrece:
+
+1. **Control total de datos** — PostgreSQL propio en cada VPS
+2. **Auth sin fricción** — Supabase Auth funciona para ambos ambientes
+3. **Testing seguro** — Staging para probar antes de production
+4. **Migración incremental** — Primero PostgreSQL local en staging, luego VPS nuevo para producción
+5. **Rollback fácil** — Si PostgreSQL local falla, volver a Supabase DB es solo cambiar `DATABASE_URL`
