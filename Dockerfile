@@ -56,8 +56,10 @@ RUN rm -rf .next/standalone/data .next/standalone/upload .next/standalone/downlo
 FROM node:22-slim AS runner
 WORKDIR /app
 
-# OpenSSL required by Prisma Client at runtime
-RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+# Runtime libraries required by native addons:
+# - openssl (libssl3): Prisma query engine needs libssl.so.3 + libcrypto.so.3
+# - libstdc++6: better-sqlite3 native addon needs libstdc++.so.6
+RUN apt-get update && apt-get install -y openssl libstdc++6 && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1

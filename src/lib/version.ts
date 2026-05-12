@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.16';
-export const VERSION_NAME = 'Docker/Coolify Deploy Fix';
+export const VERSION = '0.3.17';
+export const VERSION_NAME = 'Fix Missing libstdc++ in Docker Runner';
