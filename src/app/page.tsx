@@ -32,13 +32,23 @@ export default function Home() {
   }
 
   // Show the main app when authenticated
+  // Using hidden/visible instead of conditional rendering to preserve component state
+  // and avoid re-fetching data when switching between views
   return (
     <AppLayout>
       <div className="h-full overflow-hidden">
-        {currentView === 'chat' && <ChatInterface />}
-        {currentView === 'dashboard' && <DashboardView />}
-        {currentView === 'history' && <QueryHistory />}
-        {currentView === 'schema' && <SchemaExplorer />}
+        <div className={currentView === 'chat' ? 'h-full' : 'hidden'}>
+          <ChatInterface />
+        </div>
+        <div className={currentView === 'dashboard' ? 'h-full' : 'hidden'}>
+          <DashboardView />
+        </div>
+        <div className={currentView === 'history' ? 'h-full' : 'hidden'}>
+          <QueryHistory />
+        </div>
+        <div className={currentView === 'schema' ? 'h-full' : 'hidden'}>
+          <SchemaExplorer />
+        </div>
       </div>
     </AppLayout>
   );

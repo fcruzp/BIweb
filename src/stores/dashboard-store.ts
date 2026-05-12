@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 export interface WidgetConfig {
   id: string;
@@ -43,68 +44,78 @@ interface DashboardState {
   updateWidget: (dashboardId: string, widgetId: string, updates: Partial<WidgetConfig>) => void;
 }
 
-export const useDashboardStore = create<DashboardState>((set) => ({
-  dashboards: [],
-  activeDashboard: null,
-  dashboardsLoading: false,
-  editMode: false,
+export const useDashboardStore = create<DashboardState>()(
+  persist(
+    (set) => ({
+      dashboards: [],
+      activeDashboard: null,
+      dashboardsLoading: false,
+      editMode: false,
 
-  setDashboards: (dashboards) => set({ dashboards }),
-  setActiveDashboard: (dashboard) => set({ activeDashboard: dashboard }),
-  setDashboardsLoading: (loading) => set({ dashboardsLoading: loading }),
-  setEditMode: (edit) => set({ editMode: edit }),
-  addDashboard: (dashboard) =>
-    set((state) => ({ dashboards: [dashboard, ...state.dashboards] })),
-  removeDashboard: (id) =>
-    set((state) => ({
-      dashboards: state.dashboards.filter((d) => d.id !== id),
-      activeDashboard:
-        state.activeDashboard?.id === id ? null : state.activeDashboard,
-    })),
-  updateDashboard: (id, updates) =>
-    set((state) => ({
-      dashboards: state.dashboards.map((d) =>
-        d.id === id ? { ...d, ...updates } : d
-      ),
-      activeDashboard:
-        state.activeDashboard?.id === id
-          ? { ...state.activeDashboard, ...updates }
-          : state.activeDashboard,
-    })),
-  addWidget: (dashboardId, widget) =>
-    set((state) => ({
-      dashboards: state.dashboards.map((d) =>
-        d.id === dashboardId
-          ? { ...d, widgets: [...d.widgets, widget] }
-          : d
-      ),
-      activeDashboard:
-        state.activeDashboard?.id === dashboardId
-          ? { ...state.activeDashboard, widgets: [...state.activeDashboard.widgets, widget] }
-          : state.activeDashboard,
-    })),
-  removeWidget: (dashboardId, widgetId) =>
-    set((state) => ({
-      dashboards: state.dashboards.map((d) =>
-        d.id === dashboardId
-          ? { ...d, widgets: d.widgets.filter((w) => w.id !== widgetId) }
-          : d
-      ),
-      activeDashboard:
-        state.activeDashboard?.id === dashboardId
-          ? { ...state.activeDashboard, widgets: state.activeDashboard.widgets.filter((w) => w.id !== widgetId) }
-          : state.activeDashboard,
-    })),
-  updateWidget: (dashboardId, widgetId, updates) =>
-    set((state) => ({
-      dashboards: state.dashboards.map((d) =>
-        d.id === dashboardId
-          ? { ...d, widgets: d.widgets.map((w) => w.id === widgetId ? { ...w, ...updates } : w) }
-          : d
-      ),
-      activeDashboard:
-        state.activeDashboard?.id === dashboardId
-          ? { ...state.activeDashboard, widgets: state.activeDashboard.widgets.map((w) => w.id === widgetId ? { ...w, ...updates } : w) }
-          : state.activeDashboard,
-    })),
-}));
+      setDashboards: (dashboards) => set({ dashboards }),
+      setActiveDashboard: (dashboard) => set({ activeDashboard: dashboard }),
+      setDashboardsLoading: (loading) => set({ dashboardsLoading: loading }),
+      setEditMode: (edit) => set({ editMode: edit }),
+      addDashboard: (dashboard) =>
+        set((state) => ({ dashboards: [dashboard, ...state.dashboards] })),
+      removeDashboard: (id) =>
+        set((state) => ({
+          dashboards: state.dashboards.filter((d) => d.id !== id),
+          activeDashboard:
+            state.activeDashboard?.id === id ? null : state.activeDashboard,
+        })),
+      updateDashboard: (id, updates) =>
+        set((state) => ({
+          dashboards: state.dashboards.map((d) =>
+            d.id === id ? { ...d, ...updates } : d
+          ),
+          activeDashboard:
+            state.activeDashboard?.id === id
+              ? { ...state.activeDashboard, ...updates }
+              : state.activeDashboard,
+        })),
+      addWidget: (dashboardId, widget) =>
+        set((state) => ({
+          dashboards: state.dashboards.map((d) =>
+            d.id === dashboardId
+              ? { ...d, widgets: [...d.widgets, widget] }
+              : d
+          ),
+          activeDashboard:
+            state.activeDashboard?.id === dashboardId
+              ? { ...state.activeDashboard, widgets: [...state.activeDashboard.widgets, widget] }
+              : state.activeDashboard,
+        })),
+      removeWidget: (dashboardId, widgetId) =>
+        set((state) => ({
+          dashboards: state.dashboards.map((d) =>
+            d.id === dashboardId
+              ? { ...d, widgets: d.widgets.filter((w) => w.id !== widgetId) }
+              : d
+          ),
+          activeDashboard:
+            state.activeDashboard?.id === dashboardId
+              ? { ...state.activeDashboard, widgets: state.activeDashboard.widgets.filter((w) => w.id !== widgetId) }
+              : state.activeDashboard,
+        })),
+      updateWidget: (dashboardId, widgetId, updates) =>
+        set((state) => ({
+          dashboards: state.dashboards.map((d) =>
+            d.id === dashboardId
+              ? { ...d, widgets: d.widgets.map((w) => w.id === widgetId ? { ...w, ...updates } : w) }
+              : d
+          ),
+          activeDashboard:
+            state.activeDashboard?.id === dashboardId
+              ? { ...state.activeDashboard, widgets: state.activeDashboard.widgets.map((w) => w.id === widgetId ? { ...w, ...updates } : w) }
+              : state.activeDashboard,
+        })),
+    }),
+    {
+      name: 'datamind-dashboard-state',
+      partialize: (state) => ({
+        dashboards: state.dashboards,
+      }),
+    }
+  )
+);

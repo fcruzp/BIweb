@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useAppStore } from '@/stores/app-store';
 import { useChatStore } from '@/stores/chat-store';
+import { useHistoryStore, type HistoryItem } from '@/stores/history-store';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -10,34 +11,26 @@ import { Button } from '@/components/ui/button';
 import { History, Clock, CheckCircle2, AlertCircle, Play, Copy, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { authFetch } from '@/lib/fetch-utils';
+import { generateId } from '@/lib/client-uuid';
 import { useI18n } from '@/hooks/use-i18n';
-
-interface HistoryItem {
-  id: string;
-  naturalQuery: string;
-  sqlQuery: string;
-  rowCount: number;
-  executionTime: number;
-  status: string;
-  errorMessage: string | null;
-  createdAt: string;
-}
 
 export function QueryHistory() {
   const { activeDataSourceId } = useAppStore();
   const { addMessage, setLoading } = useChatStore();
-  const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [loading, setLoadingState] = useState(false);
+  const { history, historyLoading, lastDataSourceId, setHistory, setHistoryLoading, setLastDataSourceId } = useHistoryStore();
   const { t } = useI18n();
 
+  // Stale-while-revalidate: show cached data immediately, refresh in background
   useEffect(() => {
     if (!activeDataSourceId) {
       setHistory([]);
+      setLastDataSourceId(null);
       return;
     }
 
     async function loadHistory() {
-      setLoadingState(true);
+      setHistoryLoading(true);
+      setLastDataSourceId(activeDataSourceId);
       try {
         const res = await authFetch(`/api/history?dataSourceId=${activeDataSourceId}&limit=50`);
         if (res.ok) {
@@ -45,19 +38,18 @@ export function QueryHistory() {
           setHistory(data.history || []);
         }
       } catch {
-        // silently ignore — toast not needed for background load
+        // silently ignore — cached data still shown
       } finally {
-        setLoadingState(false);
+        setHistoryLoading(false);
       }
     }
 
     loadHistory();
-  }, [activeDataSourceId]);
+  }, [activeDataSourceId, setHistory, setHistoryLoading, setLastDataSourceId]);
 
   const handleReRun = async (item: HistoryItem) => {
-    // Re-run the query by sending the natural language question again
     addMessage({
-      id: crypto.randomUUID(),
+      id: generateId(),
       role: 'user',
       content: item.naturalQuery,
       timestamp: new Date(),
@@ -77,7 +69,7 @@ export function QueryHistory() {
       if (res.ok) {
         const data = await res.json();
         addMessage({
-          id: crypto.randomUUID(),
+          id: generateId(),
           role: 'assistant',
           content: data.message.content,
           sqlQuery: data.message.sqlQuery || null,
@@ -96,7 +88,16 @@ export function QueryHistory() {
   };
 
   const copySQL = (sql: string) => {
-    navigator.clipboard.writeText(sql);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(sql);
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.value = sql;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
     toast.success('SQL copied to clipboard');
   };
 
@@ -112,7 +113,8 @@ export function QueryHistory() {
     );
   }
 
-  if (loading) {
+  // Show cached data with a subtle loading indicator instead of full spinner
+  if (historyLoading && history.length === 0) {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader2 className="h-6 w-6 animate-spin text-emerald-500" />
@@ -136,7 +138,10 @@ export function QueryHistory() {
     <ScrollArea className="h-full">
       <div className="p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold">{t('queryHistory')}</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-bold">{t('queryHistory')}</h2>
+            {historyLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+          </div>
           <Badge variant="secondary">{history.length} {t('queries')}</Badge>
         </div>
 

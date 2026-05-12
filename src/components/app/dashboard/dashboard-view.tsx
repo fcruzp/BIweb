@@ -65,22 +65,32 @@ export function DashboardView() {
   const [deletingWidgetId, setDeletingWidgetId] = useState<string | null>(null);
   const { t } = useI18n();
 
+  // Stale-while-revalidate: show cached dashboards immediately, refresh in background
+  // Only fetch on mount — cached data comes from Zustand persist
   useEffect(() => {
+    let cancelled = false;
     async function loadDashboards() {
-      setDashboardsLoading(true);
+      // Only show full loading spinner if no cached data
+      const currentDashboards = useDashboardStore.getState().dashboards;
+      if (currentDashboards.length === 0) {
+        setDashboardsLoading(true);
+      }
       try {
         const res = await authFetch('/api/dashboards');
-        if (res.ok) {
+        if (res.ok && !cancelled) {
           const data = await res.json();
           setDashboards(data.dashboards || []);
         }
       } catch (error) {
-        // Silently ignore — authFetch handles 401 globally
+        // Silently ignore — cached data still shown
       } finally {
-        setDashboardsLoading(false);
+        if (!cancelled) {
+          setDashboardsLoading(false);
+        }
       }
     }
     loadDashboards();
+    return () => { cancelled = true; };
   }, [setDashboards, setDashboardsLoading]);
 
   const handleCreate = async () => {
@@ -156,7 +166,8 @@ export function DashboardView() {
     }
   };
 
-  if (dashboardsLoading) {
+  // Show full spinner only when loading AND no cached data
+  if (dashboardsLoading && dashboards.length === 0) {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader2 className="h-6 w-6 animate-spin text-emerald-500" />

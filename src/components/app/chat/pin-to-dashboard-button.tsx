@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useDashboardStore, type DashboardInfo } from '@/stores/dashboard-store';
-import { useAppStore } from '@/stores/app-store';
 import type { VisualizationConfig } from '@/stores/chat-store';
 import {
   DropdownMenu,
@@ -33,25 +32,9 @@ export function PinToDashboardButton({
   sqlQuery,
   visualization,
 }: PinToDashboardButtonProps) {
-  const { dashboards, setDashboards, addWidget } = useDashboardStore();
+  const { dashboards, addWidget } = useDashboardStore();
   const [pinning, setPinning] = useState<string | null>(null);
-  const [loaded, setLoaded] = useState(false);
   const { t } = useI18n();
-
-  // Load dashboards if not already loaded
-  useEffect(() => {
-    if (dashboards.length === 0 && !loaded) {
-      authFetch('/api/dashboards')
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.dashboards) {
-            setDashboards(data.dashboards);
-          }
-        })
-        .catch(() => {})
-        .finally(() => setLoaded(true));
-    }
-  }, [dashboards.length, loaded, setDashboards]);
 
   const handlePin = async (dashboard: DashboardInfo) => {
     setPinning(dashboard.id);
