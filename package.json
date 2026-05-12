@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "private": true,
   "scripts": {
-    "dev": "DATABASE_URL=postgresql://postgres.rsrcdaepiwjqfynwwzcn:GGu12qk8uCNsMSbW@aws-1-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true&sslmode=require&connect_timeout=15 DIRECT_URL=postgresql://postgres.rsrcdaepiwjqfynwwzcn:GGu12qk8uCNsMSbW@aws-1-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require&connect_timeout=15 next dev -p 3000 2>&1 | tee dev.log",
+    "dev": "next dev -p 3000 2>&1 | tee dev.log",
     "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
     "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
     "lint": "eslint .",

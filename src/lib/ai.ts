@@ -324,8 +324,8 @@ async function createZAICompletion(options: AICompletionOptions): Promise<AIComp
   try {
     const zai = await getZAI();
 
-    const messages: Array<{ role: 'assistant' | 'user'; content: string }> = [
-      { role: 'assistant', content: options.systemPrompt },
+    const messages: Array<{ role: 'system' | 'assistant' | 'user'; content: string }> = [
+      { role: 'system', content: options.systemPrompt },
     ];
 
     if (options.contextMessages) {
@@ -337,6 +337,14 @@ async function createZAICompletion(options: AICompletionOptions): Promise<AIComp
     const completion = await zai.chat.completions.create({
       messages,
       thinking: { type: 'disabled' },
+    }).catch(async (err) => {
+      // Retry once after 60s for transient failures
+      console.warn('[Z-AI] Transient error, retrying in 60s:', err?.message || err);
+      await new Promise(r => setTimeout(r, 60000));
+      return zai.chat.completions.create({
+        messages,
+        thinking: { type: 'disabled' },
+      });
     });
 
     const content = completion.choices[0]?.message?.content || '';
