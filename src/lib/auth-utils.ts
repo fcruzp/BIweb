@@ -56,7 +56,8 @@ export async function getCurrentUserId(): Promise<string | undefined> {
 /**
  * Ensures a User record exists in our DB for the authenticated Supabase user.
  * If the user doesn't exist yet, creates them (sync on first sign-in).
- * If they already exist, updates their email/name from Supabase Auth.
+ * If they already exist with a different supabaseId (re-registration after
+ * auth record deletion), re-links the DB record to the new Supabase Auth user.
  *
  * This is the core sync mechanism: Supabase Auth → our User table.
  *
@@ -69,8 +70,9 @@ export async function ensureUser(): Promise<User | null> {
   if (!supabaseUser) return null
 
   const supabaseId = supabaseUser.id
+  const email = supabaseUser.email ?? ''
 
-  // FAST PATH: Check if user already exists in our DB
+  // FAST PATH: Check if user already exists in our DB by supabaseId
   // This avoids the expensive upsert + subscription check on every request
   const existingUser = await db.user.findUnique({
     where: { supabaseId },
@@ -84,8 +86,60 @@ export async function ensureUser(): Promise<User | null> {
     return existingUser
   }
 
-  // SLOW PATH: New user — create record + subscription
-  const email = supabaseUser.email ?? ''
+  // RE-LINK PATH: Check if a DB user exists with the same email but different supabaseId.
+  // This happens when:
+  //   1. User registered → auth record + DB user created
+  //   2. Admin deleted auth record from Supabase Auth dashboard
+  //   3. User re-registers with the same email → new auth record (new supabaseId)
+  //   4. ensureUser() can't find user by new supabaseId → tries create → email unique violation
+  // Fix: Re-link the existing DB user to the new Supabase Auth user.
+  if (email) {
+    const existingByEmail = await db.user.findUnique({
+      where: { email },
+    })
+
+    if (existingByEmail) {
+      console.log(`[ensureUser] Re-linking DB user ${existingByEmail.id} to new Supabase Auth user (old supabaseId: ${existingByEmail.supabaseId}, new: ${supabaseId})`)
+
+      const name = supabaseUser.user_metadata?.full_name
+        ?? supabaseUser.user_metadata?.name
+        ?? supabaseUser.user_metadata?.preferred_username
+        ?? existingByEmail.name
+      const avatarUrl = supabaseUser.user_metadata?.avatar_url
+        ?? supabaseUser.user_metadata?.picture
+        ?? existingByEmail.avatarUrl
+
+      // Update the existing DB user to point to the new Supabase Auth user
+      const updatedUser = await db.user.update({
+        where: { id: existingByEmail.id },
+        data: {
+          supabaseId,
+          name,
+          avatarUrl,
+          onboardingCompleted: false, // Re-do onboarding for re-registered user
+        },
+      })
+
+      // Ensure the subscription still exists
+      const existingSub = await db.subscription.findUnique({
+        where: { userId: updatedUser.id },
+      })
+
+      if (!existingSub) {
+        await db.subscription.create({
+          data: {
+            userId: updatedUser.id,
+            plan: 'free',
+            status: 'active',
+          },
+        })
+      }
+
+      return updatedUser
+    }
+  }
+
+  // SLOW PATH: Brand new user — create record + subscription
   const name = supabaseUser.user_metadata?.full_name
     ?? supabaseUser.user_metadata?.name
     ?? supabaseUser.user_metadata?.preferred_username

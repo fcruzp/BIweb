@@ -307,7 +307,7 @@ function SignUpForm() {
 
     try {
       const supabase = createClient();
-      const { error: authError } = await supabase.auth.signUp({
+      const { data, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -323,10 +323,24 @@ function SignUpForm() {
         return;
       }
 
+      // Check if the user was immediately signed in (email confirmation disabled)
+      // In this case, data.session exists and data.user.email_confirmed_at is set
+      if (data.session && data.user) {
+        // User is auto-confirmed and signed in — close modal and proceed
+        // The onAuthStateChange listener will handle syncing the user to our DB
+        console.log('[SignUp] Auto-confirmed user signed in:', data.user.email);
+        closeAuthModal();
+        return;
+      }
+
+      // Email confirmation required — show message to check email
+      // Also handles the case where Supabase returns a user object but
+      // email_confirmed_at is null (confirmation pending)
       setSuccessMessage(
         'Account created! Check your email for a confirmation link before signing in.'
       );
-    } catch {
+    } catch (err) {
+      console.error('[SignUp] Unexpected error:', err);
       setError('An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);

@@ -28,11 +28,14 @@ export async function POST() {
     console.log(`[auth/sync] ⏱ ensureUser: ${Date.now() - t0}ms`)
 
     if (!user) {
+      console.warn('[auth/sync] ensureUser returned null — no valid Supabase Auth session found')
       return NextResponse.json(
         { error: 'Not authenticated' },
         { status: 401 }
       )
     }
+
+    console.log(`[auth/sync] User synced: id=${user.id}, email=${user.email}, supabaseId=${user.supabaseId}`)
 
     // Step 2: Fetch subscription info (parallel-safe, non-blocking)
     let subscription: { plan: string; status: string } | null = null
@@ -45,7 +48,7 @@ export async function POST() {
           status: true,
         },
       })
-      console.log(`[auth/sync] ⏱ subscription lookup: ${Date.now() - t1}ms`)
+      console.log(`[auth/sync] ⏱ subscription lookup: ${Date.now() - t1}ms, plan=${subscription?.plan ?? 'none'}`)
     } catch (subError) {
       // Non-critical: don't fail the whole sync if subscription lookup fails
       console.warn('[auth/sync] Subscription lookup failed (non-critical):', subError instanceof Error ? subError.message : subError)

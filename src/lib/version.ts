@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.23';
-export const VERSION_NAME = 'Fix auto-checkout race condition';
+export const VERSION = '0.3.24';
+export const VERSION_NAME = 'Fix middleware + ensureUser re-registration + auto-signin';

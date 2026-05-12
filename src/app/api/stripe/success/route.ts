@@ -49,12 +49,18 @@ export async function GET(request: NextRequest) {
   const planId = searchParams.get('plan')
   const period = searchParams.get('period') as 'monthly' | 'yearly' | null
 
+  console.log(`[stripe/success] Processing checkout: plan=${planId}, period=${period}`)
+
   // Try to process the checkout with the authenticated user
   try {
     const user = await requireAuth()
+    console.log(`[stripe/success] Authenticated user: id=${user.id}, email=${user.email}`)
 
     if (planId && period) {
       await handleCheckoutComplete(user.id, planId, period)
+      console.log(`[stripe/success] Subscription updated: userId=${user.id}, plan=${planId}`)
+    } else {
+      console.warn(`[stripe/success] Missing planId or period — skipping subscription update`)
     }
   } catch (err) {
     // If auth fails or processing fails, still redirect to app
@@ -64,5 +70,6 @@ export async function GET(request: NextRequest) {
 
   // Redirect to app with success indicator
   const origin = getPublicOrigin(request)
+  console.log(`[stripe/success] Redirecting to: ${origin}/?billing=success`)
   return NextResponse.redirect(new URL('/?billing=success', origin))
 }
