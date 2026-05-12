@@ -9,8 +9,8 @@
 # ---- Stage 1: Install dependencies ----
 FROM node:22-slim AS deps
 
-# Build tools for native addons (better-sqlite3, sharp)
-RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
+# Build tools for native addons (better-sqlite3, sharp) + OpenSSL for Prisma
+RUN apt-get update && apt-get install -y python3 make g++ openssl && rm -rf /var/lib/apt/lists/*
 
 # Copy Bun binary from official image
 COPY --from=oven/bun:1 /usr/local/bin/bun /usr/local/bin/bun
@@ -21,6 +21,9 @@ RUN bun install --frozen-lockfile
 
 # ---- Stage 2: Build the application ----
 FROM node:22-slim AS builder
+
+# OpenSSL needed for Prisma Client at build time
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 # Copy Bun binary from official image (needed for bun commands)
 COPY --from=oven/bun:1 /usr/local/bin/bun /usr/local/bin/bun
