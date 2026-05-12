@@ -351,3 +351,35 @@ Stage Summary:
 - Stripe mock checkout works end-to-end (upgrade plan → mock checkout → webhook → DB update)
 - Stripe live mode ready (just set STRIPE_SECRET_KEY env var)
 - Phase 3 COMPLETE ✅ | Phase 4 PARTIAL 🔄
+
+---
+Task ID: 11
+Agent: Main
+Task: Fix Stripe Checkout localhost:3000 URL bug + create missing mock-portal route
+
+Work Log:
+- Diagnosed root cause: `src/lib/stripe/service.ts` used `process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'` as base URL for all Stripe redirect URLs
+- NEXT_PUBLIC_APP_URL was never defined, so every URL defaulted to http://localhost:3000
+- In production (datamind.mooo.com), navigating to localhost:3000 caused "Failed to fetch" errors
+- Fixed `service.ts`:
+  - Mock mode now uses relative URLs (e.g., `/api/stripe/mock-checkout?...`) — browser resolves against current origin
+  - Live mode uses `resolveBaseUrl()` helper with priority: explicit param > env var > dev fallback
+  - Added `baseUrl` optional parameter to `createCheckoutSession()` and `createPortalSession()`
+  - Live mode throws explicit error if no base URL can be resolved
+- Updated `checkout/route.ts` and `portal/route.ts`:
+  - Derive base URL from `new URL(request.url).origin` and pass to service functions
+- Created missing `/api/stripe/mock-portal/route.ts`:
+  - Full portal UI showing current plan, status, period details
+  - Cancel/reactivate subscription buttons
+  - Auth-protected (redirects to `/?auth=required` if not authenticated)
+- Added `NEXT_PUBLIC_APP_URL=http://localhost:3000` to `.env` for local dev
+- Added `ARG NEXT_PUBLIC_APP_URL` + `ENV NEXT_PUBLIC_APP_URL` to Dockerfile for build-time
+- Bumped version to 0.3.19 — "Fix Stripe Checkout localhost URL Bug"
+- Lint passes (0 errors, 1 pre-existing TanStack Table warning)
+
+Stage Summary:
+- Stripe checkout/portal URLs now work correctly in production (relative URLs in mock mode)
+- API routes derive request origin for live Stripe mode
+- Mock portal route created (was missing, would have returned 404)
+- NEXT_PUBLIC_APP_URL added as env var and Dockerfile build arg
+- Version: 0.3.19 pushed to remote master
