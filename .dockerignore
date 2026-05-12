@@ -1,0 +1,52 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Build output
+.next
+out
+
+# Environment & secrets
+.env
+.env*.local
+.secrets.md
+
+# Data & uploads (user-generated, not for Docker image)
+data/
+upload/
+download/
+
+# IDE & editor
+.idea
+.vscode
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Debug & logs
+*.log
+dev.log
+server.log
+
+# Documentation (not needed in image)
+*.md
+!README.md
+agent-ctx/
+
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+docker-compose*.yml
+
+# Misc
+examples/
+skills/
+db/*.db
+db/*.sqlite

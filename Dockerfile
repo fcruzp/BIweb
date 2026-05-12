@@ -33,6 +33,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Build-time ARGs for Next.js public env vars (embedded in client bundle)
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 
@@ -44,6 +45,12 @@ ENV NODE_ENV=production
 # Use "bun x" instead of "bunx" (bunx is a separate symlink not copied with the binary)
 RUN bun x prisma generate
 RUN bun run build
+
+# Remove .env from standalone output — env vars come from Coolify at runtime
+RUN rm -f .next/standalone/.env
+
+# Remove user data dirs from standalone output — they should be mounted as volumes
+RUN rm -rf .next/standalone/data .next/standalone/upload .next/standalone/download
 
 # ---- Stage 3: Production runner ----
 FROM node:22-slim AS runner
@@ -72,7 +79,8 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
-RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
+# Create data directories and set ownership
+RUN mkdir -p /app/data /app/upload /app/download && chown -R nextjs:nodejs /app/data /app/upload /app/download
 
 USER nextjs
 
