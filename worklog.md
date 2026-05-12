@@ -405,3 +405,35 @@ Stage Summary:
 - All redirect URLs use proper proxy-aware origin detection (no more 0.0.0.0:3000)
 - Webhook mock mode works with auth context for portal cancel/reactivate
 - Version: 0.3.20 pushed to remote master
+
+---
+Task ID: 13
+Agent: Main
+Task: Implement auto-checkout flow from landing page plan CTA
+
+Work Log:
+- Identified UX gap: When user clicks a paid plan on landing page, the planId was not saved — after registration they entered as Free and had to manually navigate to upgrade
+- Created `/src/lib/pending-plan.ts` utility:
+  - setPendingUpgradePlan(planId) — saves to sessionStorage (not localStorage, so it clears when tab closes)
+  - getPendingUpgradePlan() — reads from sessionStorage
+  - clearPendingUpgradePlan() — removes from sessionStorage
+- Updated WelcomeScreen PricingSection:
+  - Added handlePlanCta(planId) function
+  - For paid plans: saves planId to sessionStorage before opening signup modal
+  - For free plan: just opens signup modal (no pending plan)
+- Updated page.tsx:
+  - Added useEffect that runs after auth + onboarding completes
+  - Checks for pending upgrade plan in sessionStorage
+  - If found: calls POST /api/stripe/checkout with the saved planId
+  - On success: clears pending plan + navigates to checkout URL
+  - On failure: clears pending plan + shows info toast
+  - Uses checkoutTriggeredRef to prevent double-triggering
+  - 800ms delay to ensure app is fully loaded
+- Added i18n key billingUpgradePending (EN + ES) for error fallback toast
+- Bumped version to 0.3.21 — "Auto-Checkout from Landing Page Plan CTA"
+
+Stage Summary:
+- Complete flow: Landing CTA (e.g., Starter) → signup modal → onboarding → app → auto-checkout to Starter → mock/live checkout
+- sessionStorage ensures the pending plan doesn't persist across browser sessions
+- If checkout fails, user gets a toast and can manually upgrade from Usos y Planes
+- Version: 0.3.21 pushed to remote master
