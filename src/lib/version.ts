@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.25';
-export const VERSION_NAME = 'Admin DB reset + file cleanup endpoints';
+export const VERSION = '0.3.26';
+export const VERSION_NAME = 'Fix proxy.ts conflict — Next.js 16 uses proxy not middleware';
