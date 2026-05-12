@@ -106,41 +106,43 @@ function HeroSection({
 
   return (
     <section className="relative bg-gray-950 h-svh overflow-hidden flex items-center">
-      {/* Poster image — visible while video loads, hidden after */}
+      {/* Poster image — visible while video loads, fades out when ready */}
       <img
         src="/hero/datamind-hero.png"
         alt=""
         className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${
-          videoReady ? 'opacity-0' : 'opacity-100'
+          videoReady ? 'opacity-0 pointer-events-none' : 'opacity-100'
         }`}
+        style={{ zIndex: 1 }}
       />
 
-      {/* Small loading spinner — corner, unobtrusive */}
+      {/* Small loading spinner — bottom-right corner, unobtrusive */}
       {!videoReady && (
-        <div className="absolute bottom-4 right-4 z-10">
+        <div className="absolute bottom-4 right-4" style={{ zIndex: 3 }}>
           <Loader2 className="h-4 w-4 animate-spin text-emerald-400/60" />
         </div>
       )}
 
-      {/* Background video — hidden until ready */}
+      {/* Background video — always rendered with poster fallback */}
       <video
-        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${
-          videoReady ? 'opacity-100' : 'opacity-0'
-        }`}
-        src="/hero/datamind-hero-movie.mp4"
+        className="absolute inset-0 w-full h-full object-cover"
         autoPlay
         loop
         muted
         playsInline
         preload="auto"
+        poster="/hero/datamind-hero.png"
         onCanPlay={() => setVideoReady(true)}
-      />
+        onError={() => setVideoReady(false)}
+      >
+        <source src="/hero/datamind-hero-movie.mp4" type="video/mp4" />
+      </video>
 
       {/* Dark overlay to ensure text readability */}
-      <div className="absolute inset-0 bg-gray-950/40" />
+      <div className="absolute inset-0 bg-gray-950/60" />
 
       {/* Gradient: subtle top + strong bottom fade into next section */}
-      <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-transparent to-gray-950/20" />
+      <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/20 to-gray-950/40" />
 
       <div className="relative max-w-4xl mx-auto px-4 sm:px-6 text-center">
         {/* Badge */}
