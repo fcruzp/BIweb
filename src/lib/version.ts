@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.14';
-export const VERSION_NAME = 'Pre-Phase 4 Push';
+export const VERSION = '0.3.15';
+export const VERSION_NAME = 'Fix Stripe Build Error';
