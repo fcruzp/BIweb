@@ -49,6 +49,9 @@ RUN bun run build
 FROM node:22-slim AS runner
 WORKDIR /app
 
+# OpenSSL required by Prisma Client at runtime
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
