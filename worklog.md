@@ -383,3 +383,25 @@ Stage Summary:
 - Mock portal route created (was missing, would have returned 404)
 - NEXT_PUBLIC_APP_URL added as env var and Dockerfile build arg
 - Version: 0.3.19 pushed to remote master
+
+---
+Task ID: 12
+Agent: Main
+Task: Fix mock checkout webhook 400 error + redirect to 0.0.0.0:3000
+
+Work Log:
+- Diagnosed two bugs in the mock Stripe checkout flow:
+  1. Webhook 400: mock-checkout sent `userId: sessionId.split('_').slice(2).join('_')` which produced garbage like `1778621128247_8c4uudn0` — NOT a valid user ID. handleCheckoutComplete() failed, catch block returned 400.
+  2. Redirect to 0.0.0.0:3000: `NextResponse.redirect(new URL('/?billing=success', request.url))` used request.url which inside Docker resolves to `http://0.0.0.0:3000/...`
+- Fixed mock-checkout: Instead of calling /api/stripe/webhook (no auth context), now navigates browser to `/api/stripe/success?session_id=...&plan=...&period=...` which HAS auth cookies
+- Fixed /api/stripe/success: Now processes checkout in BOTH mock and live modes using `requireAuth()` to get the real user ID
+- Added `getPublicOrigin()` helper to derive correct URL from proxy headers (X-Forwarded-Host, X-Forwarded-Proto, Host) instead of request.url
+- Applied getPublicOrigin() to both success and mock-portal routes
+- Updated webhook mock mode: Now uses `getSupabaseAuthUser()` to get user from auth context instead of requiring userId in payload. Supports cancel/reactivate actions with auth context.
+- Bumped version to 0.3.20 — "Fix Mock Checkout Webhook 400 + Redirect 0.0.0.0"
+
+Stage Summary:
+- Mock checkout flow now works end-to-end: Upgrade → mock checkout → Suscribirme → /api/stripe/success (auth + process) → redirect to /?billing=success
+- All redirect URLs use proper proxy-aware origin detection (no more 0.0.0.0:3000)
+- Webhook mock mode works with auth context for portal cancel/reactivate
+- Version: 0.3.20 pushed to remote master
