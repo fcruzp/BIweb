@@ -1,0 +1,71 @@
+# ============================================
+# DataMind BI - Production Dockerfile (Debian-based)
+# ============================================
+# Switched from Alpine to Debian to fix better-sqlite3
+# "fcntl64: symbol not found" error caused by musl libc incompatibility.
+# Debian uses glibc which is stable and backward-compatible.
+# ============================================
+
+# ---- Stage 1: Install dependencies ----
+FROM node:22-slim AS deps
+
+# Build tools for native addons (better-sqlite3, sharp)
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
+
+# Copy Bun binary from official image
+COPY --from=oven/bun:1 /usr/local/bin/bun /usr/local/bin/bun
+
+WORKDIR /app
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
+
+# ---- Stage 2: Build the application ----
+FROM node:22-slim AS builder
+
+# Copy Bun binary from official image (needed for bun commands)
+COPY --from=oven/bun:1 /usr/local/bin/bun /usr/local/bin/bun
+
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+
+# Use "bun x" instead of "bunx" (bunx is a separate symlink not copied with the binary)
+RUN bun x prisma generate
+RUN bun run build
+
+# ---- Stage 3: Production runner ----
+FROM node:22-slim AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+RUN groupadd --system --gid 1001 nodejs && \
+useradd --system --uid 1001 --gid nodejs nextjs
+
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+
+RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
+
+USER nextjs
+
+EXPOSE 3000
+
+CMD ["node", "server.js"]
