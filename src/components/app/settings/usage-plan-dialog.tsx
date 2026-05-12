@@ -164,9 +164,9 @@ export function UsagePlanDialog({ open, onOpenChange }: UsagePlanDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0 bg-background/80 backdrop-blur-xl border-border/30 shadow-2xl">
         {/* Header */}
-        <div className="px-6 pt-6 pb-4">
+        <div className="px-6 pt-6 pb-4 shrink-0">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-emerald-600" />
@@ -178,11 +178,11 @@ export function UsagePlanDialog({ open, onOpenChange }: UsagePlanDialogProps) {
           </DialogHeader>
         </div>
 
-        <Separator />
+        <Separator className="opacity-30" />
 
         {/* Scrollable Content */}
-        <ScrollArea className="flex-1 px-6">
-          <div className="py-4 space-y-6">
+        <ScrollArea className="flex-1 overflow-y-auto">
+          <div className="px-6 py-4 space-y-6">
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-6 w-6 animate-spin text-emerald-500" />
@@ -199,7 +199,7 @@ export function UsagePlanDialog({ open, onOpenChange }: UsagePlanDialogProps) {
             ) : usageData ? (
               <>
                 {/* ── Current Plan Card ──────────────────────────── */}
-                <Card className={`border-2 ${PLAN_ACCENT_COLORS[currentPlanId]}`}>
+                <Card className={`border-2 ${PLAN_ACCENT_COLORS[currentPlanId]} bg-card/50 backdrop-blur-sm`}>
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-base flex items-center gap-2">
@@ -333,10 +333,10 @@ export function UsagePlanDialog({ open, onOpenChange }: UsagePlanDialogProps) {
                       return (
                         <Card
                           key={pid}
-                          className={`relative transition-all ${
+                          className={`relative transition-all bg-card/50 backdrop-blur-sm ${
                             isCurrent
                               ? `border-2 ${PLAN_ACCENT_COLORS[pid]} shadow-md`
-                              : 'border border-border hover:border-emerald-500/30'
+                              : 'border border-border/50 hover:border-emerald-500/30'
                           }`}
                         >
                           {isCurrent && (
