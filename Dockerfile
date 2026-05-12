@@ -56,6 +56,10 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+# DATA_DIR: Override the data directory for SQLite files.
+# In production, set this to a persistent volume mount path (e.g., /app/data).
+# If not set, defaults to {cwd}/data which is /app/data in the container.
+ENV DATA_DIR=/app/data
 
 RUN groupadd --system --gid 1001 nodejs && \
 useradd --system --uid 1001 --gid nodejs nextjs

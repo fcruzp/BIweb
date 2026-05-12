@@ -15,14 +15,16 @@ import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
-const DATA_DIR_NAME = 'data';
-
 /**
  * Get the absolute path to the data directory.
  * Creates it if it doesn't exist.
+ *
+ * Resolution order:
+ * 1. DATA_DIR environment variable (if set) — allows persistent volume mount
+ * 2. {cwd}/data/ — default for local development
  */
 export function getDataDir(): string {
-  const dataDir = path.join(process.cwd(), DATA_DIR_NAME);
+  const dataDir = process.env.DATA_DIR || path.join(process.cwd(), 'data');
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
   }

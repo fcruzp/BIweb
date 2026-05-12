@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.5';
-export const VERSION_NAME = 'Chat Session Persist Fix';
+export const VERSION = '0.3.6';
+export const VERSION_NAME = 'Persistent Data Volume';
