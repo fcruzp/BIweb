@@ -102,37 +102,46 @@ function HeroSection({
   openAuthModal: (tab: 'signin' | 'signup') => void;
   t: (key: string) => string;
 }) {
-  const [videoReady, setVideoReady] = React.useState(false);
+  const [isVideoLoaded, setIsVideoLoaded] = React.useState(false);
 
   return (
     <section className="relative bg-gray-950 h-svh overflow-hidden flex items-center">
-      {/* Background video */}
+      {/* Layer 1: Background video */}
       <video
-        className="absolute inset-0 w-full h-full object-cover"
         autoPlay
         loop
         muted
         playsInline
-        poster="/hero/datamind-hero.png"
-        onCanPlay={() => setVideoReady(true)}
+        onCanPlay={() => setIsVideoLoaded(true)}
+        onLoadedData={() => setIsVideoLoaded(true)}
+        className="absolute inset-0 w-full h-full object-cover"
       >
         <source src="/hero/datamind-hero-movie.mp4" type="video/mp4" />
       </video>
 
-      {/* Dark overlay to ensure text readability */}
+      {/* Layer 2: Overlays for readability */}
       <div className="absolute inset-0 bg-gray-950/60" />
-
-      {/* Gradient: subtle top + strong bottom fade into next section */}
       <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/20 to-gray-950/40" />
 
-      {/* Small loading spinner — bottom-right corner, only while video loads */}
-      {!videoReady && (
-        <div className="absolute bottom-4 right-4 z-50">
+      {/* Layer 3: Image loader — visible until video is ready, then fades out */}
+      <div
+        className={`absolute inset-0 z-10 transition-opacity duration-1000 ${
+          isVideoLoaded ? 'opacity-0 pointer-events-none' : 'opacity-100'
+        }`}
+      >
+        <img
+          src="/hero/datamind-hero.png"
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover animate-pulse"
+        />
+        {/* Small spinner — bottom-right, unobtrusive */}
+        <div className="absolute bottom-4 right-4">
           <Loader2 className="h-4 w-4 animate-spin text-emerald-400/60" />
         </div>
-      )}
+      </div>
 
-      <div className="relative max-w-4xl mx-auto px-4 sm:px-6 text-center z-10">
+      {/* Layer 4: Content */}
+      <div className="relative z-20 max-w-4xl mx-auto px-4 sm:px-6 text-center">
         {/* Badge */}
         <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 mb-8">
           <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
