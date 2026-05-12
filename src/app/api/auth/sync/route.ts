@@ -35,7 +35,7 @@ export async function POST() {
     }
 
     // Step 2: Fetch subscription info (parallel-safe, non-blocking)
-    let subscription = null
+    let subscription: { plan: string; status: string } | null = null
     try {
       const t1 = Date.now()
       subscription = await db.subscription.findUnique({

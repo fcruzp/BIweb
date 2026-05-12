@@ -357,7 +357,7 @@ export function MessageItem({ message }: MessageItemProps) {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <Table2 className="h-4 w-4 text-emerald-500" />
-                  {t('dataRows', { count: message.queryResult.data.length })}
+                  {t('dataRows', { count: String(message.queryResult.data.length) })}
                 </CardTitle>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

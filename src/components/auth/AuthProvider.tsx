@@ -88,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     hasSyncedRef.current = false;
   }, []);
 
-  const syncDbUser = useCallback(async (retryCount = 0): Promise<void> => {
+  const syncDbUser = useCallback(async function sync(retryCount = 0): Promise<void> {
     // Prevent concurrent sync calls
     if (syncingRef.current) return;
     syncingRef.current = true;
@@ -132,7 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Wait a tick for cookies to be written to the browser
           await new Promise(resolve => setTimeout(resolve, 300));
           syncingRef.current = false;
-          return syncDbUser(retryCount + 1);
+          return sync(retryCount + 1);
         } else {
           // Session is truly invalid — sign out
           console.warn('[AuthProvider] Session refresh failed — signing out');
@@ -201,7 +201,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         // Handle session recovery failures
-        if (event === 'TOKEN_REFRESH_FAILED' || event === 'SIGNED_OUT') {
+        if ((event as string) === 'TOKEN_REFRESH_FAILED' || event === 'SIGNED_OUT') {
           setUser(null);
           setDbUser(null);
           setIsLoading(false);

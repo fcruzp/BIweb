@@ -3,6 +3,7 @@
 // ============================================================
 
 export type TranslationKey = keyof typeof translations.en;
+export type TranslationFn = (key: TranslationKey, params?: Record<string, string>) => string;
 
 export const translations = {
   en: {

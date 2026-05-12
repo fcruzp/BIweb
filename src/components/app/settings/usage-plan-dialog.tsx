@@ -32,6 +32,7 @@ import {
   FileDown,
 } from 'lucide-react';
 import { useI18n } from '@/hooks/use-i18n';
+import { type TranslationKey, type TranslationFn } from '@/lib/i18n';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { PLANS, PLAN_ORDER, getPlan, type PlanId } from '@/lib/plans';
 import { toast } from 'sonner';
@@ -151,7 +152,9 @@ export function UsagePlanDialog({ open, onOpenChange }: UsagePlanDialogProps) {
 
   useEffect(() => {
     if (open) {
-      fetchUsage();
+      queueMicrotask(() => {
+        fetchUsage();
+      });
     }
   }, [open, fetchUsage]);
 
@@ -452,7 +455,7 @@ interface UsageBarProps {
   percentage: number;
   suffix?: string;
   isStorage?: boolean;
-  t: (key: string) => string;
+  t: TranslationFn;
 }
 
 function UsageBar({ icon, label, used, limit, unlimited, percentage, suffix, isStorage, t }: UsageBarProps) {

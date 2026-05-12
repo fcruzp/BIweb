@@ -11,7 +11,7 @@ export function useI18n() {
     locale,
     setLocale,
     t: (key: TranslationKey, params?: Record<string, string>): string => {
-      let value = dict[key] || translations.en[key] || key;
+      let value = (dict[key] || translations.en[key] || key) as string;
       if (params) {
         for (const [k, v] of Object.entries(params)) {
           value = value.replace(`{${k}}`, v);

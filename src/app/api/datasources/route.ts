@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
                 select: { id: true, summary: true },
               },
             },
-          }),
+          } as any),
     });
     console.log(`[DataSources] ⏱ DB query: ${Date.now() - t1}ms, count=${datasources.length}`);
     console.log(`[DataSources] ⏱ TOTAL: ${Date.now() - startTime}ms`);

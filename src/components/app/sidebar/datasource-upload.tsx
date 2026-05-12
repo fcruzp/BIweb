@@ -134,7 +134,7 @@ export function DataSourceUpload({ open, onOpenChange }: DataSourceUploadProps) 
 
       const data = uploadResult.data as { datasource?: { id: string; status: string; [key: string]: unknown } };
       if (data.datasource) {
-        addDataSource(data.datasource as Parameters<typeof addDataSource>[0]);
+        addDataSource(data.datasource as any);
       }
 
       // If the data source is ready, trigger AI analysis

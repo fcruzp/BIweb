@@ -117,8 +117,10 @@ export function DataSourceInfoDialog({
 
   useEffect(() => {
     if (!open || !dataSourceId) {
-      setData(null);
-      setError(null);
+      queueMicrotask(() => {
+        setData(null);
+        setError(null);
+      });
       return;
     }
 
@@ -139,7 +141,9 @@ export function DataSourceInfoDialog({
       }
     }
 
-    fetchData();
+    queueMicrotask(() => {
+      fetchData();
+    });
   }, [open, dataSourceId]);
 
   const context = data?.contexts?.[0];

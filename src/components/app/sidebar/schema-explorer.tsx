@@ -109,7 +109,9 @@ function TableDataPreview({
 
   // Auto-load page 1 on mount
   useEffect(() => {
-    fetchData(1);
+    queueMicrotask(() => {
+      fetchData(1);
+    });
   }, [fetchData]);
 
   const handlePrev = () => {
@@ -241,13 +243,20 @@ export function SchemaExplorer() {
 
   const activeSource = dataSources.find((s) => s.id === activeDataSourceId);
 
-  useEffect(() => {
+  const [prevActiveDataSourceId, setPrevActiveDataSourceId] = useState(activeDataSourceId);
+
+  // Sync schema states when activeDataSourceId changes
+  if (activeDataSourceId !== prevActiveDataSourceId) {
+    setPrevActiveDataSourceId(activeDataSourceId);
     if (!activeDataSourceId) {
       setSchemas([]);
       setContext('');
       setError(null);
-      return;
     }
+  }
+
+  useEffect(() => {
+    if (!activeDataSourceId) return;
 
     let cancelled = false;
 

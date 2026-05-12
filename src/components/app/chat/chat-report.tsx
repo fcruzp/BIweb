@@ -9,6 +9,7 @@ import { ChartRenderer } from '../visualization/chart-renderer';
 import { DRHeatMap } from '../visualization/dr-map';
 import { Separator } from '@/components/ui/separator';
 import { useI18n } from '@/hooks/use-i18n';
+import { type TranslationFn } from '@/lib/i18n';
 import { useCallback, useRef } from 'react';
 
 interface ChatReportProps {
@@ -191,7 +192,7 @@ export function ChatReport({ onClose }: ChatReportProps) {
 </head>
 <body>
   <div class="report-container">
-    ${buildPrintReport(messages, reportTitle, activeSource?.name || t('dataSource'), generatedAt, t)}
+    ${buildPrintReport(messages.map(m => ({ ...m, sqlQuery: m.sqlQuery || undefined, visualization: m.visualization || undefined } as any)), reportTitle, activeSource?.name || t('dataSource'), generatedAt, t)}
   </div>
 </body>
 </html>`;
@@ -353,7 +354,7 @@ export function ChatReport({ onClose }: ChatReportProps) {
                               <tbody>
                                 {msg.queryResult.data.slice(0, 20).map((row: Record<string, unknown>, rIdx: number) => (
                                   <tr key={rIdx} className="border-b border-border/10 print:border-gray-100">
-                                    {msg.queryResult.columns.map((col: string) => (
+                                    {msg.queryResult?.columns?.map((col: string) => (
                                       <td key={col} className="px-3 py-1.5 text-foreground/70 whitespace-nowrap">
                                         {row[col] !== null && row[col] !== undefined ? String(row[col]) : '\u2014'}
                                       </td>
@@ -405,7 +406,7 @@ function buildPrintReport(
   reportTitle: string,
   dataSourceName: string,
   generatedAt: string,
-  t: (key: string) => string
+  t: TranslationFn
 ): string {
   let html = '';
 

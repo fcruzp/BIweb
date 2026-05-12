@@ -95,7 +95,12 @@ function Carousel({
 
   React.useEffect(() => {
     if (!api) return
-    onSelect(api)
+    
+    // Use microtask to avoid synchronous setState warning
+    queueMicrotask(() => {
+      onSelect(api)
+    })
+
     api.on("reInit", onSelect)
     api.on("select", onSelect)
 

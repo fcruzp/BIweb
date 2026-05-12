@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from './AuthProvider';
 import { useI18n } from '@/hooks/use-i18n';
 import { PLANS, PLAN_ORDER } from '@/lib/plans';
+import { type TranslationFn } from '@/lib/i18n';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -39,7 +40,7 @@ function Navbar({
     locale: string;
     setLocale: (l: 'en' | 'es') => void;
     openAuthModal: (tab: 'signin' | 'signup') => void;
-    t: (key: string) => string;
+    t: TranslationFn;
 }) {
     return (
         <nav
@@ -100,7 +101,7 @@ function HeroSection({
 }: {
     locale: string;
     openAuthModal: (tab: 'signin' | 'signup') => void;
-    t: (key: string) => string;
+    t: TranslationFn;
 }) {
     const [isVideoLoaded, setIsVideoLoaded] = React.useState(false);
 
@@ -230,7 +231,7 @@ function HeroSection({
 }
 
 // ─── Features Section ────────────────────────────────────────────────
-function FeaturesSection({ t }: { t: (key: string) => string }) {
+function FeaturesSection({ t }: { t: TranslationFn }) {
     const features = [
         {
             icon: <Database className="h-6 w-6" />,
@@ -297,7 +298,7 @@ function FeaturesSection({ t }: { t: (key: string) => string }) {
 }
 
 // ─── How It Works Section ────────────────────────────────────────────
-function HowItWorksSection({ t }: { t: (key: string) => string }) {
+function HowItWorksSection({ t }: { t: TranslationFn }) {
     const steps = [
         {
             number: '01',
@@ -374,7 +375,7 @@ function PricingSection({
 }: {
     locale: string;
     openAuthModal: (tab: 'signin' | 'signup') => void;
-    t: (key: string) => string;
+    t: TranslationFn;
 }) {
     const getPlanFeatures = (planId: string) => {
         const plan = PLANS[planId as keyof typeof PLANS];
@@ -502,7 +503,7 @@ function PricingSection({
 }
 
 // ─── FAQ Section ─────────────────────────────────────────────────────
-function FAQSection({ t }: { t: (key: string) => string }) {
+function FAQSection({ t }: { t: TranslationFn }) {
     const faqs = [
         { q: t('faqQ1'), a: t('faqA1') },
         { q: t('faqQ2'), a: t('faqA2') },
@@ -550,7 +551,7 @@ function FinalCTASection({
     t,
 }: {
     openAuthModal: (tab: 'signin' | 'signup') => void;
-    t: (key: string) => string;
+    t: TranslationFn;
 }) {
     return (
         <section className="py-20 sm:py-24 bg-background">
@@ -582,7 +583,7 @@ function Footer({
 }: {
     locale: string;
     setLocale: (l: 'en' | 'es') => void;
-    t: (key: string) => string;
+    t: TranslationFn;
 }) {
     return (
         <footer className="bg-gray-950 border-t border-gray-800">

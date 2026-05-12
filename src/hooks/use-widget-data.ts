@@ -34,12 +34,20 @@ export function useWidgetData(
   const abortRef = useRef<AbortController | null>(null);
 
   const cacheKey = dataSourceId && sqlQuery ? `${dataSourceId}:${sqlQuery}` : null;
+  const [prevCacheKey, setPrevCacheKey] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
-    if (!dataSourceId || !sqlQuery) {
+  // Sync state when key changes (cleanup)
+  if (cacheKey !== prevCacheKey) {
+    setPrevCacheKey(cacheKey);
+    if (!cacheKey) {
       setResult(null);
       setLoading(false);
       setError(null);
+    }
+  }
+
+  const fetchData = useCallback(async () => {
+    if (!dataSourceId || !sqlQuery) {
       return;
     }
 
@@ -60,11 +68,11 @@ export function useWidgetData(
       setError(null);
       try {
         const pendingResult = await pendingRequests.get(cacheKey)!;
-        setResult(pendingResult);
+        queueMicrotask(() => setResult(pendingResult));
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch widget data');
+        queueMicrotask(() => setError(err instanceof Error ? err.message : 'Failed to fetch widget data'));
       } finally {
-        setLoading(false);
+        queueMicrotask(() => setLoading(false));
       }
       return;
     }
@@ -134,7 +142,9 @@ export function useWidgetData(
   }, [dataSourceId, sqlQuery, cacheKey]);
 
   useEffect(() => {
-    fetchData();
+    queueMicrotask(() => {
+      fetchData();
+    });
     return () => {
       if (abortRef.current) {
         abortRef.current.abort();

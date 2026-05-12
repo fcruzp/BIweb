@@ -37,11 +37,13 @@ import {
 export function AuthModal() {
   const { isAuthModalOpen, closeAuthModal, authModalTab } = useAuth();
   const [activeTab, setActiveTab] = useState<AuthTab>(authModalTab);
+  const [prevAuthModalTab, setPrevAuthModalTab] = useState<AuthTab>(authModalTab);
 
   // Sync tab when authModalTab changes from outside
-  useEffect(() => {
+  if (authModalTab !== prevAuthModalTab) {
+    setPrevAuthModalTab(authModalTab);
     setActiveTab(authModalTab);
-  }, [authModalTab]);
+  }
 
   const handleTabChange = (value: string) => {
     setActiveTab(value as AuthTab);
