@@ -102,22 +102,36 @@ function HeroSection({
   openAuthModal: (tab: 'signin' | 'signup') => void;
   t: (key: string) => string;
 }) {
+  const [videoReady, setVideoReady] = React.useState(false);
+
   return (
     <section className="relative bg-gray-950 h-svh overflow-hidden flex items-center">
-      {/* Background video — testing without overlays */}
+      {/* Background video */}
       <video
         className="absolute inset-0 w-full h-full object-cover"
         autoPlay
         loop
         muted
         playsInline
-        preload="auto"
-        controls
+        poster="/hero/datamind-hero.png"
+        onCanPlay={() => setVideoReady(true)}
       >
         <source src="/hero/datamind-hero-movie.mp4" type="video/mp4" />
       </video>
 
-      {/* Content */}
+      {/* Dark overlay to ensure text readability */}
+      <div className="absolute inset-0 bg-gray-950/60" />
+
+      {/* Gradient: subtle top + strong bottom fade into next section */}
+      <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/20 to-gray-950/40" />
+
+      {/* Small loading spinner — bottom-right corner, only while video loads */}
+      {!videoReady && (
+        <div className="absolute bottom-4 right-4 z-50">
+          <Loader2 className="h-4 w-4 animate-spin text-emerald-400/60" />
+        </div>
+      )}
+
       <div className="relative max-w-4xl mx-auto px-4 sm:px-6 text-center z-10">
         {/* Badge */}
         <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 mb-8">
@@ -188,7 +202,7 @@ function HeroSection({
       </div>
 
       {/* Scroll indicator */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce" style={{ zIndex: 5 }}>
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
         <button
           onClick={() => {
             const el = document.getElementById('features');
