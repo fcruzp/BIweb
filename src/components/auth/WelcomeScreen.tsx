@@ -106,24 +106,7 @@ function HeroSection({
 
   return (
     <section className="relative bg-gray-950 h-svh overflow-hidden flex items-center">
-      {/* Poster image — visible while video loads, fades out when ready */}
-      <img
-        src="/hero/datamind-hero.png"
-        alt=""
-        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${
-          videoReady ? 'opacity-0 pointer-events-none' : 'opacity-100'
-        }`}
-        style={{ zIndex: 1 }}
-      />
-
-      {/* Small loading spinner — bottom-right corner, unobtrusive */}
-      {!videoReady && (
-        <div className="absolute bottom-4 right-4" style={{ zIndex: 3 }}>
-          <Loader2 className="h-4 w-4 animate-spin text-emerald-400/60" />
-        </div>
-      )}
-
-      {/* Background video — always rendered with poster fallback */}
+      {/* Layer 0: Video (bottom layer) */}
       <video
         className="absolute inset-0 w-full h-full object-cover"
         autoPlay
@@ -131,20 +114,43 @@ function HeroSection({
         muted
         playsInline
         preload="auto"
-        poster="/hero/datamind-hero.png"
         onCanPlay={() => setVideoReady(true)}
-        onError={() => setVideoReady(false)}
       >
         <source src="/hero/datamind-hero-movie.mp4" type="video/mp4" />
       </video>
 
-      {/* Dark overlay to ensure text readability */}
-      <div className="absolute inset-0 bg-gray-950/60" />
+      {/* Layer 1: Poster image overlay — shows while video loads, fades when ready */}
+      <div
+        className={`absolute inset-0 transition-opacity duration-700 ${
+          videoReady ? 'opacity-0' : 'opacity-100'
+        }`}
+        style={{ zIndex: 1 }}
+      >
+        <img
+          src="/hero/datamind-hero.png"
+          alt=""
+          className="w-full h-full object-cover"
+        />
+      </div>
 
-      {/* Gradient: subtle top + strong bottom fade into next section */}
-      <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/20 to-gray-950/40" />
+      {/* Layer 2: Dark overlay for text readability */}
+      <div className="absolute inset-0 bg-gray-950/60" style={{ zIndex: 2 }} />
 
-      <div className="relative max-w-4xl mx-auto px-4 sm:px-6 text-center">
+      {/* Layer 3: Gradient fade at bottom */}
+      <div
+        className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/20 to-gray-950/40"
+        style={{ zIndex: 3 }}
+      />
+
+      {/* Spinner — small, bottom-right, only while loading */}
+      {!videoReady && (
+        <div className="absolute bottom-4 right-4" style={{ zIndex: 4 }}>
+          <Loader2 className="h-4 w-4 animate-spin text-emerald-400/60" />
+        </div>
+      )}
+
+      {/* Layer 5: Content — text, buttons, etc. */}
+      <div className="relative max-w-4xl mx-auto px-4 sm:px-6 text-center" style={{ zIndex: 5 }}>
         {/* Badge */}
         <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 mb-8">
           <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
@@ -214,7 +220,7 @@ function HeroSection({
       </div>
 
       {/* Scroll indicator */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce" style={{ zIndex: 5 }}>
         <button
           onClick={() => {
             const el = document.getElementById('features');
