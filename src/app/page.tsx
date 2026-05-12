@@ -15,13 +15,14 @@ import { toast } from 'sonner';
 import { useI18n } from '@/hooks/use-i18n';
 import { getPendingUpgradePlan, clearPendingUpgradePlan } from '@/lib/pending-plan';
 import { authFetch } from '@/lib/fetch-utils';
+import { PLANS, type PlanId } from '@/lib/plans';
 
 export default function Home() {
   const { currentView, setActiveDataSource } = useAppStore();
   const { isAuthenticated, isLoading, showOnboarding, completeOnboarding, dbUser } = useAuth();
   const [isCreatingDemo, setIsCreatingDemo] = useState(false);
   const { t } = useI18n();
-  const checkoutTriggeredRef = useRef(false);
+  const checkoutAttemptedRef = useRef(false);
 
   // Handle billing redirect notifications
   useEffect(() => {
@@ -32,7 +33,7 @@ export default function Home() {
       window.history.replaceState({}, '', '/');
     } else if (billing === 'cancelled') {
       toast.info(t('billingCancelled'));
-      window.history.replaceState({}, '/');
+      window.history.replaceState({}, '', '/');
     }
   }, [t]);
 
@@ -40,15 +41,19 @@ export default function Home() {
   // When a user signs up from a pricing CTA, they have a plan saved in sessionStorage.
   // After onboarding completes (or is skipped), we auto-trigger the Stripe checkout.
   useEffect(() => {
-    if (checkoutTriggeredRef.current) return;
+    // Skip if already attempted, not ready, or still in onboarding
+    if (checkoutAttemptedRef.current) return;
     if (!isAuthenticated || isLoading || showOnboarding) return;
 
-    const pendingPlan = getPendingUpgradePlan();
-    if (!pendingPlan) return;
+    const pendingPlan = getPendingUpgradePlan() as PlanId | null;
+    if (!pendingPlan || !PLANS[pendingPlan]) return;
 
-    checkoutTriggeredRef.current = true;
+    // Mark as attempted immediately to prevent double-trigger
+    checkoutAttemptedRef.current = true;
 
-    const triggerCheckout = async () => {
+    // Use an IIFE inside useEffect (not setTimeout) to avoid cleanup race conditions.
+    // The checkout redirect (window.location.href) will unmount the entire app anyway.
+    (async () => {
       try {
         const res = await authFetch('/api/stripe/checkout', {
           method: 'POST',
@@ -57,29 +62,27 @@ export default function Home() {
         });
 
         if (!res.ok) {
-          throw new Error('Failed to create checkout session');
+          throw new Error(`Checkout returned ${res.status}`);
         }
 
         const data = await res.json();
-        // Clear the pending plan before navigating away
-        clearPendingUpgradePlan();
 
         if (data.url) {
+          // Clear the pending plan before navigating away
+          clearPendingUpgradePlan();
           // Navigate to Stripe checkout (or mock checkout)
           window.location.href = data.url;
+        } else {
+          throw new Error('No checkout URL returned');
         }
       } catch (err) {
         console.warn('[Home] Auto-checkout failed:', err);
         clearPendingUpgradePlan();
-        // Show a toast so the user knows something was supposed to happen
         toast.info(t('billingUpgradePending'));
       }
-    };
-
-    // Small delay to ensure the app is fully loaded and auth state is settled
-    const timer = setTimeout(triggerCheckout, 800);
-    return () => clearTimeout(timer);
-  }, [isAuthenticated, isLoading, showOnboarding, t]);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, isLoading, showOnboarding]);
 
   const handleOnboardingComplete = useCallback(async (loadDemoData: boolean) => {
     if (loadDemoData) {
