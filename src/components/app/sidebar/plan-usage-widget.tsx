@@ -28,40 +28,63 @@ function getProgressColor(pct: number): string {
 /**
  * Compact widget shown in the sidebar footer.
  * Displays: Plan badge + most critical usage bar + upgrade prompt.
- * Always visible — falls back to dbUser subscription if usage API hasn't loaded yet.
+ * ALWAYS renders at least the plan badge — never hides completely.
  */
 export function PlanUsageWidget() {
   const { limits, usageData, loading } = useUsageLimits();
-  const { dbUser } = useAuth();
+  const { dbUser, isAuthenticated } = useAuth();
   const { t, locale } = useI18n();
   const [plansOpen, setPlansOpen] = useState(false);
 
-  // Derive plan from usageData (primary) or dbUser (fallback)
-  const planId = (usageData?.plan.id || dbUser?.subscription?.plan || 'free') as PlanId;
+  // Don't render anything if not authenticated (guest mode)
+  if (!isAuthenticated) return null;
+
+  // Derive plan from usageData (primary) or dbUser (fallback) or default
+  const planId = (usageData?.plan?.id || dbUser?.subscription?.plan || 'free') as PlanId;
   const plan = getPlan(planId);
   const planName = locale === 'es' ? plan.nameEs : plan.name;
 
   // Find the most critical limit (highest percentage, excluding unlimited)
-  const allLimits = [
-    { key: 'queries' as const, limit: limits.queries, label: t('queriesUsed') },
-    { key: 'dataSources' as const, limit: limits.dataSources, label: t('dataSourcesUsed') },
-    { key: 'dashboards' as const, limit: limits.dashboards, label: t('dashboardsUsed') },
-    { key: 'chatSessions' as const, limit: limits.chatSessions, label: t('chatSessions') },
-    { key: 'storage' as const, limit: limits.storage, label: t('storageUsed') },
-  ];
+  let mostCritical: { key: string; label: string; limit: { used: number; limit: number | null; percentage: number; unlimited: boolean; atLimit: boolean; nearLimit: boolean } } | null = null;
 
-  // Sort by percentage descending, filter out unlimited
-  const criticalLimits = allLimits
-    .filter(l => !l.limit.unlimited)
-    .sort((a, b) => b.limit.percentage - a.limit.percentage);
+  try {
+    const allLimits = [
+      { key: 'queries', limit: limits.queries, label: t('queriesUsed') },
+      { key: 'dataSources', limit: limits.dataSources, label: t('dataSourcesUsed') },
+      { key: 'dashboards', limit: limits.dashboards, label: t('dashboardsUsed') },
+      { key: 'chatSessions', limit: limits.chatSessions, label: t('chatSessions') },
+      { key: 'storage', limit: limits.storage, label: t('storageUsed') },
+    ];
 
-  const mostCritical = criticalLimits[0];
-  const hasAnyAtLimit = allLimits.some(l => l.limit.atLimit);
-  const hasAnyNearLimit = allLimits.some(l => l.limit.nearLimit && !l.limit.atLimit);
+    const criticalLimits = allLimits
+      .filter(l => !l.limit.unlimited && l.limit.limit !== null)
+      .sort((a, b) => b.limit.percentage - a.limit.percentage);
+
+    mostCritical = criticalLimits[0] || null;
+  } catch {
+    // If limit computation fails, just don't show the usage bar
+  }
+
+  const hasAnyAtLimit = (() => {
+    try {
+      return [limits.queries, limits.dataSources, limits.dashboards, limits.chatSessions, limits.storage]
+        .some(l => l.atLimit);
+    } catch { return false; }
+  })();
+
+  const hasAnyNearLimit = (() => {
+    try {
+      return [limits.queries, limits.dataSources, limits.dashboards, limits.chatSessions, limits.storage]
+        .some(l => l.nearLimit && !l.atLimit);
+    } catch { return false; }
+  })();
 
   return (
     <>
-      <div className="px-2 py-2 space-y-2 group-data-[collapsible=icon]:hidden">
+      {/* Separator above widget */}
+      <div className="border-t border-border/50 mx-1 group-data-[collapsible=icon]:hidden" />
+
+      <div className="px-2 py-2 space-y-1.5 group-data-[collapsible=icon]:hidden">
         {/* Plan badge row — ALWAYS visible */}
         <button
           onClick={() => setPlansOpen(true)}
@@ -71,7 +94,7 @@ export function PlanUsageWidget() {
             <Crown className="h-3 w-3 text-muted-foreground" />
             <span className="text-[10px] text-muted-foreground">{t('currentPlan')}</span>
           </div>
-          <Badge className={`${PLAN_BADGE_COLORS[planId]} text-[9px] px-1.5 h-4`}>
+          <Badge variant="outline" className={`${PLAN_BADGE_COLORS[planId] || PLAN_BADGE_COLORS.free} text-[9px] px-1.5 h-4`}>
             {planName}
           </Badge>
         </button>
@@ -84,7 +107,7 @@ export function PlanUsageWidget() {
         )}
 
         {/* Most critical usage bar — only when we have data */}
-        {usageData && mostCritical && (
+        {usageData && mostCritical && !mostCritical.limit.unlimited && (
           <div className="space-y-1">
             <div className="flex items-center justify-between text-[10px] text-muted-foreground">
               <span className="truncate">{mostCritical.label}</span>
@@ -103,7 +126,7 @@ export function PlanUsageWidget() {
         {hasAnyAtLimit && (
           <button
             onClick={() => setPlansOpen(true)}
-            className="flex items-center gap-1.5 w-full text-[10px] text-red-600 dark:text-red-400 bg-red-500/5 hover:bg-red-500/10 rounded px-2 py-1.5 transition-colors"
+            className="flex items-center gap-1.5 w-full text-[10px] text-red-600 dark:text-red-400 bg-red-500/5 hover:bg-red-500/10 rounded px-2 py-1 transition-colors"
           >
             <Lock className="h-3 w-3 shrink-0" />
             <span className="truncate">{t('limitReached')}</span>
@@ -114,7 +137,7 @@ export function PlanUsageWidget() {
         {hasAnyNearLimit && !hasAnyAtLimit && (
           <button
             onClick={() => setPlansOpen(true)}
-            className="flex items-center gap-1.5 w-full text-[10px] text-amber-600 dark:text-amber-400 bg-amber-500/5 hover:bg-amber-500/10 rounded px-2 py-1.5 transition-colors"
+            className="flex items-center gap-1.5 w-full text-[10px] text-amber-600 dark:text-amber-400 bg-amber-500/5 hover:bg-amber-500/10 rounded px-2 py-1 transition-colors"
           >
             <AlertTriangle className="h-3 w-3 shrink-0" />
             <span className="truncate">{t('upgradeRequired')}</span>
