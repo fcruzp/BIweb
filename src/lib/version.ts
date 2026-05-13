@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.29';
-export const VERSION_NAME = 'Enforce plan limits: datasources, dashboards, chat sessions, storage, custom keys';
+export const VERSION = '0.3.30';
+export const VERSION_NAME = 'Frontend limit guards: lock icons, near-limit warnings, disabled buttons';

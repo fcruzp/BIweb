@@ -295,6 +295,12 @@ export const translations = {
     lowerPlan: 'Lower plan',
     freeForever: 'Free forever',
 
+    // Limits
+    limitReached: 'Limit Reached',
+    upgradeRequired: 'Upgrade your plan to continue.',
+    chatSessions: 'Chat Sessions',
+    dataSourcesLimitMessage: 'You have reached the limit of {limit} data sources.',
+
     // Billing
     billingSuccess: 'Plan upgraded successfully!',
     billingCancelled: 'Checkout cancelled.',
@@ -688,6 +694,12 @@ export const translations = {
     exportRows: 'Exportar hasta',
     lowerPlan: 'Plan inferior',
     freeForever: 'Gratis para siempre',
+
+    // Límites
+    limitReached: 'Límite Alcanzado',
+    upgradeRequired: 'Mejora tu plan para continuar.',
+    chatSessions: 'Sesiones de Chat',
+    dataSourcesLimitMessage: 'Has alcanzado el límite de {limit} fuentes de datos.',
 
     // Facturación
     billingSuccess: '¡Plan actualizado exitosamente!',

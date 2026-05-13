@@ -44,6 +44,8 @@ import { WidgetRenderer } from './widget-renderer';
 import { useI18n } from '@/hooks/use-i18n';
 import { authFetch } from '@/lib/fetch-utils';
 import { useAuth } from '@/components/auth/AuthProvider';
+import { useUsageLimits } from '@/hooks/use-usage-limits';
+import { Lock } from 'lucide-react';
 
 export function DashboardView() {
   const {
@@ -66,6 +68,8 @@ export function DashboardView() {
   const [deletingWidgetId, setDeletingWidgetId] = useState<string | null>(null);
   const { t } = useI18n();
   const { isAuthenticated } = useAuth();
+  const { limits } = useUsageLimits();
+  const dashboardsAtLimit = limits.dashboards.atLimit;
 
   // Stale-while-revalidate: show cached dashboards immediately, refresh in background
   // Only fetch on mount — cached data comes from Zustand persist
@@ -188,9 +192,9 @@ export function DashboardView() {
               <h2 className="text-xl font-bold">{t('dashboards')}</h2>
               <p className="text-sm text-muted-foreground">{t('manageDashboards')}</p>
             </div>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 gap-2" onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4" />
-              {t('newDashboard')}
+            <Button className="bg-emerald-600 hover:bg-emerald-700 gap-2" onClick={() => setCreateOpen(true)} disabled={dashboardsAtLimit}>
+              {dashboardsAtLimit ? <Lock className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              {dashboardsAtLimit ? t('limitReached') : t('newDashboard')}
             </Button>
           </div>
 
@@ -201,9 +205,9 @@ export function DashboardView() {
               <p className="text-sm text-muted-foreground mt-1 mb-4">
                 {t('noDashboardsDesc')}
               </p>
-              <Button className="bg-emerald-600 hover:bg-emerald-700 gap-2" onClick={() => setCreateOpen(true)}>
-                <Plus className="h-4 w-4" />
-                {t('createDashboard')}
+              <Button className="bg-emerald-600 hover:bg-emerald-700 gap-2" onClick={() => setCreateOpen(true)} disabled={dashboardsAtLimit}>
+                {dashboardsAtLimit ? <Lock className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                {dashboardsAtLimit ? t('limitReached') : t('createDashboard')}
               </Button>
             </div>
           ) : (

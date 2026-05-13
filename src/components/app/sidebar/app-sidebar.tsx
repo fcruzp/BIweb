@@ -24,6 +24,7 @@ import {
   Table2,
   Zap,
   Key,
+  Lock,
 } from 'lucide-react';
 import { useAppStore, type AppView } from '@/stores/app-store';
 import { useAIConfigStore } from '@/stores/ai-config-store';
@@ -37,6 +38,8 @@ import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
 import { useI18n } from '@/hooks/use-i18n';
 import { authFetch } from '@/lib/fetch-utils';
+import { useUsageLimits } from '@/hooks/use-usage-limits';
+import { toast } from 'sonner';
 
 export function AppSidebar() {
   const { currentView, setCurrentView, activeDataSourceId, setActiveSession, addChatSession, uploadDialogOpen, setUploadDialogOpen } =
@@ -45,6 +48,7 @@ export function AppSidebar() {
   const { provider, isConfigured } = useAIConfigStore();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { t } = useI18n();
+  const { limits } = useUsageLimits();
 
   const navItems: Array<{ view: AppView; icon: React.ReactNode; label: string }> = [
     { view: 'chat', icon: <MessageSquare className="h-4 w-4" />, label: t('chat') },
@@ -58,6 +62,7 @@ export function AppSidebar() {
 
   const handleNewChat = async () => {
     if (!activeDataSourceId) return;
+    if (limits.chatSessions.atLimit) return; // Block if at limit
     try {
       const res = await authFetch('/api/chat/sessions', {
         method: 'POST',
@@ -75,10 +80,30 @@ export function AppSidebar() {
           updatedAt: data.session.updatedAt,
         });
         clearMessages();
+      } else if (res.status === 403) {
+        // Limit exceeded — backend rejected
+        const data = await res.json().catch(() => ({}));
+        toastLimitError('chatSessions', data);
       }
     } catch (error) {
       // Silently ignore — authFetch handles 401 globally
     }
+  };
+
+  const toastLimitError = (type: string, data: Record<string, unknown>) => {
+    toast.error(t('limitReached'), {
+      description: data.error as string || t('upgradeRequired'),
+    });
+  };
+
+  const handleUploadClick = () => {
+    if (limits.dataSources.atLimit) {
+      toast.error(t('limitReached'), {
+        description: t('dataSourcesLimitMessage', { limit: String(limits.dataSources.limit) }),
+      });
+      return;
+    }
+    setUploadDialogOpen(true);
   };
 
   return (
@@ -124,11 +149,22 @@ export function AppSidebar() {
         {/* Data Sources */}
         <SidebarGroup>
           <SidebarGroupLabel>{t('datasources')}</SidebarGroupLabel>
-          <SidebarGroupAction onClick={() => setUploadDialogOpen(true)} title={t('uploadDataSource')}>
-            <Plus className="h-4 w-4" />
+          <SidebarGroupAction
+            onClick={handleUploadClick}
+            title={limits.dataSources.atLimit ? t('limitReached') : t('uploadDataSource')}
+            className={limits.dataSources.atLimit ? 'text-muted-foreground cursor-not-allowed' : ''}
+          >
+            {limits.dataSources.atLimit ? <Lock className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
           </SidebarGroupAction>
           <SidebarGroupContent>
             <DataSourceList />
+            {/* Near-limit warning */}
+            {limits.dataSources.nearLimit && !limits.dataSources.atLimit && (
+              <div className="px-2 py-1.5 text-[10px] text-amber-600 bg-amber-500/5 rounded flex items-center gap-1 group-data-[collapsible=icon]:hidden">
+                <Lock className="h-3 w-3 shrink-0" />
+                {limits.dataSources.used}/{limits.dataSources.limit} {t('dataSourcesUsed').toLowerCase()}
+              </div>
+            )}
           </SidebarGroupContent>
         </SidebarGroup>
 
@@ -138,8 +174,12 @@ export function AppSidebar() {
         {activeDataSourceId && (
           <SidebarGroup>
             <SidebarGroupLabel>{t('chats')}</SidebarGroupLabel>
-            <SidebarGroupAction onClick={handleNewChat} title={t('newChat')}>
-              <Plus className="h-4 w-4" />
+            <SidebarGroupAction
+              onClick={handleNewChat}
+              title={limits.chatSessions.atLimit ? t('limitReached') : t('newChat')}
+              className={limits.chatSessions.atLimit ? 'text-muted-foreground cursor-not-allowed' : ''}
+            >
+              {limits.chatSessions.atLimit ? <Lock className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
             </SidebarGroupAction>
             <SidebarGroupContent>
               <ChatSessionList />

@@ -81,6 +81,7 @@ interface UsageData {
     queries: UsageMetric;
     dataSources: UsageMetric;
     dashboards: UsageMetric;
+    chatSessions: UsageMetric;
     storage: StorageMetric;
   };
   periodStart: string;
@@ -326,12 +327,24 @@ export function UsagePlanDialog({ open, onOpenChange }: UsagePlanDialogProps) {
                       percentage={usageData.usage.dashboards.percentage}
                       t={t}
                     />
+
+                    {/* Chat Sessions */}
+                    <UsageBar
+                      icon={<MessageSquare className="h-4 w-4" />}
+                      label={t('chatSessions')}
+                      used={usageData.usage.chatSessions.used}
+                      limit={usageData.usage.chatSessions.limit}
+                      unlimited={usageData.usage.chatSessions.unlimited}
+                      percentage={usageData.usage.chatSessions.percentage}
+                      t={t}
+                    />
                   </div>
 
                   {/* Limit reached warning */}
                   {(usageData.usage.queries.upgradePlanId ||
                     usageData.usage.dataSources.upgradePlanId ||
                     usageData.usage.dashboards.upgradePlanId ||
+                    usageData.usage.chatSessions.upgradePlanId ||
                     usageData.usage.storage.upgradePlanId) && (
                     <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
                       <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
