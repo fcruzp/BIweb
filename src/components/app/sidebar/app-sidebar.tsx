@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Sidebar,
   SidebarContent,
@@ -39,6 +39,7 @@ import { useI18n } from '@/hooks/use-i18n';
 import { authFetch } from '@/lib/fetch-utils';
 import { useUsageLimits, useUsageLimitsInit } from '@/hooks/use-usage-limits';
 import { useAIStatus } from '@/hooks/use-ai-status';
+import { SettingsDialog } from '@/components/app/settings/settings-dialog';
 import { toast } from 'sonner';
 
 export function AppSidebar() {
@@ -59,6 +60,9 @@ export function AppSidebar() {
       checkAI();
     }
   }, [checkAI]);
+
+  // Settings dialog state
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const navItems: Array<{ view: AppView; icon: React.ReactNode; label: string }> = [
     { view: 'chat', icon: <MessageSquare className="h-4 w-4" />, label: t('chat') },
@@ -243,16 +247,7 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton
               tooltip={aiStatus === 'error' ? t('aiConnectionError') : t('settings')}
-              onClick={aiStatus === 'error' ? () => {
-                toast.error(t('aiConnectionError'), {
-                  description: aiError || t('aiConnectionErrorDesc'),
-                  duration: 6000,
-                  action: {
-                    label: t('retry'),
-                    onClick: () => checkAI(),
-                  },
-                });
-              } : undefined}
+              onClick={() => setSettingsOpen(true)}
             >
               <div className="relative">
                 <Settings className="h-4 w-4" />
@@ -297,6 +292,7 @@ export function AppSidebar() {
       </SidebarFooter>
 
       <DataSourceUpload open={uploadDialogOpen} onOpenChange={setUploadDialogOpen} />
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </Sidebar>
   );
 }

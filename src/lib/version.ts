@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.41';
-export const VERSION_NAME = 'Add AI status indicator to sidebar Settings button';
+export const VERSION = '0.3.42';
+export const VERSION_NAME = 'Add Settings dialog — account, AI status, language, plans';
