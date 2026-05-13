@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.40';
-export const VERSION_NAME = 'Fix createCompletion export — resolve Docker build failure';
+export const VERSION = '0.3.41';
+export const VERSION_NAME = 'Add AI status indicator to sidebar Settings button';

@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import {
   Sidebar,
   SidebarContent,
@@ -23,6 +24,8 @@ import {
   Settings,
   Table2,
   Lock,
+  WifiOff,
+  Loader2,
 } from 'lucide-react';
 import { useAppStore, type AppView } from '@/stores/app-store';
 import { useChatStore } from '@/stores/chat-store';
@@ -35,6 +38,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 import { useI18n } from '@/hooks/use-i18n';
 import { authFetch } from '@/lib/fetch-utils';
 import { useUsageLimits, useUsageLimitsInit } from '@/hooks/use-usage-limits';
+import { useAIStatus } from '@/hooks/use-ai-status';
 import { toast } from 'sonner';
 
 export function AppSidebar() {
@@ -43,8 +47,18 @@ export function AppSidebar() {
   const { clearMessages } = useChatStore();
   const { t } = useI18n();
   const { limits, refresh: refreshLimits } = useUsageLimits();
+  const { status: aiStatus, errorMessage: aiError, check: checkAI } = useAIStatus();
   // Initialize the shared Zustand store — fetches on auth change, resets on sign-out
   useUsageLimitsInit();
+
+  // Check AI status once on mount
+  const aiCheckedRef = useRef(false);
+  useEffect(() => {
+    if (!aiCheckedRef.current) {
+      aiCheckedRef.current = true;
+      checkAI();
+    }
+  }, [checkAI]);
 
   const navItems: Array<{ view: AppView; icon: React.ReactNode; label: string }> = [
     { view: 'chat', icon: <MessageSquare className="h-4 w-4" />, label: t('chat') },
@@ -225,11 +239,53 @@ export function AppSidebar() {
         <PlanUsageWidget />
 
         <SidebarMenu>
-          {/* Settings */}
+          {/* Settings with AI status indicator */}
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip={t('settings')}>
-              <Settings className="h-4 w-4" />
+            <SidebarMenuButton
+              tooltip={aiStatus === 'error' ? t('aiConnectionError') : t('settings')}
+              onClick={aiStatus === 'error' ? () => {
+                toast.error(t('aiConnectionError'), {
+                  description: aiError || t('aiConnectionErrorDesc'),
+                  duration: 6000,
+                  action: {
+                    label: t('retry'),
+                    onClick: () => checkAI(),
+                  },
+                });
+              } : undefined}
+            >
+              <div className="relative">
+                <Settings className="h-4 w-4" />
+                {/* AI Status dot */}
+                {aiStatus === 'ok' && (
+                  <span className="absolute -bottom-0.5 -right-0.5 flex h-2 w-2">
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                  </span>
+                )}
+                {aiStatus === 'error' && (
+                  <span className="absolute -bottom-0.5 -right-0.5 flex h-2 w-2">
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                  </span>
+                )}
+                {aiStatus === 'checking' && (
+                  <span className="absolute -bottom-0.5 -right-0.5 flex h-2 w-2">
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400" />
+                  </span>
+                )}
+              </div>
               <span>{t('settings')}</span>
+              {/* Compact status text — only when expanded */}
+              {aiStatus === 'ok' && (
+                <span className="ml-auto text-[9px] text-emerald-600 dark:text-emerald-400 font-medium group-data-[collapsible=icon]:hidden">
+                  OK
+                </span>
+              )}
+              {aiStatus === 'error' && (
+                <WifiOff className="ml-auto h-3 w-3 text-red-500 group-data-[collapsible=icon]:hidden" />
+              )}
+              {aiStatus === 'checking' && (
+                <Loader2 className="ml-auto h-3 w-3 animate-spin text-amber-500 group-data-[collapsible=icon]:hidden" />
+              )}
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
