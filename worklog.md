@@ -561,3 +561,31 @@ After ANY mutation that changes resource counts, call `refreshLimits()`:
 - `datamind-app-state` in localStorage can become stale after DB resets
 - Components validate activeDataSourceId against loaded dataSources list
 - If stale, the ID is cleared and user starts fresh
+
+---
+Task ID: 16
+Agent: Main
+Task: Remove Z-AI, simplify to OpenRouter-only via env vars
+
+Work Log:
+- v0.3.38: Major architectural simplification — removed dual AI provider system
+  - Rewrote `src/lib/ai.ts`: Removed Z-AI entirely (getZAI, createZAICompletion, zaiInstance, zaiAvailable), removed Zustand store import fallback, removed AIClientConfig type. Now uses OpenAI client singleton with OPENROUTER_API_KEY + AI_DEFAULT_MODEL env vars.
+  - Updated `src/app/api/chat/route.ts`: Removed aiConfig from body, removed plan-gated custom model check, removed aiConfig from all AI function calls
+  - Updated `src/app/api/datasources/[id]/analyze/route.ts`: Removed aiConfig parsing and passing
+  - Rewrote `src/app/api/ai/check/route.ts`: Tests server's own OpenRouter connection (no client params)
+  - Deleted `src/app/api/test-ai/route.ts` and `src/app/api/chat/sse-test/route.ts` (Z-AI only)
+  - Deleted `src/components/app/settings/ai-settings-dialog.tsx` (AI settings UI)
+  - Deleted `src/stores/ai-config-store.ts` (frontend AI config store)
+  - Updated `message-input.tsx`: Removed useAIConfigStore, hardcoded queryRowLimit=500, removed aiConfig from request
+  - Updated `datasource-upload.tsx`: Removed useAIConfigStore, removed aiConfig from request
+  - Updated `datasource-list.tsx`: Removed useAIConfigStore, removed aiConfig from request
+  - Updated `app-sidebar.tsx`: Removed AI config indicator, AISettingsDialog, provider badge
+  - Updated `layout.tsx`: Replaced z-ai CDN favicon with /favicon.ico
+- v0.3.39: Removed z-ai-web-dev-sdk package (`bun remove z-ai-web-dev-sdk`), updated version
+
+Stage Summary:
+- **AI architecture simplified**: From dual-provider (Z-AI + OpenRouter) with client-side config → single provider (OpenRouter) with server-side env vars
+- **Env vars required**: OPENROUTER_API_KEY and AI_DEFAULT_MODEL (default: google/gemini-2.5-flash)
+- **Removed**: z-ai-web-dev-sdk package, ai-config-store.ts, ai-settings-dialog.tsx, test-ai route, sse-test route
+- **User impact**: No more AI config decisions. The app "just works" with the backend's OpenRouter key.
+- **Future BYOK**: Can be added as a Business-plan feature when needed

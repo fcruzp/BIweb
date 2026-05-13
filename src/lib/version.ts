@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.37';
-export const VERSION_NAME = 'Convert useUsageLimits to shared Zustand store — limits sync across all components';
+export const VERSION = '0.3.39';
+export const VERSION_NAME = 'Remove z-ai-web-dev-sdk package, clean up remaining references';
