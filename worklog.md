@@ -489,3 +489,75 @@ Stage Summary:
 - All 403 backend errors now caught and shown with user-friendly messages
 - Frontend checks block actions BEFORE API calls (saves round-trips, instant feedback)
 - Version: 0.3.31
+
+---
+Task ID: 15
+Agent: Main
+Task: Fix PlanUsageWidget invisible + disabled + button on limit reached + limits sync across components
+
+Work Log:
+- v0.3.32: Fixed PlanUsageWidget crash — `usageData?.plan.id` → `usageData?.plan?.id` (TypeError on undefined.id when usageData was null)
+- v0.3.34: Replaced Lock icon swap with disabled Plus icon pattern for sidebar + buttons:
+  - When at limit: Plus stays but with opacity-50, cursor-not-allowed, no hover effect
+  - Tooltip shows limit message + "Upgrade your plan" when disabled
+  - Click on disabled + shows toast with limit message
+  - Applied to both chat sessions and datasource + buttons
+- v0.3.35: Added refreshLimits() calls after delete/create operations:
+  - Chat delete → refreshLimits()
+  - Datasource delete → refreshLimits()
+  - Chat create (sidebar) → refreshLimits()
+  - Datasource upload → refreshLimits()
+- v0.3.36: Added refreshLimits() after auto-creating chat from message input + frontend chat session limit check
+- v0.3.37: **CRITICAL FIX** — Converted useUsageLimits from per-component useState to shared Zustand store
+
+Stage Summary:
+- **ROOT CAUSE of stale limits**: Each component calling useUsageLimits() had its own independent useState. When one component called refreshLimits(), only that component's state updated — others remained stale.
+- **Fix**: Replaced useState with Zustand store (useUsageLimitsStore). All 7 consumers now share the same state. When ANY component calls refresh(), ALL components re-render with updated limits.
+- **Pattern**: `useUsageLimitsInit()` called once in AppSidebar for initial fetch + auth change detection
+- **Store reset**: On sign-out, store clears to avoid stale data
+
+---
+## ⚠️ CRITICAL KNOW-HOW — Must Read Before Working on This Project
+
+### 1. Git Branch — ALWAYS use `master`, NEVER `main`
+- Push command: `git push origin master` (or `git push origin main:master` if local branch is main)
+- The remote repo is `fcruzp/BIweb` on GitHub, branch `master`
+- Local branch may be named `main` but must push to `origin/master`
+
+### 2. Shared State MUST Use Zustand Stores (NOT useState in hooks)
+- **RULE**: If multiple components need the same data, use a Zustand store — NOT useState inside a custom hook
+- `useUsageLimits()` was originally a hook with internal useState → each consumer had its own copy → refreshLimits() only updated the caller
+- Converted to Zustand store: `useUsageLimitsStore` — all consumers share the same state
+- **Pattern**: Create Zustand store → export thin `useXxx()` hook for convenience → call `useXxxInit()` once in a top-level component
+- **Applies to**: Any hook that provides shared data + a refresh function (usage limits, feature flags, etc.)
+
+### 3. Usage Limits Refresh Points
+After ANY mutation that changes resource counts, call `refreshLimits()`:
+- **Chat session**: create (sidebar +, chat-session-list, message-input auto-create), delete
+- **Datasource**: upload, delete
+- **Dashboard**: create, delete
+- **Query execution**: after SSE complete event
+- **Auth change**: sign-in, sign-out (handled by useUsageLimitsInit)
+
+### 4. Next.js 16 Conventions
+- Middleware file is `src/proxy.ts` with `proxy()` function (NOT `src/middleware.ts`)
+- API routes use `requireAuth()` for auth validation, NOT middleware-level blocking
+- `authFetch` utility handles 401 globally via AUTH_EXPIRED event
+- `getCurrentUser()` returns internal User (cuid), `getSupabaseAuthUser()` returns Supabase Auth user
+
+### 5. Version Format
+- `MAJOR.PHASE.PUSH` (e.g., 0.3.37)
+- MAJOR: 0=beta, 1=production
+- PHASE: Development phase number
+- PUSH: Number of pushes in this phase
+- Update in `src/lib/version.ts`
+
+### 6. i18n
+- All user-facing text uses `useI18n()` hook with `t('key')`
+- Translations in `src/lib/i18n.ts` — both `en` and `es` objects
+- Type-safe: `TranslationKey` type ensures no typos
+
+### 7. Zustand Persist Stale Data
+- `datamind-app-state` in localStorage can become stale after DB resets
+- Components validate activeDataSourceId against loaded dataSources list
+- If stale, the ID is cleared and user starts fresh
