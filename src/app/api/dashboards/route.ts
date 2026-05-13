@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth-utils';
+import { checkUsageLimit, recordUsage } from '@/lib/usage-tracking';
+import { USAGE_EVENT_TYPES } from '@/lib/plans';
 
 // GET /api/dashboards
 export async function GET() {
@@ -25,6 +27,20 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth();
+
+    // ── Plan limit check ──────────────────────────────────────
+    const limitCheck = await checkUsageLimit(user.id, 'dashboards');
+    if (!limitCheck.allowed) {
+      return NextResponse.json({
+        error: 'Dashboard limit reached',
+        code: 'dashboards_limit_exceeded',
+        usage: limitCheck.usage,
+        limit: limitCheck.limit,
+        planName: limitCheck.planName,
+        upgradeRequired: true,
+      }, { status: 403 });
+    }
+
     const { name, description } = await request.json();
 
     if (!name) {
@@ -39,6 +55,12 @@ export async function POST(request: NextRequest) {
         userId: user.id,
       },
       include: { widgets: true },
+    });
+
+    // Record usage event (non-blocking)
+    recordUsage(user.id, USAGE_EVENT_TYPES.DASHBOARD_CREATED, {
+      dashboardId: dashboard.id,
+      dashboardName: name,
     });
 
     return NextResponse.json({ dashboard }, { status: 201 });

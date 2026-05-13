@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { handleCheckoutComplete } from '@/lib/stripe/service'
 import { isStripeLive } from '@/lib/stripe/config'
 import { db } from '@/lib/db'
-import { getSupabaseAuthUser } from '@/lib/auth-utils'
+import { getCurrentUser, getSupabaseAuthUser } from '@/lib/auth-utils'
 
 /**
  * POST /api/stripe/webhook
@@ -112,12 +112,15 @@ export async function POST(request: NextRequest) {
       reactivate?: boolean
     }
 
+    // Resolve internal user ID from Supabase Auth context.
+    // CRITICAL: Use getCurrentUser() which returns the internal User record,
+    // NOT getSupabaseAuthUser() which returns the Supabase Auth user (different ID).
+    const internalUser = await getCurrentUser()
+
     if (type === 'checkout.session.completed' && planId) {
-      // Try to get user from auth context (cookies)
-      const authUser = await getSupabaseAuthUser()
-      if (authUser) {
+      if (internalUser) {
         await handleCheckoutComplete(
-          authUser.id,
+          internalUser.id,
           planId,
           billingPeriod ?? 'monthly'
         )
@@ -126,14 +129,13 @@ export async function POST(request: NextRequest) {
 
     if (type === 'customer.subscription.deleted') {
       // Cancel subscription — get user from auth context
-      const authUser = await getSupabaseAuthUser()
-      if (authUser) {
+      if (internalUser) {
         const subscription = await db.subscription.findUnique({
-          where: { userId: authUser.id },
+          where: { userId: internalUser.id },
         })
         if (subscription) {
           await db.subscription.update({
-            where: { userId: authUser.id },
+            where: { userId: internalUser.id },
             data: {
               plan: 'free',
               status: 'canceled',
@@ -146,14 +148,13 @@ export async function POST(request: NextRequest) {
 
     if (type === 'customer.subscription.updated' && reactivate) {
       // Reactivate subscription — get user from auth context
-      const authUser = await getSupabaseAuthUser()
-      if (authUser) {
+      if (internalUser) {
         const subscription = await db.subscription.findUnique({
-          where: { userId: authUser.id },
+          where: { userId: internalUser.id },
         })
         if (subscription) {
           await db.subscription.update({
-            where: { userId: authUser.id },
+            where: { userId: internalUser.id },
             data: {
               status: 'active',
               cancelAtPeriodEnd: false,

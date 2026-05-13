@@ -38,7 +38,7 @@ export async function recordUsage(
  */
 export async function checkUsageLimit(
   userId: string,
-  limitType: 'queries' | 'dataSources' | 'dashboards' | 'storage',
+  limitType: 'queries' | 'dataSources' | 'dashboards' | 'storage' | 'chatSessions',
 ): Promise<{ allowed: boolean; usage: number; limit: number | null; planName: string }> {
   try {
     const subscription = await db.subscription.findUnique({
@@ -97,6 +97,17 @@ export async function checkUsageLimit(
           allowed: plan.maxStorageMB === null || usageMB < plan.maxStorageMB,
           usage: Math.round(usageMB * 100) / 100,
           limit: plan.maxStorageMB,
+          planName: plan.name,
+        };
+      }
+
+      case 'chatSessions': {
+        // Count total chat sessions across all data sources
+        const usage = await db.chatSession.count({ where: { userId } });
+        return {
+          allowed: plan.maxChatSessions === null || usage < plan.maxChatSessions,
+          usage,
+          limit: plan.maxChatSessions,
           planName: plan.name,
         };
       }

@@ -3,6 +3,8 @@ import { db } from '@/lib/db';
 import { extractSchema, generateSchemaDescription, generateSampleDataDescription } from '@/lib/sqlite';
 import { requireAuth } from '@/lib/auth-utils';
 import { getDataDir } from '@/lib/file-utils';
+import { checkUsageLimit, recordUsage } from '@/lib/usage-tracking';
+import { USAGE_EVENT_TYPES, planHasFeature, getPlan, type PlanId } from '@/lib/plans';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
@@ -70,6 +72,20 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth();
 
+    // ── Plan limit checks ──────────────────────────────────────
+    // Check data source count limit
+    const dsLimit = await checkUsageLimit(user.id, 'dataSources');
+    if (!dsLimit.allowed) {
+      return NextResponse.json({
+        error: 'Data source limit reached',
+        code: 'data_sources_limit_exceeded',
+        usage: dsLimit.usage,
+        limit: dsLimit.limit,
+        planName: dsLimit.planName,
+        upgradeRequired: true,
+      }, { status: 403 });
+    }
+
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const name = (formData.get('name') as string) || file?.name || 'Untitled';
@@ -81,6 +97,33 @@ export async function POST(request: NextRequest) {
     // Validate file type
     if (!file.name.endsWith('.db') && !file.name.endsWith('.sqlite') && !file.name.endsWith('.sqlite3')) {
       return NextResponse.json({ error: 'Only SQLite files (.db, .sqlite, .sqlite3) are supported' }, { status: 400 });
+    }
+
+    // Check storage limit before saving the file
+    const fileSizeMB = file.size / (1024 * 1024);
+    const storageLimit = await checkUsageLimit(user.id, 'storage');
+    if (!storageLimit.allowed) {
+      return NextResponse.json({
+        error: 'Storage limit reached',
+        code: 'storage_limit_exceeded',
+        usageMB: storageLimit.usage,
+        limitMB: storageLimit.limit,
+        planName: storageLimit.planName,
+        upgradeRequired: true,
+      }, { status: 403 });
+    }
+
+    // Also check if this specific file would push over the limit
+    if (storageLimit.limit !== null && (storageLimit.usage + fileSizeMB) > storageLimit.limit) {
+      return NextResponse.json({
+        error: 'File would exceed storage limit',
+        code: 'storage_limit_exceeded',
+        usageMB: storageLimit.usage,
+        limitMB: storageLimit.limit,
+        fileSizeMB: Math.round(fileSizeMB * 100) / 100,
+        planName: storageLimit.planName,
+        upgradeRequired: true,
+      }, { status: 403 });
     }
 
     // Ensure data directory exists
@@ -107,6 +150,13 @@ export async function POST(request: NextRequest) {
         status: 'uploaded',
         userId: user.id,
       },
+    });
+
+    // Record usage event (non-blocking)
+    recordUsage(user.id, USAGE_EVENT_TYPES.FILE_UPLOADED, {
+      dataSourceId: dataSource.id,
+      fileName: file.name,
+      fileSizeMB: Math.round(fileSizeMB * 100) / 100,
     });
 
     // Extract schema (fast, no AI needed)

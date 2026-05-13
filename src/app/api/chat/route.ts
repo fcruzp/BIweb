@@ -6,7 +6,7 @@ import { validateSQLQuery, sanitizeSQL } from '@/lib/sql-security';
 import { requireAuth } from '@/lib/auth-utils';
 import { suggestVisualizationHeuristic } from '@/lib/viz-heuristics';
 import { recordUsage, checkUsageLimit } from '@/lib/usage-tracking';
-import { USAGE_EVENT_TYPES } from '@/lib/plans';
+import { USAGE_EVENT_TYPES, planHasFeature } from '@/lib/plans';
 
 // ============================================================
 // Timeout helper
@@ -348,7 +348,20 @@ export async function POST(request: NextRequest) {
         send({ type: 'log', ...parseLog });
 
         const body = await request.json();
-        const { message, dataSourceId, sessionId, queryRowLimit, aiConfig } = body;
+        const { message, dataSourceId, sessionId, queryRowLimit } = body;
+        let aiConfig = body.aiConfig;
+
+        // ── Enforce canUseCustomKeys ────────────────────────────
+        // If user is on a plan that doesn't allow custom API keys,
+        // strip the custom AI config and use the default provider
+        if (aiConfig && (aiConfig.useCustomModel || aiConfig.provider === 'openrouter' || aiConfig.openrouterApiKey)) {
+          const sub = await db.subscription.findUnique({ where: { userId: user.id }, select: { plan: true } });
+          if (!planHasFeature(sub?.plan, 'canUseCustomKeys')) {
+            // Silently ignore custom AI config — fall back to default
+            aiConfig = null;
+            console.log(`[Chat] User ${user.id} on plan "${sub?.plan || 'free'}" cannot use custom keys — using default provider`);
+          }
+        }
 
         const parseDone = log.endStep('parse_body', `message="${message?.slice(0, 50)}", dataSourceId=${dataSourceId}, provider=${aiConfig?.provider || 'default'}`);
         send({ type: 'log', ...parseDone });

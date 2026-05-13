@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth-utils';
+import { checkUsageLimit } from '@/lib/usage-tracking';
 
 // GET /api/chat/sessions - List chat sessions for a data source (filtered by user)
 // OPTIMIZED: Removed messages include + redundant ownership check (userId is in findMany where clause)
@@ -53,6 +54,19 @@ export async function POST(request: NextRequest) {
       user = await requireAuth();
     } catch {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
+    // ── Plan limit check ──────────────────────────────────────
+    const limitCheck = await checkUsageLimit(user.id, 'chatSessions');
+    if (!limitCheck.allowed) {
+      return NextResponse.json({
+        error: 'Chat session limit reached',
+        code: 'chat_sessions_limit_exceeded',
+        usage: limitCheck.usage,
+        limit: limitCheck.limit,
+        planName: limitCheck.planName,
+        upgradeRequired: true,
+      }, { status: 403 });
     }
 
     const body = await request.json();

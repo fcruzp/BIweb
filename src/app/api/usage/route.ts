@@ -26,6 +26,7 @@ export async function GET() {
       queryCount,
       dataSourceCount,
       dashboardCount,
+      chatSessionCount,
       storageResult,
     ] = await Promise.all([
       // Queries this period
@@ -42,6 +43,10 @@ export async function GET() {
       }),
       // Dashboards (total)
       db.dashboard.count({
+        where: { userId: user.id },
+      }),
+      // Chat sessions (total)
+      db.chatSession.count({
         where: { userId: user.id },
       }),
       // Total storage used (sum of file sizes)
@@ -80,6 +85,15 @@ export async function GET() {
         percentage: plan.maxDashboards ? Math.min(100, Math.round((dashboardCount / plan.maxDashboards) * 100)) : 0,
         upgradePlanId: plan.maxDashboards !== null && dashboardCount >= plan.maxDashboards
           ? findUpgradePlan(planId, 'maxDashboards')
+          : null,
+      },
+      chatSessions: {
+        used: chatSessionCount,
+        limit: plan.maxChatSessions,
+        unlimited: plan.maxChatSessions === null,
+        percentage: plan.maxChatSessions ? Math.min(100, Math.round((chatSessionCount / plan.maxChatSessions) * 100)) : 0,
+        upgradePlanId: plan.maxChatSessions !== null && chatSessionCount >= plan.maxChatSessions
+          ? findUpgradePlan(planId, 'maxChatSessions')
           : null,
       },
       storage: {
