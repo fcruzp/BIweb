@@ -1,4 +1,3 @@
-import ZAI from 'z-ai-web-dev-sdk';
 import OpenAI from 'openai';
 
 // ============================================================
@@ -272,19 +271,6 @@ export interface AICompletionOptions {
   temperature?: number;
   maxTokens?: number;
   responseFormat?: 'text' | 'json';
-  /** Override provider for this call */
-  provider?: 'z-ai' | 'openrouter';
-  /** Override model for this call */
-  modelId?: string;
-  /** Override API key for this call */
-  apiKey?: string;
-}
-
-/** AI config passed from client-side to server-side API routes */
-export interface AIClientConfig {
-  provider?: 'z-ai' | 'openrouter';
-  modelId?: string;
-  apiKey?: string;
 }
 
 export interface AICompletionResult {
@@ -297,112 +283,37 @@ export interface AICompletionResult {
 }
 
 // ============================================================
-// Z-AI Provider (built-in, no key needed)
+// OpenRouter Provider (sole AI provider — configured via env vars)
 // ============================================================
 
-let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null;
-let zaiAvailable: boolean | null = null;
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
+const AI_DEFAULT_MODEL = process.env.AI_DEFAULT_MODEL || 'google/gemini-2.5-flash';
 
-async function getZAI() {
-  if (zaiAvailable === false) {
-    throw new Error('Z-AI is not available in this environment. Please configure OpenRouter in Settings.');
+let openaiClient: OpenAI | null = null;
+
+function getOpenAIClient(): OpenAI {
+  if (!OPENROUTER_API_KEY) {
+    throw new Error(
+      'OPENROUTER_API_KEY is not configured. Set it in your .env file.'
+    );
   }
-  try {
-    if (!zaiInstance) {
-      zaiInstance = await ZAI.create();
-      zaiAvailable = true;
-    }
-    return zaiInstance;
-  } catch (error) {
-    zaiAvailable = false;
-    throw new Error('Z-AI is not available in this environment. Please configure OpenRouter in Settings.');
-  }
-}
-
-async function createZAICompletion(options: AICompletionOptions): Promise<AICompletionResult> {
-  const startTime = Date.now();
-  try {
-    const zai = await getZAI();
-
-    const messages: Array<{ role: 'system' | 'assistant' | 'user'; content: string }> = [
-      { role: 'system', content: options.systemPrompt },
-    ];
-
-    if (options.contextMessages) {
-      messages.push(...options.contextMessages);
-    }
-
-    messages.push({ role: 'user', content: options.userMessage });
-
-    const completion = await zai.chat.completions.create({
-      messages,
-      thinking: { type: 'disabled' },
-    }).catch(async (err) => {
-      // Retry once after 60s for transient failures
-      console.warn('[Z-AI] Transient error, retrying in 60s:', err?.message || err);
-      await new Promise(r => setTimeout(r, 60000));
-      return zai.chat.completions.create({
-        messages,
-        thinking: { type: 'disabled' },
-      });
+  if (!openaiClient) {
+    openaiClient = new OpenAI({
+      apiKey: OPENROUTER_API_KEY,
+      baseURL: 'https://openrouter.ai/api/v1',
+      defaultHeaders: {
+        'HTTP-Referer': 'https://datamind.bi',
+        'X-Title': 'DataMind BI',
+      },
     });
-
-    const content = completion.choices[0]?.message?.content || '';
-    console.log(`[Z-AI] Completion took ${Date.now() - startTime}ms, content length: ${content.length}`);
-
-    const result: AICompletionResult = { content };
-
-    // Parse JSON if requested
-    if (options.responseFormat === 'json' && content) {
-      try {
-        const jsonStr = extractJSON(content);
-        result.parsedJson = JSON.parse(jsonStr);
-      } catch (e) {
-        console.warn('Z-AI did not return valid JSON, attempting plain text fallback:', (e as Error).message);
-        console.debug('Raw content:', content.slice(0, 500));
-
-        // Fallback: try to extract structured data from plain text
-        const sqlFallback = extractSQLFromPlainText(content);
-        if (sqlFallback) {
-          console.info('Successfully extracted SQL from Z-AI plain text response');
-          result.parsedJson = sqlFallback;
-        }
-      }
-    }
-
-    return result;
-  } catch (error) {
-    const errInfo = error instanceof Error
-      ? { message: error.message, name: error.name, stack: error.stack?.slice(0, 500) }
-      : { message: String(error) };
-    console.error(`[Z-AI] Completion FAILED after ${Date.now() - startTime}ms:`, errInfo);
-    throw error;
   }
+  return openaiClient;
 }
 
-// ============================================================
-// OpenRouter Provider (OpenAI-compatible API)
-// ============================================================
-
-function getOpenAIClient(apiKey: string): OpenAI {
-  return new OpenAI({
-    apiKey,
-    baseURL: 'https://openrouter.ai/api/v1',
-    defaultHeaders: {
-      'HTTP-Referer': 'https://datamind.bi',
-      'X-Title': 'DataMind BI',
-    },
-  });
-}
-
-async function createOpenRouterCompletion(options: AICompletionOptions): Promise<AICompletionResult> {
-  const apiKey = options.apiKey;
-  if (!apiKey) {
-    throw new Error('OpenRouter API key is required. Configure it in Settings.');
-  }
-
-  const client = getOpenAIClient(apiKey);
-  const model = options.modelId || 'anthropic/claude-sonnet-4';
+async function createCompletion(options: AICompletionOptions): Promise<AICompletionResult> {
+  const startTime = Date.now();
+  const client = getOpenAIClient();
+  const model = AI_DEFAULT_MODEL;
 
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: 'system', content: options.systemPrompt },
@@ -421,79 +332,40 @@ async function createOpenRouterCompletion(options: AICompletionOptions): Promise
     messages,
     temperature: options.temperature ?? 0.3,
     max_tokens: options.maxTokens ?? 4096,
+  }).catch(async (err) => {
+    // Retry once after 10s for transient failures
+    console.warn(`[AI] Transient error, retrying in 10s: ${err?.message || err}`);
+    await new Promise(r => setTimeout(r, 10000));
+    return client.chat.completions.create({
+      model,
+      messages,
+      temperature: options.temperature ?? 0.3,
+      max_tokens: options.maxTokens ?? 4096,
+    });
   });
 
   const content = completion.choices[0]?.message?.content || '';
+  console.log(`[AI] Completion took ${Date.now() - startTime}ms, model=${model}, content length: ${content.length}`);
 
-  return {
+  const result: AICompletionResult = {
     content,
     usage: {
       promptTokens: completion.usage?.prompt_tokens,
       completionTokens: completion.usage?.completion_tokens,
     },
   };
-}
 
-// ============================================================
-// Unified AI Service
-// ============================================================
-
-/**
- * Create an AI completion using the configured provider.
- * 
- * Priority for choosing provider:
- * 1. options.provider (explicit override)
- * 2. Reads from AI config store
- * 3. Falls back to z-ai
- */
-export async function createCompletion(options: AICompletionOptions): Promise<AICompletionResult> {
-  // Determine provider
-  let provider = options.provider;
-  let modelId = options.modelId;
-  let apiKey = options.apiKey;
-
-  // If not explicitly overridden, read from store
-  // NOTE: On the server side (API routes), the Zustand store uses default values
-  // since localStorage is not available. This means the server always uses z-ai
-  // unless the caller explicitly passes provider/apiKey/modelId.
-  if (!provider || !apiKey) {
+  // Parse JSON if requested
+  if (options.responseFormat === 'json' && content) {
     try {
-      // Dynamic import to avoid circular deps — store is client-side only
-      const { useAIConfigStore } = await import('@/stores/ai-config-store');
-      const config = useAIConfigStore.getState();
-
-      if (!provider) provider = config.provider;
-      if (!modelId) modelId = config.getEffectiveModelId();
-      if (!apiKey) apiKey = config.openrouterApiKey;
-    } catch (storeError) {
-      // If store is not available (e.g., during SSR), default to z-ai
-      console.log(`[AI] Config store not available (${storeError instanceof Error ? storeError.message : 'unknown'}), using z-ai`);
-      if (!provider) provider = 'z-ai';
-    }
-  }
-
-  // Route to the appropriate provider
-  console.log(`[AI] Using provider: ${provider}, model: ${modelId || 'default'}`);
-  const enrichedOptions = { ...options, provider, modelId, apiKey };
-
-  let result: AICompletionResult;
-  if (provider === 'openrouter') {
-    result = await createOpenRouterCompletion(enrichedOptions);
-  } else {
-    result = await createZAICompletion(enrichedOptions);
-  }
-
-  // Ensure JSON is parsed for both providers when responseFormat is json
-  if (options.responseFormat === 'json' && !result.parsedJson && result.content) {
-    try {
-      const jsonStr = extractJSON(result.content);
+      const jsonStr = extractJSON(content);
       result.parsedJson = JSON.parse(jsonStr);
     } catch (e) {
       console.warn('AI response is not valid JSON, attempting plain text fallback:', (e as Error).message);
-      console.debug('Raw content:', result.content.slice(0, 500));
+      console.debug('Raw content:', content.slice(0, 500));
 
       // Fallback: try to extract structured data from plain text
-      const sqlFallback = extractSQLFromPlainText(result.content);
+      const sqlFallback = extractSQLFromPlainText(content);
       if (sqlFallback) {
         console.info('Successfully extracted SQL from AI plain text response');
         result.parsedJson = sqlFallback;
@@ -510,8 +382,7 @@ export async function createCompletion(options: AICompletionOptions): Promise<AI
 
 export async function analyzeSchemaWithContext(
   schemaInfo: string,
-  sampleData: string,
-  aiConfig?: AIClientConfig
+  sampleData: string
 ): Promise<{
   semanticContext: string;
   businessGlossary: Record<string, string>;
@@ -538,7 +409,6 @@ Respond with a JSON object with these fields:
 }`,
     responseFormat: 'json',
     temperature: 0.3,
-    ...aiConfig,
   });
 
   if (result.parsedJson) {
@@ -566,8 +436,7 @@ export async function generateSQLFromNaturalLanguage(
   schemaInfo: string,
   semanticContext: string,
   previousQueries?: Array<{ question: string; sql: string }>,
-  queryRowLimit?: number,
-  aiConfig?: AIClientConfig
+  queryRowLimit?: number
 ): Promise<SQLGenerationResult> {
   const contextMessages = previousQueries?.map(q => [
     { role: 'user' as const, content: q.question },
@@ -615,7 +484,6 @@ Respond with valid JSON only. No explanation outside the JSON object.`,
     contextMessages,
     responseFormat: 'json',
     temperature: 0.1,
-    ...aiConfig,
   });
 
   if (result.parsedJson) {
@@ -660,8 +528,7 @@ export async function regenerateSQLWithFeedback(
   executionError: string,
   schemaInfo: string,
   semanticContext: string,
-  queryRowLimit?: number,
-  aiConfig?: AIClientConfig
+  queryRowLimit?: number
 ): Promise<SQLGenerationResult> {
   const result = await createCompletion({
     systemPrompt: `You are an expert SQL analyst. A previous SQL query you generated FAILED when executed against the database. You must fix it.
@@ -713,7 +580,6 @@ Fix the SQL query. Pay close attention to:
 Respond with valid JSON only. No explanation outside the JSON object.`,
     responseFormat: 'json',
     temperature: 0.1,
-    ...aiConfig,
   });
 
   if (result.parsedJson) {
@@ -776,8 +642,7 @@ export function isRetryableExecutionError(errorMessage: string): boolean {
 export async function suggestVisualization(
   sqlQuery: string,
   resultData: Array<Record<string, unknown>>,
-  naturalQuery: string,
-  aiConfig?: AIClientConfig
+  naturalQuery: string
 ): Promise<{
   chartType: 'bar' | 'line' | 'pie' | 'scatter' | 'area' | 'table' | 'metric' | 'heatmap';
   title: string;
@@ -947,7 +812,6 @@ TOTAL ROWS: ${resultData.length}
 Recommend the best visualization for this data.`,
     responseFormat: 'json',
     temperature: 0.3,
-    ...aiConfig,
   });
 
   if (result.parsedJson) {

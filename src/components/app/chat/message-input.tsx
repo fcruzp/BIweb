@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAppStore } from '@/stores/app-store';
 import { useChatStore, type QueryResult, type VisualizationConfig, type StreamingStage } from '@/stores/chat-store';
-import { useAIConfigStore } from '@/stores/ai-config-store';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Send, Loader2 } from 'lucide-react';
@@ -33,7 +32,7 @@ export function MessageInput() {
     setCurrentSQL, setCurrentQueryResult, setCurrentVisualization,
     setStreamingElapsedMs,
   } = useChatStore();
-  const { provider, modelId, openrouterApiKey, customModelId, useCustomModel, queryRowLimit } = useAIConfigStore();
+  const queryRowLimit = 500; // default row limit — backend uses same default
   const { t } = useI18n();
   const { limits, refresh: refreshLimits } = useUsageLimits();
 
@@ -187,12 +186,6 @@ export function MessageInput() {
             dataSourceId: activeDataSourceId,
             sessionId: sessionId,
             queryRowLimit: queryRowLimit,
-            // AI config from client-side store (server doesn't have access to localStorage)
-            aiConfig: {
-              provider,
-              modelId: useCustomModel && customModelId ? customModelId : modelId,
-              apiKey: provider === 'openrouter' ? openrouterApiKey : undefined,
-            },
           }),
           signal: abortController.signal,
         });

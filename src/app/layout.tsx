@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   description: "Upload databases, ask questions in natural language, and get instant AI-powered insights with visualizations.",
   keywords: ["BI", "Business Intelligence", "AI", "SQL", "Data Analysis", "Visualization"],
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+    icon: "/favicon.ico",
   },
 };
 

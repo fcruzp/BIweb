@@ -1,12 +1,12 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
-import { generateSQLFromNaturalLanguage, regenerateSQLWithFeedback, isRetryableExecutionError, createCompletion, detectLanguage, type AIClientConfig } from '@/lib/ai';
+import { generateSQLFromNaturalLanguage, regenerateSQLWithFeedback, isRetryableExecutionError, createCompletion, detectLanguage } from '@/lib/ai';
 import { executeSelectQuery, generateSchemaDescription } from '@/lib/sqlite';
 import { validateSQLQuery, sanitizeSQL } from '@/lib/sql-security';
 import { requireAuth } from '@/lib/auth-utils';
 import { suggestVisualizationHeuristic } from '@/lib/viz-heuristics';
 import { recordUsage, checkUsageLimit } from '@/lib/usage-tracking';
-import { USAGE_EVENT_TYPES, planHasFeature } from '@/lib/plans';
+import { USAGE_EVENT_TYPES } from '@/lib/plans';
 
 // ============================================================
 // Timeout helper
@@ -349,23 +349,8 @@ export async function POST(request: NextRequest) {
 
         const body = await request.json();
         const { message, dataSourceId, sessionId, queryRowLimit } = body;
-        let aiConfig = body.aiConfig;
 
-        // ── Enforce canUseCustomKeys ────────────────────────────
-        // If user is on a plan that doesn't allow custom API keys,
-        // strip custom model IDs but ALWAYS allow OpenRouter
-        // (users bring their own key = no cost to us).
-        if (aiConfig && aiConfig.useCustomModel && aiConfig.provider !== 'openrouter') {
-          const sub = await db.subscription.findUnique({ where: { userId: user.id }, select: { plan: true } });
-          if (!planHasFeature(sub?.plan, 'canUseCustomKeys')) {
-            // Strip custom model ID — fall back to default model
-            aiConfig.useCustomModel = false;
-            aiConfig.modelId = undefined;
-            console.log(`[Chat] User ${user.id} on plan "${sub?.plan || 'free'}" cannot use custom model IDs — using default model`);
-          }
-        }
-
-        const parseDone = log.endStep('parse_body', `message="${message?.slice(0, 50)}", dataSourceId=${dataSourceId}, provider=${aiConfig?.provider || 'default'}`);
+        const parseDone = log.endStep('parse_body', `message="${message?.slice(0, 50)}", dataSourceId=${dataSourceId}, provider=openrouter`);
         send({ type: 'log', ...parseDone });
 
         if (!message || !dataSourceId) {
@@ -508,7 +493,7 @@ export async function POST(request: NextRequest) {
         try {
           sqlResult = await withTimeout(
             generateSQLFromNaturalLanguage(
-              message, schemaDescription, semanticContext, previousQueries, queryRowLimit, aiConfig as AIClientConfig
+              message, schemaDescription, semanticContext, previousQueries, queryRowLimit
             ),
             60_000,
             'SQL generation'
@@ -696,7 +681,7 @@ export async function POST(request: NextRequest) {
               try {
                 const retryResult = await withTimeout(
                   regenerateSQLWithFeedback(
-                    message, finalSQL, lastError, schemaDescription, semanticContext, queryRowLimit, aiConfig as AIClientConfig
+                    message, finalSQL, lastError, schemaDescription, semanticContext, queryRowLimit
                   ),
                   60_000,
                   'SQL regeneration'
@@ -854,7 +839,6 @@ Sample results:
 ${JSON.stringify(sampleResults, null, 2)}`,
               temperature: 0.3,
               maxTokens: 1500,
-              ...(aiConfig as AIClientConfig),
             }),
             60_000,
             'Result analysis'

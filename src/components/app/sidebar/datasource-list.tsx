@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAppStore } from '@/stores/app-store';
-import { useAIConfigStore } from '@/stores/ai-config-store';
 import { useDashboardStore } from '@/stores/dashboard-store';
 import { useHistoryStore } from '@/stores/history-store';
 import { useChatStore } from '@/stores/chat-store';
@@ -41,7 +40,6 @@ export function DataSourceList() {
     removeChatSessionsByDataSourceId,
     updateDataSource,
   } = useAppStore();
-  const { provider, modelId, openrouterApiKey, customModelId, useCustomModel } = useAIConfigStore();
   const { removeWidgetsByDataSourceId } = useDashboardStore();
   const { clearHistoryByDataSourceId } = useHistoryStore();
   const { clearMessages } = useChatStore();
@@ -175,13 +173,7 @@ export function DataSourceList() {
       const res = await authFetch(`/api/datasources/${id}/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          aiConfig: {
-            provider,
-            modelId: useCustomModel && customModelId ? customModelId : modelId,
-            apiKey: provider === 'openrouter' ? openrouterApiKey : undefined,
-          },
-        }),
+        body: JSON.stringify({}),
       });
       if (res.ok) {
         const data = await res.json();

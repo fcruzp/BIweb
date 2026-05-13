@@ -22,22 +22,16 @@ import {
   Brain,
   Settings,
   Table2,
-  Zap,
-  Key,
   Lock,
 } from 'lucide-react';
 import { useAppStore, type AppView } from '@/stores/app-store';
-import { useAIConfigStore } from '@/stores/ai-config-store';
 import { useChatStore } from '@/stores/chat-store';
 import { DataSourceList } from './datasource-list';
 import { DataSourceUpload } from './datasource-upload';
 import { ChatSessionList } from './chat-session-list';
-import { AISettingsDialog } from '@/components/app/settings/ai-settings-dialog';
 import { LocaleSwitcher } from '@/components/app/locale-switcher';
 import { PlanUsageWidget } from './plan-usage-widget';
-import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
-import { useState } from 'react';
 import { useI18n } from '@/hooks/use-i18n';
 import { authFetch } from '@/lib/fetch-utils';
 import { useUsageLimits, useUsageLimitsInit } from '@/hooks/use-usage-limits';
@@ -47,8 +41,6 @@ export function AppSidebar() {
   const { currentView, setCurrentView, activeDataSourceId, setActiveSession, addChatSession, uploadDialogOpen, setUploadDialogOpen } =
     useAppStore();
   const { clearMessages } = useChatStore();
-  const { provider, isConfigured } = useAIConfigStore();
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const { t } = useI18n();
   const { limits, refresh: refreshLimits } = useUsageLimits();
   // Initialize the shared Zustand store — fetches on auth change, resets on sign-out
@@ -60,9 +52,6 @@ export function AppSidebar() {
     { view: 'history', icon: <History className="h-4 w-4" />, label: t('history') },
     { view: 'schema', icon: <Table2 className="h-4 w-4" />, label: t('schema') },
   ];
-
-  const currentProviderLabel = provider === 'z-ai' ? 'Z-AI' : 'OpenRouter';
-  const currentProviderIcon = provider === 'z-ai' ? <Zap className="h-3 w-3" /> : <Key className="h-3 w-3" />;
 
   const handleNewChat = async () => {
     if (!activeDataSourceId) return;
@@ -236,32 +225,9 @@ export function AppSidebar() {
         <PlanUsageWidget />
 
         <SidebarMenu>
-          {/* AI Config indicator */}
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              tooltip={t('aiSettings')}
-              onClick={() => setSettingsOpen(true)}
-              className="group/ai-btn"
-            >
-              {currentProviderIcon}
-              <span className="flex items-center gap-1.5">
-                {currentProviderLabel}
-                {isConfigured() ? (
-                  <Badge variant="secondary" className="h-4 text-[8px] px-1 bg-emerald-500/10 text-emerald-500">
-                    OK
-                  </Badge>
-                ) : (
-                  <Badge variant="secondary" className="h-4 text-[8px] px-1 bg-amber-500/10 text-amber-500">
-                    KEY
-                  </Badge>
-                )}
-              </span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-
           {/* Settings */}
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip={t('settings')} onClick={() => setSettingsOpen(true)}>
+            <SidebarMenuButton tooltip={t('settings')}>
               <Settings className="h-4 w-4" />
               <span>{t('settings')}</span>
             </SidebarMenuButton>
@@ -275,7 +241,6 @@ export function AppSidebar() {
       </SidebarFooter>
 
       <DataSourceUpload open={uploadDialogOpen} onOpenChange={setUploadDialogOpen} />
-      <AISettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </Sidebar>
   );
 }
