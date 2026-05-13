@@ -589,3 +589,23 @@ Stage Summary:
 - **Removed**: z-ai-web-dev-sdk package, ai-config-store.ts, ai-settings-dialog.tsx, test-ai route, sse-test route
 - **User impact**: No more AI config decisions. The app "just works" with the backend's OpenRouter key.
 - **Future BYOK**: Can be added as a Business-plan feature when needed
+
+---
+Task ID: 17
+Agent: Main
+Task: Fix Docker build failure — createCompletion not exported from @/lib/ai
+
+Work Log:
+- Diagnosed Docker build failure from Coolify deployment log
+- Root cause: `createCompletion` in `src/lib/ai.ts` was defined as `async function` (line 313) but NOT exported
+- Both `/api/ai/check/route.ts` and `/api/chat/route.ts` import `createCompletion` from `@/lib/ai`
+- Next.js build fails with: "The export createCompletion was not found in module [project]/src/lib/ai.ts"
+- Fix: Added `export` keyword → `export async function createCompletion(...)`
+- Verified: `npx next build` completes successfully (all routes compile)
+- Bumped version to v0.3.40 — "Fix createCompletion export — resolve Docker build failure"
+- Pushed to origin/master
+
+Stage Summary:
+- Single-character fix (adding `export`) resolves the Docker build failure
+- This was a leftover from v0.3.38-39 AI simplification — the function was rewritten but not exported
+- Build verified locally with `npx next build` — all 30+ API routes compile successfully
