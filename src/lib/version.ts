@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.39';
-export const VERSION_NAME = 'Remove z-ai-web-dev-sdk package, clean up remaining references';
+export const VERSION = '0.3.40';
+export const VERSION_NAME = 'Fix createCompletion export — resolve Docker build failure';

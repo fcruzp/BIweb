@@ -310,7 +310,7 @@ function getOpenAIClient(): OpenAI {
   return openaiClient;
 }
 
-async function createCompletion(options: AICompletionOptions): Promise<AICompletionResult> {
+export async function createCompletion(options: AICompletionOptions): Promise<AICompletionResult> {
   const startTime = Date.now();
   const client = getOpenAIClient();
   const model = AI_DEFAULT_MODEL;
