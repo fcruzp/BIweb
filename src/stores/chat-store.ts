@@ -56,6 +56,9 @@ interface ChatState {
   streamingMessage: Partial<ChatMessage> | null;  // Partial assistant message being built
   streamingElapsedMs: number;  // Elapsed milliseconds since query started (from heartbeat)
 
+  // Suggestion injection — EmptyChat sets this, MessageInput consumes & clears it
+  pendingSuggestion: string | null;
+
   // Actions
   addMessage: (message: ChatMessage) => void;
   setMessages: (messages: ChatMessage[]) => void;
@@ -68,6 +71,8 @@ interface ChatState {
   setStreamingStage: (stage: StreamingStage | null) => void;
   setStreamingMessage: (message: Partial<ChatMessage> | null) => void;
   setStreamingElapsedMs: (ms: number) => void;
+  setPendingSuggestion: (suggestion: string) => void;
+  clearPendingSuggestion: () => void;
   loadMessages: (sessionId: string) => Promise<void>;
 }
 
@@ -81,6 +86,7 @@ export const useChatStore = create<ChatState>((set) => ({
   streamingStage: null,
   streamingMessage: null,
   streamingElapsedMs: 0,
+  pendingSuggestion: null,
 
   addMessage: (message) =>
     set((state) => ({ messages: [...state.messages, message] })),
@@ -103,6 +109,8 @@ export const useChatStore = create<ChatState>((set) => ({
   setStreamingStage: (stage) => set({ streamingStage: stage }),
   setStreamingMessage: (message) => set({ streamingMessage: message }),
   setStreamingElapsedMs: (ms) => set({ streamingElapsedMs: ms }),
+  setPendingSuggestion: (suggestion) => set({ pendingSuggestion: suggestion }),
+  clearPendingSuggestion: () => set({ pendingSuggestion: null }),
   loadMessages: async (sessionId: string) => {
     try {
       set({ isLoading: true, error: null });

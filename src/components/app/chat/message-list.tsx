@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { useChatStore, type StreamingStage } from '@/stores/chat-store';
 import { useAppStore } from '@/stores/app-store';
 import { MessageItem } from './message-item';
@@ -12,6 +12,11 @@ import {
   Sparkles,
   RefreshCw,
   Clock,
+  MessageSquare,
+  Table2,
+  BarChart3,
+  TrendingUp,
+  List,
 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useI18n } from '@/hooks/use-i18n';
@@ -47,6 +52,7 @@ function formatElapsed(ms: number): string {
 
 // Stage progress indicator with elapsed time
 function StreamingProgress({ stage, elapsedMs }: { stage: StreamingStage; elapsedMs: number }) {
+  const { t } = useI18n();
   // Define completed stages for progress tracking
   const stageOrder = ['generating_sql', 'executing', 'retrying', 'analyzing'];
   const currentIdx = stageOrder.indexOf(stage.stage);
@@ -106,15 +112,15 @@ function StreamingProgress({ stage, elapsedMs }: { stage: StreamingStage; elapse
         {isVerySlow && (
           <p className="text-[11px] text-amber-500/80 animate-pulse">
             {stage.stage === 'generating_sql'
-              ? 'La IA está tardando en generar la consulta. Esto puede pasar en preguntas complejas...'
+              ? t('slowGenerating')
               : stage.stage === 'analyzing'
-                ? 'El análisis de IA está tomando más tiempo de lo habitual...'
-                : 'La consulta está tomando más tiempo de lo habitual. La IA sigue trabajando...'}
+                ? t('slowAnalyzing')
+                : t('slowDefault')}
           </p>
         )}
         {isSlow && !isVerySlow && (
           <p className="text-[11px] text-muted-foreground/60">
-            Procesando consulta con IA...
+            {t('slowProcessing')}
           </p>
         )}
       </div>
@@ -214,7 +220,7 @@ export function MessageList() {
             </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Conectando con el servidor...</span>
+              <span>{t('connectingServer')}</span>
               {displayElapsed > 0 && (
                 <span className="font-mono text-[10px] text-muted-foreground/60">({formatElapsed(displayElapsed)})</span>
               )}
@@ -228,14 +234,114 @@ export function MessageList() {
 
 function EmptyChat() {
   const { activeDataSourceId, dataSources } = useAppStore();
+  const { setPendingSuggestion } = useChatStore();
   const activeSource = dataSources.find((s) => s.id === activeDataSourceId);
+  const { t } = useI18n();
 
-  const suggestions = [
-    'Show me all tables and their row counts',
-    'What are the top 10 records by value?',
-    'Count records grouped by category',
-    'What is the average, min, and max of numeric columns?',
-  ];
+  // Build contextual suggestions based on the selected datasource schema
+  const suggestions = useMemo(() => {
+    if (!activeSource?.schemas?.length) {
+      // No schema info — use generic suggestions
+      return [
+        { text: t('suggestShowTables'), icon: <Table2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" /> },
+        { text: t('suggestTopRecords'), icon: <TrendingUp className="h-3.5 w-3.5 shrink-0 text-blue-500" /> },
+        { text: t('suggestCountByCategory'), icon: <BarChart3 className="h-3.5 w-3.5 shrink-0 text-amber-500" /> },
+        { text: t('suggestNumericStats'), icon: <List className="h-3.5 w-3.5 shrink-0 text-purple-500" /> },
+      ];
+    }
+
+    const result: Array<{ text: string; icon: React.ReactNode }> = [];
+
+    // Always offer the table overview
+    result.push({
+      text: t('suggestShowTables'),
+      icon: <Table2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />,
+    });
+
+    // Pick the largest table for contextual suggestions
+    const schemas = activeSource.schemas;
+    const largestTable = schemas.reduce((prev, curr) =>
+      (curr.rowCount || 0) > (prev.rowCount || 0) ? curr : prev
+    , schemas[0]);
+
+    // Parse columns to find a categorical column and a numeric column
+    let categoricalColumn = '';
+    let numericColumn = '';
+    try {
+      const cols = JSON.parse(largestTable.columns) as Array<{
+        name: string; type: string;
+      }>;
+      // Find a text-like column for grouping
+      const textCol = cols.find(c =>
+        /text|varchar|char|string/i.test(c.type) && !/id|_id|uuid/i.test(c.name)
+      );
+      if (textCol) categoricalColumn = textCol.name;
+      // Find a numeric column for stats
+      const numCol = cols.find(c =>
+        /int|float|double|decimal|numeric|real|number/i.test(c.type) && !/id|_id/i.test(c.name)
+      );
+      if (numCol) numericColumn = numCol.name;
+    } catch { /* ignore */ }
+
+    const tableName = largestTable.tableName;
+
+    // Table overview suggestion
+    result.push({
+      text: t('suggestTableOverview', { table: tableName }),
+      icon: <MessageSquare className="h-3.5 w-3.5 shrink-0 text-blue-500" />,
+    });
+
+    // Top records suggestion
+    result.push({
+      text: t('suggestTopInTable', { table: tableName }),
+      icon: <TrendingUp className="h-3.5 w-3.5 shrink-0 text-amber-500" />,
+    });
+
+    // If we found a categorical column, suggest grouping
+    if (categoricalColumn) {
+      result.push({
+        text: t('suggestCountByColumn', { table: tableName, column: categoricalColumn }),
+        icon: <BarChart3 className="h-3.5 w-3.5 shrink-0 text-purple-500" />,
+      });
+    }
+
+    // If we found a numeric column, suggest stats
+    if (numericColumn) {
+      result.push({
+        text: t('suggestStatsColumn', { table: tableName, column: numericColumn }),
+        icon: <List className="h-3.5 w-3.5 shrink-0 text-rose-500" />,
+      });
+    }
+
+    // If multiple tables, suggest relationships
+    if (schemas.length > 1) {
+      result.push({
+        text: t('suggestRelationships'),
+        icon: <Database className="h-3.5 w-3.5 shrink-0 text-teal-500" />,
+      });
+    }
+
+    // Limit to 5 suggestions max
+    return result.slice(0, 5);
+  }, [activeSource, t]);
+
+  const handleSuggestionClick = (text: string) => {
+    setPendingSuggestion(text);
+  };
+
+  // No datasource selected
+  if (!activeDataSourceId) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-8 max-w-lg mx-auto">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-600/10 text-emerald-500 mb-4">
+          <Database className="h-6 w-6" />
+        </div>
+        <h3 className="text-lg font-semibold text-center mb-1">
+          {t('emptyChatNoSource')}
+        </h3>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center justify-center h-full p-8 max-w-lg mx-auto">
@@ -243,18 +349,20 @@ function EmptyChat() {
         <Brain className="h-6 w-6" />
       </div>
       <h3 className="text-lg font-semibold text-center mb-1">
-        Ask a question about your data
+        {t('emptyChatTitle')}
       </h3>
       <p className="text-sm text-muted-foreground text-center mb-6">
-        Type a question in natural language and I&apos;ll generate a SQL query, execute it, and visualize the results.
+        {t('emptyChatSubtitle')}
       </p>
       <div className="grid gap-2 w-full">
         {suggestions.map((suggestion, i) => (
           <button
             key={i}
-            className="text-left text-sm p-3 rounded-lg border border-border/50 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-colors"
+            onClick={() => handleSuggestionClick(suggestion.text)}
+            className="flex items-center gap-2.5 text-left text-sm p-3 rounded-lg border border-border/50 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-colors group"
           >
-            {suggestion}
+            {suggestion.icon}
+            <span className="group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">{suggestion.text}</span>
           </button>
         ))}
       </div>

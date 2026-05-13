@@ -31,9 +31,20 @@ export function MessageInput() {
     setStreamingStage, setStreamingMessage,
     setCurrentSQL, setCurrentQueryResult, setCurrentVisualization,
     setStreamingElapsedMs,
+    pendingSuggestion, clearPendingSuggestion,
   } = useChatStore();
   const { t } = useI18n();
   const { limits, refresh: refreshLimits } = useUsageLimits();
+
+  // Consume pending suggestion from EmptyChat clicks
+  useEffect(() => {
+    if (pendingSuggestion) {
+      setInput(pendingSuggestion);
+      clearPendingSuggestion();
+      // Focus the textarea after setting the suggestion
+      setTimeout(() => textareaRef.current?.focus(), 50);
+    }
+  }, [pendingSuggestion, clearPendingSuggestion]);
 
   // Refs for streaming state that needs to be accessible across SSE events
   const currentSQLRef = useRef<string | null>(null);

@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.43';
-export const VERSION_NAME = 'Remove SQL row limits — no LIMIT clause by default';
+export const VERSION = '0.3.44';
+export const VERSION_NAME = 'Contextual empty chat — i18n, schema-aware suggestions, clickable';
