@@ -27,6 +27,7 @@ import {
 import { useI18n } from '@/hooks/use-i18n';
 import { authFetch, isAuthError } from '@/lib/fetch-utils';
 import { useAuth } from '@/components/auth/AuthProvider';
+import { useUsageLimits } from '@/hooks/use-usage-limits';
 
 export function DataSourceList() {
   const {
@@ -52,6 +53,7 @@ export function DataSourceList() {
   const initialFetchDone = useRef(false);
   const { t } = useI18n();
   const { isAuthenticated } = useAuth();
+  const { refresh: refreshLimits } = useUsageLimits();
 
   // Background refresh — fetches latest data and updates the store silently.
   // If cached data exists (from Zustand persist), we render it immediately
@@ -157,6 +159,8 @@ export function DataSourceList() {
           setActiveDataSource(null);
           clearMessages();
         }
+        // Refresh limits so the + button state updates immediately
+        refreshLimits();
       }
     } catch (error) {
       console.error('Failed to delete data source:', error);

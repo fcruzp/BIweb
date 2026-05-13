@@ -236,6 +236,8 @@ export function ChatSessionList() {
           clearMessages();
         }
         toast.success('Chat deleted');
+        // Refresh limits so the + button state updates immediately
+        refreshLimits();
       }
     } catch (error) {
       toast.error('Failed to delete chat');

@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.34';
-export const VERSION_NAME = 'Disabled + button with tooltip when chat/datasource limit reached';
+export const VERSION = '0.3.35';
+export const VERSION_NAME = 'Refresh usage limits after chat/datasource delete and create';

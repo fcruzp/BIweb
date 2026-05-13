@@ -16,6 +16,7 @@ import { useAppStore } from '@/stores/app-store';
 import { useAIConfigStore } from '@/stores/ai-config-store';
 import { toast } from 'sonner';
 import { useI18n } from '@/hooks/use-i18n';
+import { useUsageLimits } from '@/hooks/use-usage-limits';
 import { Progress } from '@/components/ui/progress';
 
 interface DataSourceUploadProps {
@@ -44,6 +45,7 @@ export function DataSourceUpload({ open, onOpenChange }: DataSourceUploadProps) 
   const { addDataSource, updateDataSource } = useAppStore();
   const { provider, modelId, openrouterApiKey, customModelId, useCustomModel } = useAIConfigStore();
   const { t } = useI18n();
+  const { refresh: refreshLimits } = useUsageLimits();
 
   const resetState = useCallback(() => {
     setCurrentStep('idle');
@@ -143,6 +145,8 @@ export function DataSourceUpload({ open, onOpenChange }: DataSourceUploadProps) 
       const data = uploadResult.data as { datasource?: { id: string; status: string; [key: string]: unknown } };
       if (data.datasource) {
         addDataSource(data.datasource as any);
+        // Refresh limits so the + button state updates immediately
+        refreshLimits();
       }
 
       // If the data source is ready, trigger AI analysis

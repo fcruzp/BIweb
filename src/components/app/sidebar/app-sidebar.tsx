@@ -50,7 +50,7 @@ export function AppSidebar() {
   const { provider, isConfigured } = useAIConfigStore();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { t } = useI18n();
-  const { limits } = useUsageLimits();
+  const { limits, refresh: refreshLimits } = useUsageLimits();
 
   const navItems: Array<{ view: AppView; icon: React.ReactNode; label: string }> = [
     { view: 'chat', icon: <MessageSquare className="h-4 w-4" />, label: t('chat') },
@@ -87,6 +87,7 @@ export function AppSidebar() {
           updatedAt: data.session.updatedAt,
         });
         clearMessages();
+        refreshLimits();
       } else if (res.status === 403) {
         // Limit exceeded — backend rejected
         const data = await res.json().catch(() => ({}));
