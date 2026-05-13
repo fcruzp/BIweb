@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { Crown, BarChart3, Lock, AlertTriangle } from 'lucide-react';
+import { Crown, BarChart3, Lock, AlertTriangle, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { useUsageLimits } from '@/hooks/use-usage-limits';
 import { useI18n } from '@/hooks/use-i18n';
-import { PLANS, type PlanId } from '@/lib/plans';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { PLANS, getPlan, type PlanId } from '@/lib/plans';
 import { UsagePlanDialog } from '@/components/app/settings/usage-plan-dialog';
 
 const PLAN_BADGE_COLORS: Record<PlanId, string> = {
@@ -27,16 +28,18 @@ function getProgressColor(pct: number): string {
 /**
  * Compact widget shown in the sidebar footer.
  * Displays: Plan badge + most critical usage bar + upgrade prompt.
+ * Always visible — falls back to dbUser subscription if usage API hasn't loaded yet.
  */
 export function PlanUsageWidget() {
-  const { limits, usageData } = useUsageLimits();
+  const { limits, usageData, loading } = useUsageLimits();
+  const { dbUser } = useAuth();
   const { t, locale } = useI18n();
   const [plansOpen, setPlansOpen] = useState(false);
 
-  if (!usageData) return null;
-
-  const planId = usageData.plan.id;
-  const planName = locale === 'es' ? usageData.plan.nameEs : usageData.plan.name;
+  // Derive plan from usageData (primary) or dbUser (fallback)
+  const planId = (usageData?.plan.id || dbUser?.subscription?.plan || 'free') as PlanId;
+  const plan = getPlan(planId);
+  const planName = locale === 'es' ? plan.nameEs : plan.name;
 
   // Find the most critical limit (highest percentage, excluding unlimited)
   const allLimits = [
@@ -59,8 +62,11 @@ export function PlanUsageWidget() {
   return (
     <>
       <div className="px-2 py-2 space-y-2 group-data-[collapsible=icon]:hidden">
-        {/* Plan badge row */}
-        <div className="flex items-center justify-between">
+        {/* Plan badge row — ALWAYS visible */}
+        <button
+          onClick={() => setPlansOpen(true)}
+          className="flex items-center justify-between w-full hover:bg-muted/50 rounded px-1 py-0.5 transition-colors"
+        >
           <div className="flex items-center gap-1.5">
             <Crown className="h-3 w-3 text-muted-foreground" />
             <span className="text-[10px] text-muted-foreground">{t('currentPlan')}</span>
@@ -68,10 +74,17 @@ export function PlanUsageWidget() {
           <Badge className={`${PLAN_BADGE_COLORS[planId]} text-[9px] px-1.5 h-4`}>
             {planName}
           </Badge>
-        </div>
+        </button>
 
-        {/* Most critical usage bar */}
-        {mostCritical && (
+        {/* Loading state */}
+        {loading && !usageData && (
+          <div className="flex items-center justify-center py-1">
+            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+          </div>
+        )}
+
+        {/* Most critical usage bar — only when we have data */}
+        {usageData && mostCritical && (
           <div className="space-y-1">
             <div className="flex items-center justify-between text-[10px] text-muted-foreground">
               <span className="truncate">{mostCritical.label}</span>
@@ -120,6 +133,17 @@ export function PlanUsageWidget() {
             {t('viewPlans')}
           </Button>
         )}
+      </div>
+
+      {/* Collapsed sidebar: just show a crown icon that opens the dialog */}
+      <div className="hidden group-data-[collapsible=icon]:flex items-center justify-center py-1">
+        <button
+          onClick={() => setPlansOpen(true)}
+          className="p-2 rounded-md hover:bg-muted/50 transition-colors"
+          title={`${t('currentPlan')}: ${planName}`}
+        >
+          <Crown className="h-4 w-4 text-muted-foreground" />
+        </button>
       </div>
 
       <UsagePlanDialog open={plansOpen} onOpenChange={setPlansOpen} />

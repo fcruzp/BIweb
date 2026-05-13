@@ -97,9 +97,12 @@ export function useUsageLimits() {
       if (res.ok) {
         const data = await res.json();
         setUsageData(data);
+      } else {
+        console.warn('[useUsageLimits] Failed to fetch usage:', res.status, res.statusText);
       }
-    } catch {
+    } catch (err) {
       // Silently fail — limit checks will default to "allowed"
+      console.warn('[useUsageLimits] Error fetching usage:', err instanceof Error ? err.message : err);
     } finally {
       setLoading(false);
     }

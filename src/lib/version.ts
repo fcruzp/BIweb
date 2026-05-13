@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.31';
-export const VERSION_NAME = 'Frontend limit guards: visual feedback for all plan limits';
+export const VERSION = '0.3.32';
+export const VERSION_NAME = 'Fix PlanUsageWidget: always visible, fallback to dbUser plan';
