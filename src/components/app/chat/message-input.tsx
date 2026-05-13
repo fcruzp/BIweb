@@ -54,6 +54,14 @@ export function MessageInput() {
       return;
     }
 
+    // Frontend chat session limit check — only if no active session (auto-create will be triggered)
+    if (!activeSessionId && limits.chatSessions.atLimit) {
+      toast.error(t('limitReached'), {
+        description: t('chatSessionsLimitMessage', { limit: String(limits.chatSessions.limit) }),
+      });
+      return;
+    }
+
     const userMessage = input.trim();
     setInput('');
 
@@ -125,6 +133,8 @@ export function MessageInput() {
           createdAt: sessionData.session.createdAt,
           updatedAt: sessionData.session.updatedAt,
         });
+        // Refresh limits so the + button updates (may now be at the chat session limit)
+        refreshLimits();
       }
 
       // ──────────────────────────────────────────────────────────
