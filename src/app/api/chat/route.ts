@@ -353,13 +353,15 @@ export async function POST(request: NextRequest) {
 
         // ── Enforce canUseCustomKeys ────────────────────────────
         // If user is on a plan that doesn't allow custom API keys,
-        // strip the custom AI config and use the default provider
-        if (aiConfig && (aiConfig.useCustomModel || aiConfig.provider === 'openrouter' || aiConfig.openrouterApiKey)) {
+        // strip custom model IDs but ALWAYS allow OpenRouter
+        // (users bring their own key = no cost to us).
+        if (aiConfig && aiConfig.useCustomModel && aiConfig.provider !== 'openrouter') {
           const sub = await db.subscription.findUnique({ where: { userId: user.id }, select: { plan: true } });
           if (!planHasFeature(sub?.plan, 'canUseCustomKeys')) {
-            // Silently ignore custom AI config — fall back to default
-            aiConfig = null;
-            console.log(`[Chat] User ${user.id} on plan "${sub?.plan || 'free'}" cannot use custom keys — using default provider`);
+            // Strip custom model ID — fall back to default model
+            aiConfig.useCustomModel = false;
+            aiConfig.modelId = undefined;
+            console.log(`[Chat] User ${user.id} on plan "${sub?.plan || 'free'}" cannot use custom model IDs — using default model`);
           }
         }
 
