@@ -25,6 +25,7 @@ import { toast } from 'sonner';
 import { useI18n } from '@/hooks/use-i18n';
 import { authFetch, isAuthError } from '@/lib/fetch-utils';
 import { useAuth } from '@/components/auth/AuthProvider';
+import { useUsageLimits } from '@/hooks/use-usage-limits';
 
 export function ChatSessionList() {
   const {
@@ -44,6 +45,7 @@ export function ChatSessionList() {
   const { loadMessages, clearMessages } = useChatStore();
   const { t } = useI18n();
   const { isAuthenticated } = useAuth();
+  const { limits, refresh: refreshLimits } = useUsageLimits();
 
   // Inline rename state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -141,6 +143,15 @@ export function ChatSessionList() {
   // Create a new chat session
   const handleNewChat = async () => {
     if (!activeDataSourceId) return;
+
+    // Frontend limit check — block before making the API call
+    if (limits.chatSessions.atLimit) {
+      toast.error(t('limitReached'), {
+        description: t('chatSessionsLimitMessage', { limit: String(limits.chatSessions.limit) }),
+      });
+      return;
+    }
+
     try {
       const res = await authFetch('/api/chat/sessions', {
         method: 'POST',
@@ -159,6 +170,15 @@ export function ChatSessionList() {
         addChatSession(session);
         setActiveSession(session.id);
         clearMessages();
+        // Refresh limits after creating a session
+        refreshLimits();
+      } else if (res.status === 403) {
+        // Backend limit exceeded
+        const data = await res.json().catch(() => ({}));
+        toast.error(t('limitReached'), {
+          description: data.error as string || t('chatSessionsLimitMessage', { limit: String(limits.chatSessions.limit) }),
+        });
+        refreshLimits();
       }
     } catch (error) {
       toast.error('Failed to create new chat');

@@ -17,6 +17,7 @@ import {
   Type,
   Gauge,
   X,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -68,8 +69,9 @@ export function DashboardView() {
   const [deletingWidgetId, setDeletingWidgetId] = useState<string | null>(null);
   const { t } = useI18n();
   const { isAuthenticated } = useAuth();
-  const { limits } = useUsageLimits();
+  const { limits, refresh: refreshLimits } = useUsageLimits();
   const dashboardsAtLimit = limits.dashboards.atLimit;
+  const dashboardsNearLimit = limits.dashboards.nearLimit && !limits.dashboards.atLimit;
 
   // Stale-while-revalidate: show cached dashboards immediately, refresh in background
   // Only fetch on mount — cached data comes from Zustand persist
@@ -121,6 +123,14 @@ export function DashboardView() {
         setNewDescription('');
         setCreateOpen(false);
         toast.success('Dashboard created!');
+        refreshLimits();
+      } else if (res.status === 403) {
+        // Limit exceeded from backend
+        const data = await res.json().catch(() => ({}));
+        toast.error(t('limitReached'), {
+          description: data.error as string || t('dashboardsLimitMessage', { limit: String(limits.dashboards.limit) }),
+        });
+        refreshLimits();
       } else {
         toast.error('Failed to create dashboard');
       }
@@ -197,6 +207,16 @@ export function DashboardView() {
               {dashboardsAtLimit ? t('limitReached') : t('newDashboard')}
             </Button>
           </div>
+
+          {/* Near-limit warning */}
+          {dashboardsNearLimit && (
+            <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+              <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                {t('nearLimitWarning', { resource: t('dashboards').toLowerCase(), used: String(limits.dashboards.used), limit: String(limits.dashboards.limit) })}
+              </p>
+            </div>
+          )}
 
           {dashboards.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16">

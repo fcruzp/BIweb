@@ -34,6 +34,7 @@ import { DataSourceUpload } from './datasource-upload';
 import { ChatSessionList } from './chat-session-list';
 import { AISettingsDialog } from '@/components/app/settings/ai-settings-dialog';
 import { LocaleSwitcher } from '@/components/app/locale-switcher';
+import { PlanUsageWidget } from './plan-usage-widget';
 import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
 import { useI18n } from '@/hooks/use-i18n';
@@ -183,12 +184,22 @@ export function AppSidebar() {
             </SidebarGroupAction>
             <SidebarGroupContent>
               <ChatSessionList />
+              {/* Near-limit warning for chat sessions */}
+              {limits.chatSessions.nearLimit && !limits.chatSessions.atLimit && (
+                <div className="px-2 py-1.5 text-[10px] text-amber-600 bg-amber-500/5 rounded flex items-center gap-1 group-data-[collapsible=icon]:hidden">
+                  <Lock className="h-3 w-3 shrink-0" />
+                  {limits.chatSessions.used}/{limits.chatSessions.limit} {t('chatSessions').toLowerCase()}
+                </div>
+              )}
             </SidebarGroupContent>
           </SidebarGroup>
         )}
       </SidebarContent>
 
       <SidebarFooter>
+        {/* Plan Usage Widget */}
+        <PlanUsageWidget />
+
         <SidebarMenu>
           {/* AI Config indicator */}
           <SidebarMenuItem>

@@ -437,3 +437,55 @@ Stage Summary:
 - sessionStorage ensures the pending plan doesn't persist across browser sessions
 - If checkout fails, user gets a toast and can manually upgrade from Usos y Planes
 - Version: 0.3.21 pushed to remote master
+---
+Task ID: 14
+Agent: Main
+Task: Frontend Limit Guards (P3) — Visual feedback for plan limits in the UI
+
+Work Log:
+- Added 14 new i18n keys (EN + ES): chatSessionsLimitMessage, dashboardsLimitMessage, queriesLimitMessage, storageLimitMessage, nearLimitWarning, queriesNearLimit, upgradeToUnlock, viewPlans, planFree, queriesRemaining, resourceExhausted
+- Created `src/components/app/limit-banner.tsx` — Reusable banner component for near-limit (amber) and at-limit (red) states with compact and full modes
+- Created `src/components/app/sidebar/plan-usage-widget.tsx` — Sidebar footer widget showing:
+  - Current plan badge (color-coded per plan tier)
+  - Most critical usage bar (auto-detects highest percentage)
+  - At-limit alert button (red, clickable → opens UsagePlanDialog)
+  - Near-limit warning button (amber, clickable → opens UsagePlanDialog)
+  - "View Plans" link for non-business users
+- Updated `src/components/app/sidebar/app-sidebar.tsx`:
+  - Added PlanUsageWidget to SidebarFooter
+  - Added chat sessions near-limit warning under ChatSessionList (amber, shows used/limit)
+- Updated `src/components/app/sidebar/datasource-upload.tsx`:
+  - 403 from backend now shows specific "Limit Reached" toast with upgradeRequired message
+  - Error state shows the limit error text instead of generic "Upload failed"
+- Updated `src/components/app/sidebar/chat-session-list.tsx`:
+  - Added useUsageLimits hook
+  - handleNewChat: Frontend limit check before API call (toast + early return if at limit)
+  - handleNewChat: Backend 403 handling (toast + refreshLimits)
+  - refreshLimits() called after successful session creation
+- Updated `src/components/app/chat/message-input.tsx`:
+  - Added useUsageLimits hook with refreshLimits
+  - handleSubmit: Frontend query limit check (toast + early return if at limit)
+  - Session creation 403: Handles chatSessions limit with toast + cleanup of streaming state
+  - Send button: Changes to Lock icon + muted style when at query limit
+  - Below textarea: Shows amber near-limit warning or red at-limit message (replaces generic hint)
+  - refreshLimits() called after successful query completion (consumes quota)
+- Updated `src/components/app/dashboard/dashboard-view.tsx`:
+  - Added refreshLimits from useUsageLimits
+  - dashboardsNearLimit state for 80%+ warnings
+  - handleCreate: 403 handling with toast + refreshLimits
+  - handleCreate: refreshLimits() called after successful creation
+  - Near-limit warning banner (amber, AlertTriangle icon) shown above dashboard grid
+  - Added AlertTriangle to lucide imports
+- Bumped version to 0.3.31 — "Frontend limit guards: visual feedback for all plan limits"
+- Lint passes (0 errors, 1 pre-existing TanStack Table warning)
+- Dev server confirmed running (HTTP 200)
+
+Stage Summary:
+- Users now see visual feedback for ALL plan limits:
+  - 🟡 Near-limit (≥80%): Amber warnings in sidebar, chat input, dashboard view
+  - 🔴 At-limit: Red banners, lock icons on buttons, disabled actions, toast notifications
+  - 📊 Plan Usage Widget: Always visible in sidebar footer with plan badge + usage bar
+  - 🔄 Auto-refresh: Limits update after creating sessions, dashboards, or executing queries
+- All 403 backend errors now caught and shown with user-friendly messages
+- Frontend checks block actions BEFORE API calls (saves round-trips, instant feedback)
+- Version: 0.3.31

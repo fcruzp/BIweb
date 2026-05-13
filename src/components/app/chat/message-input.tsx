@@ -10,6 +10,8 @@ import { Send, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useI18n } from '@/hooks/use-i18n';
 import { authFetch } from '@/lib/fetch-utils';
+import { useUsageLimits } from '@/hooks/use-usage-limits';
+import { Lock, AlertTriangle } from 'lucide-react';
 
 // Step log entry for display in console
 interface StepLogEntry {
@@ -33,6 +35,7 @@ export function MessageInput() {
   } = useChatStore();
   const { provider, modelId, openrouterApiKey, customModelId, useCustomModel, queryRowLimit } = useAIConfigStore();
   const { t } = useI18n();
+  const { limits, refresh: refreshLimits } = useUsageLimits();
 
   // Refs for streaming state that needs to be accessible across SSE events
   const currentSQLRef = useRef<string | null>(null);
@@ -42,6 +45,14 @@ export function MessageInput() {
 
   const handleSubmit = async () => {
     if (!input.trim() || !activeDataSourceId || isLoading) return;
+
+    // Frontend query limit check — block before making the API call
+    if (limits.queries.atLimit) {
+      toast.error(t('limitReached'), {
+        description: t('queriesLimitMessage', { limit: String(limits.queries.limit) }),
+      });
+      return;
+    }
 
     const userMessage = input.trim();
     setInput('');
@@ -89,6 +100,19 @@ export function MessageInput() {
           }),
         });
         if (!sessionRes.ok) {
+          if (sessionRes.status === 403) {
+            const data = await sessionRes.json().catch(() => ({}));
+            toast.error(t('limitReached'), {
+              description: data.error as string || t('chatSessionsLimitMessage', { limit: String(limits.chatSessions.limit) }),
+            });
+            refreshLimits();
+            // Clean up the loading state we set above
+            setStreamingStage(null);
+            setStreamingMessage(null);
+            setStreamingElapsedMs(0);
+            setLoading(false);
+            return;
+          }
           throw new Error('Failed to create chat session');
         }
         const sessionData = await sessionRes.json();
@@ -339,6 +363,9 @@ export function MessageInput() {
                 setStreamingElapsedMs(0);
                 setLoading(false);
 
+                // Refresh usage limits after a query completes (consumes a query from the quota)
+                refreshLimits();
+
                 // Add the complete assistant message
                 addMessage({
                   id: crypto.randomUUID(),
@@ -457,20 +484,42 @@ export function MessageInput() {
           </div>
           <Button
             onClick={handleSubmit}
-            disabled={!input.trim() || !activeDataSourceId || isLoading}
+            disabled={!input.trim() || !activeDataSourceId || isLoading || limits.queries.atLimit}
             size="icon"
-            className="h-11 w-11 rounded-lg bg-emerald-600 hover:bg-emerald-700 shrink-0"
+            className={`h-11 w-11 rounded-lg shrink-0 ${limits.queries.atLimit ? 'bg-muted text-muted-foreground' : 'bg-emerald-600 hover:bg-emerald-700'}`}
           >
-            {isLoading ? (
+            {limits.queries.atLimit ? (
+              <Lock className="h-4 w-4" />
+            ) : isLoading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Send className="h-4 w-4" />
             )}
           </Button>
         </div>
-        <p className="text-[10px] text-muted-foreground mt-1.5 text-center">
-          {t('inputHint')}
-        </p>
+
+        {/* Query limit warning */}
+        {limits.queries.nearLimit && !limits.queries.atLimit && (
+          <div className="flex items-center justify-center gap-1.5 mt-1.5 text-[10px] text-amber-600 dark:text-amber-400">
+            <AlertTriangle className="h-3 w-3 shrink-0" />
+            <span>
+              {limits.queries.limit !== null
+                ? t('queriesNearLimit', { used: String(limits.queries.used), limit: String(limits.queries.limit) })
+                : ''}
+            </span>
+          </div>
+        )}
+        {limits.queries.atLimit && (
+          <div className="flex items-center justify-center gap-1.5 mt-1.5 text-[10px] text-red-600 dark:text-red-400">
+            <Lock className="h-3 w-3 shrink-0" />
+            <span>{t('queriesLimitMessage', { limit: String(limits.queries.limit) })}</span>
+          </div>
+        )}
+        {!limits.queries.nearLimit && !limits.queries.atLimit && (
+          <p className="text-[10px] text-muted-foreground mt-1.5 text-center">
+            {t('inputHint')}
+          </p>
+        )}
       </div>
     </div>
   );

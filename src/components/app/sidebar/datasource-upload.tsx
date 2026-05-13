@@ -124,7 +124,15 @@ export function DataSourceUpload({ open, onOpenChange }: DataSourceUploadProps) 
 
       if (!uploadResult.ok) {
         setCurrentStep('error');
-        setErrorMessage(uploadResult.error || 'Upload failed');
+        // Check for limit exceeded error (403 from backend)
+        if (uploadResult.status === 403) {
+          setErrorMessage(t('upgradeRequired'));
+          toast.error(t('limitReached'), {
+            description: uploadResult.error || t('upgradeRequired'),
+          });
+        } else {
+          setErrorMessage(uploadResult.error || 'Upload failed');
+        }
         return;
       }
 
