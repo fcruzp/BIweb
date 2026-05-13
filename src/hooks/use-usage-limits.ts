@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
+import { create } from 'zustand';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { authFetch } from '@/lib/fetch-utils';
 import type { PlanId } from '@/lib/plans';
@@ -76,76 +77,88 @@ const EMPTY_LIMIT: LimitCheck = {
   upgradePlanId: null,
 };
 
-/**
- * Hook to fetch and cache usage/plan data.
- * Automatically refreshes when the user's subscription changes.
- *
- * Usage:
- *   const { usageData, limits, refresh } = useUsageLimits();
- *   if (limits.dataSources.atLimit) { ... show upgrade prompt ... }
- */
-export function useUsageLimits() {
-  const { dbUser, isAuthenticated } = useAuth();
-  const [usageData, setUsageData] = useState<UsageData | null>(null);
-  const [loading, setLoading] = useState(false);
+// ── Zustand Store (shared state across all components) ───────────────────────
 
-  const fetchUsage = useCallback(async () => {
-    if (!isAuthenticated) return;
-    setLoading(true);
+interface UsageLimitsState {
+  usageData: UsageData | null;
+  loading: boolean;
+  refresh: () => Promise<void>;
+  reset: () => void;
+}
+
+export const useUsageLimitsStore = create<UsageLimitsState>((set, get) => ({
+  usageData: null,
+  loading: false,
+
+  refresh: async () => {
+    // Prevent concurrent fetches
+    if (get().loading) return;
+    set({ loading: true });
     try {
       const res = await authFetch('/api/usage');
       if (res.ok) {
         const data = await res.json();
-        setUsageData(data);
+        set({ usageData: data });
       } else {
         console.warn('[useUsageLimits] Failed to fetch usage:', res.status, res.statusText);
       }
     } catch (err) {
-      // Silently fail — limit checks will default to "allowed"
       console.warn('[useUsageLimits] Error fetching usage:', err instanceof Error ? err.message : err);
     } finally {
-      setLoading(false);
+      set({ loading: false });
     }
-  }, [isAuthenticated]);
+  },
 
-  // Fetch on mount + when subscription changes
-  useEffect(() => {
-    fetchUsage();
-  }, [fetchUsage, dbUser?.subscription?.plan, dbUser?.subscription?.status]);
+  reset: () => {
+    set({ usageData: null, loading: false });
+  },
+}));
 
-  // Helper to check a specific limit type
-  const getLimit = useCallback(
-    (type: LimitType): LimitCheck => {
-      if (!usageData) return EMPTY_LIMIT;
+// ── Computed helpers ─────────────────────────────────────────────────────────
 
-      const metric = type === 'storage'
-        ? usageData.usage.storage
-        : usageData.usage[type];
+function getLimitFromData(usageData: UsageData | null, type: LimitType): LimitCheck {
+  if (!usageData) return EMPTY_LIMIT;
 
-      if (!metric) return EMPTY_LIMIT;
+  const metric = type === 'storage'
+    ? usageData.usage.storage
+    : usageData.usage[type];
 
-      const isStorage = type === 'storage';
-      const used = isStorage ? (metric as StorageMetric).usedMB : (metric as UsageMetric).used;
-      const limit = isStorage ? (metric as StorageMetric).limitMB : (metric as UsageMetric).limit;
-      const unlimited = metric.unlimited;
-      const percentage = metric.percentage;
-      const atLimit = !unlimited && limit !== null && used >= limit;
-      const nearLimit = !unlimited && percentage >= 80;
+  if (!metric) return EMPTY_LIMIT;
 
-      return {
-        atLimit,
-        nearLimit,
-        used,
-        limit,
-        unlimited,
-        percentage,
-        upgradePlanId: metric.upgradePlanId,
-      };
-    },
-    [usageData]
-  );
+  const isStorage = type === 'storage';
+  const used = isStorage ? (metric as StorageMetric).usedMB : (metric as UsageMetric).used;
+  const limit = isStorage ? (metric as StorageMetric).limitMB : (metric as UsageMetric).limit;
+  const unlimited = metric.unlimited;
+  const percentage = metric.percentage;
+  const atLimit = !unlimited && limit !== null && used >= limit;
+  const nearLimit = !unlimited && percentage >= 80;
 
-  // Pre-computed limit checks for common resources
+  return {
+    atLimit,
+    nearLimit,
+    used,
+    limit,
+    unlimited,
+    percentage,
+    upgradePlanId: metric.upgradePlanId,
+  };
+}
+
+/**
+ * Hook to access shared usage/plan data.
+ * All components share the same Zustand store — any refresh updates ALL consumers.
+ *
+ * Usage:
+ *   const { usageData, limits, loading, refresh } = useUsageLimits();
+ *   if (limits.dataSources.atLimit) { ... show upgrade prompt ... }
+ */
+export function useUsageLimits() {
+  const usageData = useUsageLimitsStore((s) => s.usageData);
+  const loading = useUsageLimitsStore((s) => s.loading);
+  const refresh = useUsageLimitsStore((s) => s.refresh);
+
+  const getLimit = (type: LimitType): LimitCheck => getLimitFromData(usageData, type);
+
   const limits = {
     dataSources: getLimit('dataSources'),
     dashboards: getLimit('dashboards'),
@@ -159,6 +172,29 @@ export function useUsageLimits() {
     loading,
     limits,
     getLimit,
-    refresh: fetchUsage,
+    refresh,
   };
+}
+
+/**
+ * Initializer hook — call ONCE in a top-level component (e.g. AppSidebar).
+ * Triggers the initial fetch + re-fetches when auth/subscription changes.
+ * This ensures the shared Zustand store is populated for all consumers.
+ */
+export function useUsageLimitsInit() {
+  const { isAuthenticated, dbUser } = useAuth();
+  const refresh = useUsageLimitsStore((s) => s.refresh);
+  const reset = useUsageLimitsStore((s) => s.reset);
+  const initialFetchDone = useRef(false);
+
+  // Fetch on mount + when subscription changes
+  useEffect(() => {
+    if (isAuthenticated) {
+      refresh();
+      initialFetchDone.current = true;
+    } else if (initialFetchDone.current) {
+      // User signed out — clear stale data
+      reset();
+    }
+  }, [isAuthenticated, dbUser?.subscription?.plan, dbUser?.subscription?.status, refresh, reset]);
 }

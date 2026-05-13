@@ -40,7 +40,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 import { useState } from 'react';
 import { useI18n } from '@/hooks/use-i18n';
 import { authFetch } from '@/lib/fetch-utils';
-import { useUsageLimits } from '@/hooks/use-usage-limits';
+import { useUsageLimits, useUsageLimitsInit } from '@/hooks/use-usage-limits';
 import { toast } from 'sonner';
 
 export function AppSidebar() {
@@ -51,6 +51,8 @@ export function AppSidebar() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { t } = useI18n();
   const { limits, refresh: refreshLimits } = useUsageLimits();
+  // Initialize the shared Zustand store — fetches on auth change, resets on sign-out
+  useUsageLimitsInit();
 
   const navItems: Array<{ view: AppView; icon: React.ReactNode; label: string }> = [
     { view: 'chat', icon: <MessageSquare className="h-4 w-4" />, label: t('chat') },

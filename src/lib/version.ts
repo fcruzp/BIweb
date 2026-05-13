@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.36';
-export const VERSION_NAME = 'Fix limits refresh when chat auto-created from message input';
+export const VERSION = '0.3.37';
+export const VERSION_NAME = 'Convert useUsageLimits to shared Zustand store — limits sync across all components';
