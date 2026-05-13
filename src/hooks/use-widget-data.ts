@@ -95,7 +95,6 @@ export function useWidgetData(
         body: JSON.stringify({
           sql: sqlQuery,
           dataSourceId,
-          queryRowLimit: 500,
         }),
         signal: controller.signal,
       });
@@ -182,7 +181,6 @@ export async function executeWidgetQuery(
     body: JSON.stringify({
       sql: sqlQuery,
       dataSourceId,
-      queryRowLimit: 500,
     }),
   });
 

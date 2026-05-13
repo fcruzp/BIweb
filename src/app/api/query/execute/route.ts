@@ -15,8 +15,8 @@ export async function POST(request: NextRequest) {
     console.log(`[QueryExecute] Auth OK: user=${user.id}`);
 
     const body = await request.json();
-    const { sql, dataSourceId, queryRowLimit } = body;
-    console.log(`[QueryExecute] Request: sql="${sql?.slice(0, 100)}", dataSourceId=${dataSourceId}, queryRowLimit=${queryRowLimit}`);
+    const { sql, dataSourceId } = body;
+    console.log(`[QueryExecute] Request: sql="${sql?.slice(0, 100)}", dataSourceId=${dataSourceId}`);
 
     if (!sql || !dataSourceId) {
       console.warn('[QueryExecute] Missing required params');
@@ -59,16 +59,10 @@ export async function POST(request: NextRequest) {
     const sanitizedSQL = sanitizeSQL(sql);
     const result = executeSelectQuery(datasource.filePath, sanitizedSQL);
 
-    // Determine row limit for response slicing (0 = no limit)
-    const responseRowLimit = typeof queryRowLimit === 'number' ? queryRowLimit : 500;
-    const slicedData = responseRowLimit > 0
-      ? result.data.slice(0, responseRowLimit)
-      : result.data;
-
     console.log(`[QueryExecute] === END === OK: ${result.rowCount} rows, ${result.executionTime}ms, total=${Date.now() - startTime}ms`);
 
     return NextResponse.json({
-      data: slicedData,
+      data: result.data,
       columns: result.columns,
       rowCount: result.rowCount,
       executionTime: result.executionTime,

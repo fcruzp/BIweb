@@ -32,7 +32,6 @@ export function MessageInput() {
     setCurrentSQL, setCurrentQueryResult, setCurrentVisualization,
     setStreamingElapsedMs,
   } = useChatStore();
-  const queryRowLimit = 500; // default row limit — backend uses same default
   const { t } = useI18n();
   const { limits, refresh: refreshLimits } = useUsageLimits();
 
@@ -185,7 +184,6 @@ export function MessageInput() {
             message: userMessage,
             dataSourceId: activeDataSourceId,
             sessionId: sessionId,
-            queryRowLimit: queryRowLimit,
           }),
           signal: abortController.signal,
         });

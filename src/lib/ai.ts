@@ -435,8 +435,7 @@ export async function generateSQLFromNaturalLanguage(
   naturalQuery: string,
   schemaInfo: string,
   semanticContext: string,
-  previousQueries?: Array<{ question: string; sql: string }>,
-  queryRowLimit?: number
+  previousQueries?: Array<{ question: string; sql: string }>
 ): Promise<SQLGenerationResult> {
   const contextMessages = previousQueries?.map(q => [
     { role: 'user' as const, content: q.question },
@@ -456,7 +455,7 @@ CLASSIFICATION RULES:
 
 CRITICAL SECURITY RULES:
 - ONLY generate SELECT statements for "query" type. Never generate INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, or any modifying SQL.
-${queryRowLimit !== undefined && queryRowLimit > 0 ? `- Always include a LIMIT clause with a maximum of ${queryRowLimit} rows unless the user specifically requests otherwise.` : queryRowLimit === 0 ? `- No LIMIT clause is required by default. You may omit the LIMIT clause, but still use reasonable limits for very large result sets to avoid performance issues.` : `- Always include a LIMIT clause (default 500 rows) unless the user specifically requests otherwise.`}
+- Do NOT add a LIMIT clause unless the user specifically requests one. Return all matching rows by default.
 - Never use subqueries that modify data.
 - Never use PRAGMA statements.
 - NEVER query sqlite_master or any system/catalog tables — if the user asks about the schema, classify as "schema_question" instead.
@@ -527,8 +526,7 @@ export async function regenerateSQLWithFeedback(
   failedSQL: string,
   executionError: string,
   schemaInfo: string,
-  semanticContext: string,
-  queryRowLimit?: number
+  semanticContext: string
 ): Promise<SQLGenerationResult> {
   const result = await createCompletion({
     systemPrompt: `You are an expert SQL analyst. A previous SQL query you generated FAILED when executed against the database. You must fix it.
@@ -547,7 +545,7 @@ You MUST:
 
 SECURITY RULES:
 - ONLY generate SELECT statements. Never generate INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, or any modifying SQL.
-${queryRowLimit !== undefined && queryRowLimit > 0 ? `- Always include a LIMIT clause with a maximum of ${queryRowLimit} rows unless the user specifically requests otherwise.` : queryRowLimit === 0 ? `- No LIMIT clause is required by default.` : `- Always include a LIMIT clause (default 500 rows) unless the user specifically requests otherwise.`}
+- Do NOT add a LIMIT clause unless the user specifically requests one. Return all matching rows by default.
 - Never use subqueries that modify data.
 - Never use PRAGMA statements.
 - Only reference tables and columns that EXIST in the provided schema.

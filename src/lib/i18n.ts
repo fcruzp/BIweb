@@ -186,10 +186,6 @@ export const translations = {
     maxTokens: 'Max Tokens',
     shortTokens: 'Short (256)',
     longTokens: 'Long (16K)',
-    queryRowLimit: 'Query Row Limit',
-    noLimit: 'No limit',
-    noLimitWarning: 'No limit (\u26A0\uFE0F may be slow on large tables)',
-    rowLimitHint: 'Controls the maximum number of rows returned by queries. The AI will also use this as the LIMIT in generated SQL.',
     advancedSettings: 'Advanced Settings',
     status: 'Status',
     ready: 'Ready',
@@ -198,9 +194,7 @@ export const translations = {
     testConnection: 'Test Connection',
     language: 'Language',
     languageDesc: 'Select your preferred language for the interface',
-    rowLimit: 'Row Limit',
 
-    // Datasource upload
     uploadTitle: 'Upload SQLite Database',
     uploadDataSourceTitle: 'Upload Data Source',
     uploadDesc: 'Upload a SQLite database file. The AI will automatically analyze the schema and generate semantic context.',
@@ -603,10 +597,6 @@ export const translations = {
     maxTokens: 'Tokens Máximos',
     shortTokens: 'Corto (256)',
     longTokens: 'Largo (16K)',
-    queryRowLimit: 'Límite de Filas',
-    noLimit: 'Sin límite',
-    noLimitWarning: 'Sin límite (\u26A0\uFE0F puede ser lento en tablas grandes)',
-    rowLimitHint: 'Controla el número máximo de filas devueltas por consultas. La IA también usará esto como LIMIT en el SQL generado.',
     advancedSettings: 'Configuración Avanzada',
     status: 'Estado',
     ready: 'Listo',
@@ -615,9 +605,7 @@ export const translations = {
     testConnection: 'Probar Conexión',
     language: 'Idioma',
     languageDesc: 'Selecciona tu idioma preferido para la interfaz',
-    rowLimit: 'Límite de Filas',
 
-    // Datasource upload
     uploadTitle: 'Subir Base de Datos SQLite',
     uploadDataSourceTitle: 'Subir Fuente de Datos',
     uploadDesc: 'Sube un archivo de base de datos SQLite. La IA analizará automáticamente el esquema y generará contexto semántico.',

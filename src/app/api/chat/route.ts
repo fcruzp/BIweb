@@ -348,7 +348,7 @@ export async function POST(request: NextRequest) {
         send({ type: 'log', ...parseLog });
 
         const body = await request.json();
-        const { message, dataSourceId, sessionId, queryRowLimit } = body;
+        const { message, dataSourceId, sessionId } = body;
 
         const parseDone = log.endStep('parse_body', `message="${message?.slice(0, 50)}", dataSourceId=${dataSourceId}, provider=openrouter`);
         send({ type: 'log', ...parseDone });
@@ -493,7 +493,7 @@ export async function POST(request: NextRequest) {
         try {
           sqlResult = await withTimeout(
             generateSQLFromNaturalLanguage(
-              message, schemaDescription, semanticContext, previousQueries, queryRowLimit
+              message, schemaDescription, semanticContext, previousQueries
             ),
             60_000,
             'SQL generation'
@@ -637,7 +637,6 @@ export async function POST(request: NextRequest) {
         });
         sendFlush();
 
-        const responseRowLimit = typeof queryRowLimit === 'number' ? queryRowLimit : 500;
         const MAX_RETRIES = 2;
         let queryResult;
         let finalSQL = sanitizeSQL(sqlResult.sql);
@@ -681,7 +680,7 @@ export async function POST(request: NextRequest) {
               try {
                 const retryResult = await withTimeout(
                   regenerateSQLWithFeedback(
-                    message, finalSQL, lastError, schemaDescription, semanticContext, queryRowLimit
+                    message, finalSQL, lastError, schemaDescription, semanticContext
                   ),
                   60_000,
                   'SQL regeneration'
@@ -759,10 +758,8 @@ export async function POST(request: NextRequest) {
         const vizLogStart = log.startStep('visualization');
         send({ type: 'log', ...vizLogStart });
 
-        const slicedData = responseRowLimit > 0
-          ? queryResult.data.slice(0, responseRowLimit)
-          : queryResult.data;
-        const resultColumns = queryResult.columns || (slicedData.length > 0 ? Object.keys(slicedData[0]) : []);
+        const resultData = queryResult.data;
+        const resultColumns = queryResult.columns || (resultData.length > 0 ? Object.keys(resultData[0]) : []);
         const visualization = suggestVisualizationHeuristic(finalSQL, queryResult.data, message);
 
         const vizLogDone = log.endStep('visualization', `type=${visualization?.chartType || 'none'}`);
@@ -773,7 +770,7 @@ export async function POST(request: NextRequest) {
           type: 'query_result',
           sql: finalSQL,
           queryResult: {
-            data: slicedData,
+            data: resultData,
             columns: resultColumns,
             rowCount: queryResult.rowCount,
             totalRowCount: queryResult.rowCount,
@@ -876,7 +873,7 @@ ${JSON.stringify(sampleResults, null, 2)}`,
             content: responseContent,
             sqlQuery: finalSQL,
             queryResult: JSON.stringify({
-              data: slicedData,
+              data: resultData,
               columns: resultColumns,
               rowCount: queryResult.rowCount,
               totalRowCount: queryResult.rowCount,
@@ -892,7 +889,7 @@ ${JSON.stringify(sampleResults, null, 2)}`,
             sessionId: chatSessionId,
             naturalQuery: message,
             sqlQuery: finalSQL,
-            resultData: JSON.stringify(slicedData),
+            resultData: JSON.stringify(resultData),
             rowCount: queryResult.rowCount,
             executionTime: queryResult.executionTime,
             status: 'success',
@@ -925,7 +922,7 @@ ${JSON.stringify(sampleResults, null, 2)}`,
             explanation: sqlResult.explanation,
             confidence: sqlResult.confidence,
             queryResult: {
-              data: slicedData,
+              data: resultData,
               columns: resultColumns,
               rowCount: queryResult.rowCount,
               totalRowCount: queryResult.rowCount,
