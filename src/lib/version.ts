@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.33';
-export const VERSION_NAME = 'Fix OpenRouter blocked on Free plan - always allow user-provided API keys';
+export const VERSION = '0.3.34';
+export const VERSION_NAME = 'Disabled + button with tooltip when chat/datasource limit reached';

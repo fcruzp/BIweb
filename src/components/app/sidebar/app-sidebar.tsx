@@ -36,6 +36,7 @@ import { AISettingsDialog } from '@/components/app/settings/ai-settings-dialog';
 import { LocaleSwitcher } from '@/components/app/locale-switcher';
 import { PlanUsageWidget } from './plan-usage-widget';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { useState } from 'react';
 import { useI18n } from '@/hooks/use-i18n';
 import { authFetch } from '@/lib/fetch-utils';
@@ -63,7 +64,12 @@ export function AppSidebar() {
 
   const handleNewChat = async () => {
     if (!activeDataSourceId) return;
-    if (limits.chatSessions.atLimit) return; // Block if at limit
+    if (limits.chatSessions.atLimit) {
+      toast.error(t('limitReached'), {
+        description: t('chatSessionsLimitMessage', { limit: String(limits.chatSessions.limit) }),
+      });
+      return;
+    }
     try {
       const res = await authFetch('/api/chat/sessions', {
         method: 'POST',
@@ -150,13 +156,26 @@ export function AppSidebar() {
         {/* Data Sources */}
         <SidebarGroup>
           <SidebarGroupLabel>{t('datasources')}</SidebarGroupLabel>
-          <SidebarGroupAction
-            onClick={handleUploadClick}
-            title={limits.dataSources.atLimit ? t('limitReached') : t('uploadDataSource')}
-            className={limits.dataSources.atLimit ? 'text-muted-foreground cursor-not-allowed' : ''}
-          >
-            {limits.dataSources.atLimit ? <Lock className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-          </SidebarGroupAction>
+          {limits.dataSources.atLimit ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <SidebarGroupAction
+                  onClick={handleUploadClick}
+                  className="text-muted-foreground cursor-not-allowed opacity-50 hover:bg-transparent hover:text-muted-foreground"
+                >
+                  <Plus className="h-4 w-4" />
+                </SidebarGroupAction>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>{t('dataSourcesLimitMessage', { limit: String(limits.dataSources.limit) })}</p>
+                <p className="text-xs opacity-70">{t('upgradeRequired')}</p>
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <SidebarGroupAction onClick={handleUploadClick} title={t('uploadDataSource')}>
+              <Plus className="h-4 w-4" />
+            </SidebarGroupAction>
+          )}
           <SidebarGroupContent>
             <DataSourceList />
             {/* Near-limit warning */}
@@ -175,13 +194,26 @@ export function AppSidebar() {
         {activeDataSourceId && (
           <SidebarGroup>
             <SidebarGroupLabel>{t('chats')}</SidebarGroupLabel>
-            <SidebarGroupAction
-              onClick={handleNewChat}
-              title={limits.chatSessions.atLimit ? t('limitReached') : t('newChat')}
-              className={limits.chatSessions.atLimit ? 'text-muted-foreground cursor-not-allowed' : ''}
-            >
-              {limits.chatSessions.atLimit ? <Lock className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-            </SidebarGroupAction>
+            {limits.chatSessions.atLimit ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <SidebarGroupAction
+                    onClick={handleNewChat}
+                    className="text-muted-foreground cursor-not-allowed opacity-50 hover:bg-transparent hover:text-muted-foreground"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </SidebarGroupAction>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>{t('chatSessionsLimitMessage', { limit: String(limits.chatSessions.limit) })}</p>
+                  <p className="text-xs opacity-70">{t('upgradeRequired')}</p>
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <SidebarGroupAction onClick={handleNewChat} title={t('newChat')}>
+                <Plus className="h-4 w-4" />
+              </SidebarGroupAction>
+            )}
             <SidebarGroupContent>
               <ChatSessionList />
               {/* Near-limit warning for chat sessions */}
