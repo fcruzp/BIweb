@@ -283,37 +283,94 @@ export interface AICompletionResult {
 }
 
 // ============================================================
-// OpenRouter Provider (sole AI provider — configured via env vars)
+// OpenRouter Provider — configured via DB (AiConfig) with env var fallback
 // ============================================================
 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
-const AI_DEFAULT_MODEL = process.env.AI_DEFAULT_MODEL || 'google/gemini-2.5-flash';
+interface AIConfig {
+  apiKey: string;
+  model: string;
+  baseUrl: string;
+}
+
+/** In-memory cache for AI config. Avoids a DB query on every completion. */
+let cachedConfig: (AIConfig & { updatedAt: number }) | null = null;
+const CONFIG_CACHE_TTL = 30_000; // 30 seconds — fast enough for admin changes
+
+/**
+ * Read the active AI config. Resolution order:
+ *   1. Cached DB config (if fresh)
+ *   2. DB `AiConfig` row (if present with active key)
+ *   3. Env vars `OPENROUTER_API_KEY` / `AI_DEFAULT_MODEL`
+ */
+async function getAIConfig(): Promise<AIConfig> {
+  // 1. Return cached config if still fresh
+  if (cachedConfig && Date.now() - cachedConfig.updatedAt < CONFIG_CACHE_TTL) {
+    return cachedConfig;
+  }
+
+  // 2. Try reading from DB
+  try {
+    const { db } = await import('@/lib/db');
+    const row = await db.aiConfig.findUnique({ where: { id: 'global' } });
+
+    if (row?.isActive && row.apiKey) {
+      cachedConfig = {
+        apiKey: row.apiKey,
+        model: row.model,
+        baseUrl: row.baseUrl,
+        updatedAt: Date.now(),
+      };
+      return cachedConfig;
+    }
+  } catch (err) {
+    console.warn('[AI] Failed to read config from DB, falling back to env vars:', err);
+  }
+
+  // 3. Fallback to environment variables
+  const apiKey = process.env.OPENROUTER_API_KEY || '';
+  const model = process.env.AI_DEFAULT_MODEL || 'google/gemini-2.5-flash';
+  const baseUrl = 'https://openrouter.ai/api/v1';
+
+  cachedConfig = { apiKey, model, baseUrl, updatedAt: Date.now() };
+  return cachedConfig;
+}
+
+/** Force cache invalidation — called when admin updates config. */
+export function invalidateAIConfigCache(): void {
+  cachedConfig = null;
+}
 
 let openaiClient: OpenAI | null = null;
+let clientApiKey: string | null = null; // Track which key the client was created with
 
-function getOpenAIClient(): OpenAI {
-  if (!OPENROUTER_API_KEY) {
+async function getOpenAIClient(config: AIConfig): Promise<OpenAI> {
+  if (!config.apiKey) {
     throw new Error(
-      'OPENROUTER_API_KEY is not configured. Set it in your .env file.'
+      'OPENROUTER_API_KEY is not configured. Set it via Admin Settings or .env file.'
     );
   }
-  if (!openaiClient) {
+
+  // Recreate client if key changed
+  if (!openaiClient || clientApiKey !== config.apiKey) {
     openaiClient = new OpenAI({
-      apiKey: OPENROUTER_API_KEY,
-      baseURL: 'https://openrouter.ai/api/v1',
+      apiKey: config.apiKey,
+      baseURL: config.baseUrl,
       defaultHeaders: {
         'HTTP-Referer': 'https://datamind.bi',
         'X-Title': 'DataMind BI',
       },
     });
+    clientApiKey = config.apiKey;
   }
+
   return openaiClient;
 }
 
 export async function createCompletion(options: AICompletionOptions): Promise<AICompletionResult> {
   const startTime = Date.now();
-  const client = getOpenAIClient();
-  const model = AI_DEFAULT_MODEL;
+  const config = await getAIConfig();
+  const client = await getOpenAIClient(config);
+  const model = config.model;
 
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: 'system', content: options.systemPrompt },

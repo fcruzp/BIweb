@@ -21,6 +21,7 @@ import {
   Mail,
   Crown,
   Globe,
+  Shield,
 } from 'lucide-react';
 import { useI18n } from '@/hooks/use-i18n';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -29,6 +30,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { LocaleSwitcher } from '@/components/app/locale-switcher';
 import { UsagePlanDialog } from '@/components/app/settings/usage-plan-dialog';
+import { AdminAIConfig } from '@/components/app/settings/admin-ai-config';
 import { getPlan, type PlanId } from '@/lib/plans';
 
 const PLAN_BADGE_COLORS: Record<PlanId, string> = {
@@ -171,6 +173,19 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
             </section>
 
             <Separator className="opacity-20" />
+
+            {/* ── AI Configuration (Admin Only) ──────── */}
+            {dbUser?.role === 'admin' && (
+              <section className="space-y-3">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <Shield className="h-3 w-3" />
+                  {t('aiConfigAdmin')}
+                </h3>
+                <AdminAIConfig />
+              </section>
+            )}
+
+            {dbUser?.role === 'admin' && <Separator className="opacity-20" />}
 
             {/* ── Language ────────────────────────────── */}
             <section className="space-y-3">

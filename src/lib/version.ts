@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.44';
-export const VERSION_NAME = 'Contextual empty chat — i18n, schema-aware suggestions, clickable';
+export const VERSION = '0.3.45';
+export const VERSION_NAME = 'Admin AI Config — DB-backed API key/model management, no restart needed';

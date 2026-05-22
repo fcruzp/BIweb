@@ -197,6 +197,23 @@ model QueryHistory {
 }
 
 // ============================================
+// AI Configuration
+// ============================================
+
+model AiConfig {
+  id           String    @id @default("global")
+  apiKey       String?   @map("api_key")
+  model        String    @default("google/gemini-2.5-flash")
+  baseUrl      String    @default("https://openrouter.ai/api/v1") @map("base_url")
+  isActive     Boolean   @default(true) @map("is_active")
+  lastVerified DateTime? @map("last_verified")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("ai_config")
+}
+
+// ============================================
 // Dashboard Models
 // ============================================
 
