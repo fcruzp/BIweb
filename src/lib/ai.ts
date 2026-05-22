@@ -328,7 +328,7 @@ export async function getAIConfig(): Promise<AIConfig> {
 
   // 3. Fallback to environment variables
   const apiKey = process.env.OPENROUTER_API_KEY || '';
-  const model = process.env.AI_DEFAULT_MODEL || 'google/gemini-2.5-flash';
+  const model = process.env.AI_DEFAULT_MODEL || 'openrouter/free';
   const baseUrl = 'https://openrouter.ai/api/v1';
 
   cachedConfig = { apiKey, model, baseUrl, updatedAt: Date.now() };

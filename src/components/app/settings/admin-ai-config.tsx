@@ -45,6 +45,7 @@ interface ModelOption {
 
 const MODEL_OPTIONS: ModelOption[] = [
   // Free models
+  { id: 'openrouter/free', name: 'OpenRouter Auto (Free)', description: 'Auto-routes to best available free model — recommended', isFree: true },
   { id: 'google/gemini-2.5-flash-preview:free', name: 'Gemini 2.5 Flash (Free)', description: 'Free tier — fast, great for most tasks', isFree: true },
   { id: 'meta-llama/llama-4-maverick:free', name: 'Llama 4 Maverick (Free)', description: 'Free tier — Meta open model', isFree: true },
   { id: 'deepseek/deepseek-chat-v3-0324:free', name: 'DeepSeek V3 (Free)', description: 'Free tier — strong reasoning', isFree: true },
@@ -82,7 +83,7 @@ export function AdminAIConfig() {
 
   // Editable form state
   const [editApiKey, setEditApiKey] = useState('');
-  const [editModel, setEditModel] = useState('google/gemini-2.5-flash');
+  const [editModel, setEditModel] = useState('openrouter/free');
   const [editBaseUrl, setEditBaseUrl] = useState('https://openrouter.ai/api/v1');
   const [useCustomModel, setUseCustomModel] = useState(false);
   const [customModelId, setCustomModelId] = useState('');
@@ -371,7 +372,7 @@ export function AdminAIConfig() {
         {useCustomModel ? (
           <div className="space-y-1">
             <Input
-              placeholder="e.g. google/gemini-2.5-flash"
+              placeholder="e.g. openrouter/free"
               value={customModelId}
               onChange={(e) => setCustomModelId(e.target.value)}
               className="font-mono text-xs h-8"

@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.46';
-export const VERSION_NAME = 'Improve Admin AI Config UX — Save & Test combined, better logging';
+export const VERSION = '0.3.47';
+export const VERSION_NAME = 'Add openrouter/free as default model — auto-routes to best free model';

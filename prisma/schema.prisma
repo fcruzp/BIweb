@@ -203,7 +203,7 @@ model QueryHistory {
 model AiConfig {
   id           String    @id @default("global")
   apiKey       String?   @map("api_key")
-  model        String    @default("google/gemini-2.5-flash")
+  model        String    @default("openrouter/free")
   baseUrl      String    @default("https://openrouter.ai/api/v1") @map("base_url")
   isActive     Boolean   @default(true) @map("is_active")
   lastVerified DateTime? @map("last_verified")

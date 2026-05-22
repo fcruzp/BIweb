@@ -24,7 +24,7 @@ export async function GET() {
         source: 'env',
         apiKey: process.env.OPENROUTER_API_KEY ? `***${process.env.OPENROUTER_API_KEY.slice(-4)}` : null,
         hasKey: !!process.env.OPENROUTER_API_KEY,
-        model: process.env.AI_DEFAULT_MODEL || 'google/gemini-2.5-flash',
+        model: process.env.AI_DEFAULT_MODEL || 'openrouter/free',
         baseUrl: 'https://openrouter.ai/api/v1',
         isActive: false,
         lastVerified: null,
@@ -106,7 +106,7 @@ export async function PUT(request: NextRequest) {
       create: {
         id: 'global',
         apiKey: apiKey || null,
-        model: model?.trim() || 'google/gemini-2.5-flash',
+        model: model?.trim() || 'openrouter/free',
         baseUrl: baseUrl?.trim() || 'https://openrouter.ai/api/v1',
         isActive: isActive ?? true,
       },
@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
 
     // Final fallback to env vars
     if (!testKey) testKey = process.env.OPENROUTER_API_KEY || '';
-    if (!testModel) testModel = process.env.AI_DEFAULT_MODEL || 'google/gemini-2.5-flash';
+    if (!testModel) testModel = process.env.AI_DEFAULT_MODEL || 'openrouter/free';
     if (!testBaseUrl) testBaseUrl = 'https://openrouter.ai/api/v1';
 
     if (!testKey) {
