@@ -25,6 +25,8 @@ import {
   Shield,
   Zap,
   Globe,
+  Save,
+  FlaskConical,
 } from 'lucide-react';
 import { useI18n } from '@/hooks/use-i18n';
 import { authFetch } from '@/lib/fetch-utils';
@@ -130,7 +132,7 @@ export function AdminAIConfig() {
   }, [loadConfig]);
 
   // Save config
-  const handleSave = async () => {
+  const handleSave = async (): Promise<boolean> => {
     setIsSaving(true);
     try {
       const effectiveModel = useCustomModel ? customModelId.trim() : editModel;
@@ -146,6 +148,13 @@ export function AdminAIConfig() {
         body.apiKey = editApiKey;
       }
 
+      console.log('[AdminAIConfig] Saving config:', {
+        model: effectiveModel,
+        baseUrl: editBaseUrl,
+        hasApiKey: !!body.apiKey,
+        apiKeyLength: body.apiKey ? String(body.apiKey).length : 0,
+      });
+
       const res = await authFetch('/api/admin/ai-config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -154,18 +163,24 @@ export function AdminAIConfig() {
 
       if (res.ok) {
         const data = await res.json();
+        console.log('[AdminAIConfig] Save response:', data);
         toast.success(t('aiConfigSaved'));
         setKeyChanged(false);
         setEditApiKey('');
         setTestResult(null);
         // Reload config to get masked key
         await loadConfig();
+        return true;
       } else {
         const data = await res.json().catch(() => ({}));
+        console.error('[AdminAIConfig] Save failed:', res.status, data);
         toast.error(data.error || t('aiConfigSaveError'));
+        return false;
       }
-    } catch {
+    } catch (err) {
+      console.error('[AdminAIConfig] Save exception:', err);
       toast.error(t('aiConfigSaveError'));
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -218,6 +233,16 @@ export function AdminAIConfig() {
     }
   };
 
+  // Save & Test combined — saves first, then tests with the saved config
+  const handleSaveAndTest = async () => {
+    const saved = await handleSave();
+    if (saved) {
+      // Small delay to let cache invalidate
+      await new Promise(r => setTimeout(r, 500));
+      await handleTest();
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-6">
@@ -228,6 +253,9 @@ export function AdminAIConfig() {
 
   const effectiveModel = useCustomModel ? customModelId.trim() : editModel;
   const currentModelInfo = MODEL_OPTIONS.find(m => m.id === editModel);
+
+  // Check if there are unsaved changes
+  const hasUnsavedChanges = keyChanged || (config && editModel !== config.model) || (config && editBaseUrl !== config.baseUrl);
 
   return (
     <div className="space-y-4">
@@ -263,8 +291,11 @@ export function AdminAIConfig() {
           <div className="flex items-center gap-2 rounded-md border border-border/50 bg-muted/30 px-3 py-2">
             <span className="text-xs font-mono text-muted-foreground">{config.apiKey}</span>
             <Badge variant="outline" className="text-[9px] px-1 h-4 bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
-              {t('aiKeySet')}
+              {config.source === 'database' ? 'DB' : 'ENV'}
             </Badge>
+            <span className="text-[10px] text-amber-600 ml-auto">
+              {t('aiKeyOverwriteHint')}
+            </span>
           </div>
         )}
 
@@ -408,45 +439,59 @@ export function AdminAIConfig() {
 
       <Separator className="opacity-20" />
 
-      {/* Actions */}
-      <div className="flex items-center gap-2">
+      {/* Actions — Save & Test combined + standalone buttons */}
+      <div className="space-y-2">
+        {/* Primary: Save & Test */}
         <Button
-          variant="outline"
           size="sm"
-          className="text-xs gap-1.5 h-8"
-          onClick={handleTest}
-          disabled={isTesting || (!config?.hasKey && !keyChanged)}
+          className="w-full text-xs gap-1.5 h-9 bg-emerald-600 hover:bg-emerald-700"
+          onClick={handleSaveAndTest}
+          disabled={isSaving || isTesting}
         >
-          {isTesting ? (
+          {isSaving || isTesting ? (
             <>
               <Loader2 className="h-3 w-3 animate-spin" />
-              {t('testing')}
+              {isSaving ? t('saving') : t('testing')}
             </>
           ) : (
             <>
+              <FlaskConical className="h-3.5 w-3.5" />
+              {t('aiSaveAndTest')}
+            </>
+          )}
+        </Button>
+
+        {/* Secondary: Save Only + Test Only */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 text-xs gap-1.5 h-7"
+            onClick={handleSave}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Save className="h-3 w-3" />
+            )}
+            {t('saveOnly')}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex-1 text-xs gap-1.5 h-7"
+            onClick={handleTest}
+            disabled={isTesting || (!config?.hasKey && !keyChanged)}
+          >
+            {isTesting ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
               <CheckCircle2 className="h-3 w-3" />
-              {t('testConnection')}
-            </>
-          )}
-        </Button>
-        <Button
-          size="sm"
-          className="text-xs gap-1.5 h-8 bg-emerald-600 hover:bg-emerald-700"
-          onClick={handleSave}
-          disabled={isSaving}
-        >
-          {isSaving ? (
-            <>
-              <Loader2 className="h-3 w-3 animate-spin" />
-              {t('saving')}
-            </>
-          ) : (
-            <>
-              <Key className="h-3 w-3" />
-              {t('save')}
-            </>
-          )}
-        </Button>
+            )}
+            {t('testOnly')}
+          </Button>
+        </div>
       </div>
 
       {/* Test result */}
@@ -457,6 +502,14 @@ export function AdminAIConfig() {
             : 'bg-red-500/5 border-red-500/20 text-red-700 dark:text-red-400'
         }`}>
           {testResult.message}
+        </div>
+      )}
+
+      {/* Unsaved changes indicator */}
+      {hasUnsavedChanges && (
+        <div className="flex items-center gap-2 text-amber-600 text-xs bg-amber-500/5 border border-amber-500/20 rounded-lg p-2">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          <span>{t('aiUnsavedChanges')}</span>
         </div>
       )}
 
@@ -471,7 +524,7 @@ export function AdminAIConfig() {
           <span className="font-mono">
             {keyChanged
               ? (editApiKey ? `***${editApiKey.slice(-4)}` : t('aiKeyRemove'))
-              : (config?.hasKey ? config.apiKey : t('aiKeyNotSet'))}
+              : (config?.hasKey ? `${config.apiKey} (${config.source === 'database' ? 'DB' : 'ENV'})` : t('aiKeyNotSet'))}
           </span>
         </div>
         <div className="flex justify-between">

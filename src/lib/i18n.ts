@@ -453,6 +453,12 @@ export const translations = {
     aiTestSuccess: 'Connection successful',
     aiTestFailed: 'Connection test failed',
     saving: 'Saving...',
+    testing: 'Testing...',
+    aiSaveAndTest: 'Save & Test Connection',
+    saveOnly: 'Save Only',
+    testOnly: 'Test Only',
+    aiKeyOverwriteHint: 'Type below to save a new key to database',
+    aiUnsavedChanges: 'You have unsaved changes',
   },
 
   es: {
@@ -902,6 +908,12 @@ export const translations = {
     aiTestSuccess: 'Conexión exitosa',
     aiTestFailed: 'Falló la prueba de conexión',
     saving: 'Guardando...',
+    testing: 'Probando...',
+    aiSaveAndTest: 'Guardar y Probar Conexión',
+    saveOnly: 'Solo Guardar',
+    testOnly: 'Solo Probar',
+    aiKeyOverwriteHint: 'Escribe abajo para guardar una nueva key en la base de datos',
+    aiUnsavedChanges: 'Tienes cambios sin guardar',
   },
 } as const;
 

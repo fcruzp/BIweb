@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth-utils';
-import { createCompletion, invalidateAIConfigCache } from '@/lib/ai';
+import { createCompletion, getAIConfig, invalidateAIConfigCache } from '@/lib/ai';
 import OpenAI from 'openai';
 
 // ============================================================
@@ -61,6 +61,7 @@ export async function PUT(request: NextRequest) {
     // Require admin role
     const user = await requireAuth();
     if (user.role !== 'admin') {
+      console.warn(`[Admin/AiConfig] PUT denied: user ${user.email} role=${user.role} (expected admin)`);
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
@@ -71,6 +72,15 @@ export async function PUT(request: NextRequest) {
       baseUrl?: string;
       isActive?: boolean;
     };
+
+    console.log(`[Admin/AiConfig] PUT request from ${user.email}:`, {
+      hasApiKey: apiKey !== undefined,
+      apiKeyLength: apiKey ? apiKey.length : 0,
+      apiKeyPrefix: apiKey ? apiKey.slice(0, 6) + '...' : '(not sent)',
+      model,
+      baseUrl,
+      isActive,
+    });
 
     // Validate model is not empty
     if (model !== undefined && !model.trim()) {
@@ -83,6 +93,11 @@ export async function PUT(request: NextRequest) {
     if (model !== undefined) updateData.model = model.trim();
     if (baseUrl !== undefined) updateData.baseUrl = baseUrl.trim();
     if (isActive !== undefined) updateData.isActive = isActive;
+
+    console.log(`[Admin/AiConfig] Upserting with updateData:`, {
+      ...updateData,
+      apiKey: updateData.apiKey ? `***${String(updateData.apiKey).slice(-4)}` : null,
+    });
 
     // Upsert the config (create if doesn't exist)
     const config = await db.aiConfig.upsert({
@@ -105,7 +120,7 @@ export async function PUT(request: NextRequest) {
       ? `***${config.apiKey.slice(-4)}`
       : null;
 
-    console.log(`[Admin/AiConfig] Updated: model=${config.model}, hasKey=${!!config.apiKey}, active=${config.isActive}`);
+    console.log(`[Admin/AiConfig] Saved successfully: model=${config.model}, hasKey=${!!config.apiKey}, keyEnding=${maskedKey}, active=${config.isActive}`);
 
     return NextResponse.json({
       success: true,
@@ -142,16 +157,36 @@ export async function POST(request: NextRequest) {
     };
 
     // Use provided values or fall back to DB/env config
-    const testKey = apiKey || process.env.OPENROUTER_API_KEY || '';
-    const testModel = model || 'google/gemini-2.5-flash';
-    const testBaseUrl = baseUrl || 'https://openrouter.ai/api/v1';
+    let testKey = apiKey || '';
+    let testModel = model || '';
+    let testBaseUrl = baseUrl || '';
+
+    // If no explicit values, try from DB config
+    if (!testKey || !testModel || !testBaseUrl) {
+      try {
+        const currentConfig = await getAIConfig();
+        if (!testKey) testKey = currentConfig.apiKey;
+        if (!testModel) testModel = currentConfig.model;
+        if (!testBaseUrl) testBaseUrl = currentConfig.baseUrl;
+      } catch {
+        // Fall through to env vars
+      }
+    }
+
+    // Final fallback to env vars
+    if (!testKey) testKey = process.env.OPENROUTER_API_KEY || '';
+    if (!testModel) testModel = process.env.AI_DEFAULT_MODEL || 'google/gemini-2.5-flash';
+    if (!testBaseUrl) testBaseUrl = 'https://openrouter.ai/api/v1';
 
     if (!testKey) {
       return NextResponse.json({
         success: false,
         error: 'No API key provided or found in configuration',
+        hint: 'Enter a new API key above and save first, or set OPENROUTER_API_KEY in your .env file.',
       }, { status: 400 });
     }
+
+    console.log(`[Admin/AiConfig] Testing connection: model=${testModel}, hasKey=${!!testKey}, keyPrefix=${testKey.slice(0, 6)}...`);
 
     const startTime = Date.now();
 
@@ -178,15 +213,22 @@ export async function POST(request: NextRequest) {
     const content = completion.choices[0]?.message?.content || '(empty)';
     const timingMs = Date.now() - startTime;
 
-    // If testing the currently-saved config, update lastVerified
-    if (!apiKey && !model && !baseUrl) {
-      try {
-        await db.aiConfig.update({
-          where: { id: 'global' },
-          data: { lastVerified: new Date() },
-        });
-      } catch { /* ignore if no config row exists */ }
-    }
+    // Update lastVerified timestamp
+    try {
+      await db.aiConfig.upsert({
+        where: { id: 'global' },
+        update: { lastVerified: new Date() },
+        create: {
+          id: 'global',
+          model: testModel,
+          baseUrl: testBaseUrl,
+          lastVerified: new Date(),
+          isActive: true,
+        },
+      });
+    } catch { /* ignore if no config row exists */ }
+
+    console.log(`[Admin/AiConfig] Test SUCCESS: ${timingMs}ms, response="${content}"`);
 
     return NextResponse.json({
       success: true,
@@ -211,7 +253,7 @@ export async function POST(request: NextRequest) {
     if (errInfo.message.includes('401') || errInfo.message.includes('Incorrect API key')) {
       hint = 'API key is invalid or expired. Check your OpenRouter dashboard.';
     } else if (errInfo.message.includes('402') || errInfo.message.includes('Insufficient credits')) {
-      hint = 'API key has insufficient credits. Top up at openrouter.ai/credits.';
+      hint = 'API key has insufficient credits. Top up at openrouter.ai/credits or switch to a FREE model.';
     } else if (errInfo.message.includes('403')) {
       hint = 'API key does not have access to this model.';
     } else if (errInfo.message.includes('429')) {
