@@ -302,7 +302,7 @@ const CONFIG_CACHE_TTL = 30_000; // 30 seconds — fast enough for admin changes
  *   2. DB `AiConfig` row (if present with active key)
  *   3. Env vars `OPENROUTER_API_KEY` / `AI_DEFAULT_MODEL`
  */
-async function getAIConfig(): Promise<AIConfig> {
+export async function getAIConfig(): Promise<AIConfig> {
   // 1. Return cached config if still fresh
   if (cachedConfig && Date.now() - cachedConfig.updatedAt < CONFIG_CACHE_TTL) {
     return cachedConfig;
