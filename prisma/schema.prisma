@@ -34,6 +34,7 @@ model User {
   dashboards     Dashboard[]
   subscription   Subscription?
   usageEvents    UsageEvent[]
+  mapLibrary     MapLibrary[]
 
   createdAt      DateTime       @default(now()) @map("created_at")
   updatedAt      DateTime       @updatedAt @map("updated_at")
@@ -211,6 +212,29 @@ model AiConfig {
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
   @@map("ai_config")
+}
+
+// ============================================
+// Map Library Models
+// ============================================
+
+model MapLibrary {
+  id          String    @id @default(cuid())
+  userId      String?   @map("user_id") // null = system map, String = user's custom map
+  name        String    // "México - Estados", "Rep. Dominicana - Provincias"
+  countryCode String?   @map("country_code") // ISO 3166-1 alpha-2 (e.g., "DO", "US", "MX")
+  svgContent  String    @map("svg_content") // Full SVG markup stored as text
+  regions     String    // JSON array of { name, id, aliases[] }
+  source      String    @default("system") // "system" | "user"
+  isPublic    Boolean   @default(false) @map("is_public") // future: share with other users
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  user        User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([countryCode])
+  @@map("map_library")
 }
 
 // ============================================

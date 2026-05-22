@@ -93,6 +93,14 @@ export const translations = {
     uploadFirstDatabase: 'Upload Your First Database',
     pinToDashboard: 'Pin to Dashboard',
     drHeatMapTitle: 'Heat Map \u2014 Dominican Republic',
+    geoMapTitle: 'Heat Map',
+    mapAutoDetected: 'Auto-detected: {country}',
+    mapSelectCountry: 'Select Country',
+    mapCountryDO: 'Dominican Republic',
+    mapCountryUS: 'United States',
+    mapCountryMX: 'Mexico',
+    mapCountryCO: 'Colombia',
+    mapCountryAR: 'Argentina',
 
     // Chat Report
     chatReport: 'Chat Report',
@@ -143,6 +151,7 @@ export const translations = {
     markdownSupport: 'Supports basic markdown formatting.',
     noDataConfigured: 'No data source configured',
     noData: 'No data',
+    regionsWithData: '{matched} of {total} {regionLabel} with data',
     noTextContent: 'No text content configured',
 
     // Pin to Dashboard
@@ -548,6 +557,14 @@ export const translations = {
     uploadFirstDatabase: 'Sube Tu Primera Base de Datos',
     pinToDashboard: 'Fijar al Dashboard',
     drHeatMapTitle: 'Mapa de Calor \u2014 República Dominicana',
+    geoMapTitle: 'Mapa de Calor',
+    mapAutoDetected: 'Auto-detectado: {country}',
+    mapSelectCountry: 'Seleccionar País',
+    mapCountryDO: 'República Dominicana',
+    mapCountryUS: 'Estados Unidos',
+    mapCountryMX: 'México',
+    mapCountryCO: 'Colombia',
+    mapCountryAR: 'Argentina',
 
     // Chat Report
     chatReport: 'Reporte de Chat',
@@ -598,6 +615,7 @@ export const translations = {
     markdownSupport: 'Soporta formato markdown básico.',
     noDataConfigured: 'Sin fuente de datos configurada',
     noData: 'Sin datos',
+    regionsWithData: '{matched} de {total} {regionLabel} con datos',
     noTextContent: 'Sin contenido de texto configurado',
 
     // Pin to Dashboard

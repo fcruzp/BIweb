@@ -736,3 +736,112 @@ Stage Summary:
 - All user-facing text uses `useI18n()` hook with `t('key')`
 - Supports params: `t('suggestTableOverview', { table: 'ventas' })` → replaces `{table}` in string
 - Translations in `src/lib/i18n.ts` — both `en` and `es` objects
+
+---
+Task ID: 2
+Agent: full-stack-developer
+Task: Create generic GeoMap component + map registry system
+
+Work Log:
+- Read existing `src/components/app/visualization/dr-map.tsx` and `src/lib/dr-map-constants.ts` to understand current DRHeatMap implementation (SVG rendering, tooltip, color scale, province name normalization, detectGeographicColumn)
+- Read `src/components/app/visualization/chart-renderer.tsx` to understand integration (DRHeatMap used for 'heatmap' chartType)
+- Read `src/hooks/use-i18n.ts` and `src/lib/i18n.ts` to understand i18n pattern and verify `noData` key exists
+- Read `src/stores/chat-store.ts` for VisualizationConfig type (provinceColumn, valueColumn fields)
+- Created `src/lib/map-registry.ts` with:
+  - `MapRegion` type: `{ name, id?, aliases }`
+  - `MapConfig` type: `{ countryCode, name, nameEn, regionLabel, regionLabelEn, regions, paths }`
+  - `MAP_REGISTRY: Record<string, MapConfig>` with DR registered as "DO"
+  - `getMapConfig(countryCode)` helper
+  - `normalizeRegionName(input, config)` with 5-step resolution: direct → case-insensitive → alias → accent-stripped → partial
+  - `detectCountryFromData(data, columns)` that checks all registered countries' regions/aliases
+  - `detectGeographicColumn(data, columns)` backward-compatible helper that delegates to detectCountryFromData
+- Created `src/components/app/visualization/geo-map.tsx` with:
+  - Same visual output as DRHeatMap (same colors, hover effects, tooltip positioning)
+  - Generic `mapConfig` prop instead of hardcoded DR data
+  - Uses `normalizeRegionName` from map-registry
+  - Uses `useI18n` + `t('noData')` for tooltip "Sin datos"/"No data" text
+  - Uses `t('regionsWithData', {...})` for region match count
+  - Locale-aware region labels from config (regionLabel vs regionLabelEn)
+  - Auto-calculated viewBox from SVG paths
+- Updated `src/components/app/visualization/dr-map.tsx`:
+  - `DRHeatMap` is now a wrapper around `GeoMap` that auto-detects country or defaults to "DO"
+  - `detectGeographicColumn` re-exported from map-registry for backward compatibility
+  - `normalizeProvinceName`, `DR_PROVINCES`, `DRProvince` kept as deprecated exports
+  - Also exports `GeoMap` and `MapConfig` for direct usage
+- Added i18n keys: `regionsWithData` in both EN ('{matched} of {total} {regionLabel} with data') and ES ('{matched} de {total} {regionLabel} con datos')
+- Lint passes (0 errors, 1 pre-existing TanStack Table warning)
+
+Stage Summary:
+- **3 files created/modified**: map-registry.ts (new), geo-map.tsx (new), dr-map.tsx (rewritten)
+- **1 file updated**: i18n.ts (added regionsWithData key)
+- All existing imports of `DRHeatMap` and `detectGeographicColumn` from `./dr-map` continue to work unchanged
+- The map registry pattern allows adding new countries by simply registering a `MapConfig` in `MAP_REGISTRY`
+- `normalizeRegionName` is generic — works with any country's alias system
+- `detectCountryFromData` checks ALL registered countries simultaneously and returns the best match
+
+---
+Task ID: 7
+Agent: full-stack-developer
+Task: Create MapLibrary API routes
+
+Work Log:
+- Read Prisma schema to understand MapLibrary model (id, userId, name, countryCode, svgContent, regions, source, isPublic)
+- Read auth-utils.ts to understand requireAuth() pattern (returns User or throws)
+- Read map-registry.ts to understand MAP_REGISTRY structure (Record<string, MapConfig>) and detectCountryFromData()
+- Read existing API routes (dashboards) for code patterns and conventions
+- Created `src/app/api/maps/route.ts` — GET: combines system maps from MAP_REGISTRY + user custom maps from DB
+- Created `src/app/api/maps/upload/route.ts` — POST: validates SVG (max 2MB, must have <path data-name>), validates regions array, extracts regions from SVG if not provided, saves to DB with source "user"
+- Created `src/app/api/maps/[id]/route.ts` — GET (supports system-XX prefix for registry maps + DB maps), DELETE (only owner can delete custom maps, system maps cannot be deleted)
+- Created `src/app/api/maps/detect-country/route.ts` — POST: wraps detectCountryFromData() from map-registry, returns { countryCode, regionColumn, confidence } or { detected: false }
+- All routes use requireAuth() for auth validation
+- All routes follow existing error handling pattern (catch 401 separately, return 500 for others)
+- Ran `bun run lint` — 0 errors, 1 pre-existing TanStack Table warning
+- Dev server running successfully (HTTP 200)
+
+Stage Summary:
+- 4 API routes created for MapLibrary: GET /api/maps, POST /api/maps/upload, GET/DELETE /api/maps/[id], POST /api/maps/detect-country
+- System maps served from MAP_REGISTRY in-memory with virtual IDs (system-XX)
+- Custom maps persisted to MapLibrary table with full SVG + regions JSON
+- SVG validation enforces max 2MB size and <path data-name> requirement
+- Country detection reuses existing detectCountryFromData() helper
+- All routes auth-protected with consistent error handling
+
+---
+Task ID: 5-1
+Agent: Main
+Task: Phase 5 — Multi-country map library implementation
+
+Work Log:
+- Added MapLibrary Prisma model to schema.prisma with fields: id, userId, name, countryCode, svgContent, regions, source, isPublic
+- Added MapLibrary relation to User model
+- Pushed schema to local SQLite database
+- Created generic GeoMap component (src/components/app/visualization/geo-map.tsx) — accepts MapConfig prop, renders any country's SVG map
+- Created map-registry system (src/lib/map-registry.ts) with MapRegion, MapConfig types, MAP_REGISTRY, getMapConfig(), normalizeRegionName(), detectCountryFromData(), detectGeographicColumn()
+- Created 4 priority country map data files:
+  - src/lib/maps/us-map.ts (50 states with simplified SVG grid layout)
+  - src/lib/maps/mx-map.ts (32 estados with aliases like CDMX, Edomex)
+  - src/lib/maps/co-map.ts (32 departamentos + Bogotá DC)
+  - src/lib/maps/ar-map.ts (23 provincias + CABA)
+- Updated dr-map.tsx as backward-compatible wrapper around GeoMap
+- Updated viz-heuristics.ts to use multi-country detection via detectCountryFromData()
+- Added countryCode field to VisualizationConfig interface in chat-store
+- Updated chart-renderer.tsx to use GeoMap with getMapConfig(countryCode)
+- Updated message-item.tsx, chat-report.tsx, widget-renderer.tsx to use GeoMap
+- Updated add-widget-dialog.tsx to detect country and include countryCode
+- Created MapSelector component (src/components/app/visualization/map-selector.tsx) with country flags and dropdown
+- Created MapLibrary API routes:
+  - GET /api/maps — list system + user custom maps
+  - POST /api/maps/upload — upload custom SVG with validation
+  - GET/DELETE /api/maps/[id] — get/delete map
+  - POST /api/maps/detect-country — detect country from data
+- Added i18n keys for map features in both EN and ES
+- Updated version to 0.5.1
+
+Stage Summary:
+- Phase 5 core implementation complete
+- 5 countries registered in MAP_REGISTRY: DO, US, MX, CO, AR
+- Auto-detection works across all registered countries
+- Backward compatible with existing DR heatmap
+- Custom SVG upload API ready for future UI
+- MapSelector component ready for visualization card integration
+- All lint checks pass (0 errors)

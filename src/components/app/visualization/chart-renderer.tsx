@@ -26,7 +26,8 @@ import {
   type ChartConfig,
 } from '@/components/ui/chart';
 import { DataTable } from './data-table';
-import { DRHeatMap } from './dr-map';
+import { GeoMap } from './geo-map';
+import { getMapConfig } from '@/lib/map-registry';
 
 const CHART_COLORS = [
   'hsl(160, 60%, 50%)', // emerald
@@ -66,15 +67,21 @@ export function ChartRenderer({ visualization, data }: ChartRendererProps) {
       return <AreaChartRenderer visualization={visualization} data={data} />;
     case 'metric':
       return <MetricRenderer visualization={visualization} data={data} />;
-    case 'heatmap':
+    case 'heatmap': {
+      const mapConfig = getMapConfig(visualization.countryCode || 'DO') || getMapConfig('DO');
+      if (!mapConfig) {
+        return <DataTable data={data} columns={data.length > 0 ? Object.keys(data[0]) : []} />;
+      }
       return (
-        <DRHeatMap
+        <GeoMap
           data={data}
-          provinceColumn={visualization.provinceColumn || ''}
+          regionColumn={visualization.provinceColumn || ''}
           valueColumn={visualization.valueColumn || ''}
           title={visualization.title}
+          mapConfig={mapConfig}
         />
       );
+    }
     case 'table':
       return <DataTable data={data} columns={data.length > 0 ? Object.keys(data[0]) : []} />;
     default:

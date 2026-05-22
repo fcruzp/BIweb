@@ -2,35 +2,28 @@
  * Heuristic visualization suggestion — NO AI call needed.
  *
  * Replaces the `suggestVisualization()` AI call (~15s) with instant rule-based detection.
- * The geographic/heatmap detection is preserved from the original AI function.
+ * Now supports multi-country geographic detection via the map registry.
  */
 
 import type { VisualizationConfig } from '@/stores/chat-store';
+import { detectCountryFromData, MAP_REGISTRY } from '@/lib/map-registry';
 
 // ============================================================
-// DR Province Detection (kept from original)
+// Keyword constants
 // ============================================================
-
-const DR_PROVINCES = [
-  'Distrito Nacional', 'Azua', 'Baoruco', 'Barahona', 'Dajabón', 'Duarte',
-  'El Seibo', 'Espaillat', 'Hato Mayor', 'Hermanas Mirabal',
-  'Independencia', 'La Altagracia', 'La Estrelleta', 'Elías Piña', 'La Romana', 'La Vega',
-  'María Trinidad Sánchez', 'Monseñor Nouel', 'Monte Cristi', 'Monte Plata',
-  'Pedernales', 'Peravia', 'Puerto Plata', 'Samaná', 'Sánchez Ramírez',
-  'San Cristóbal', 'San José de Ocoa', 'San Juan', 'San Pedro de Macorís',
-  'Santiago', 'Santiago Rodríguez', 'Santo Domingo', 'Valverde',
-];
 
 const GEO_KEYWORDS = [
   'provincia', 'province', 'mapa', 'map', 'geográf', 'geograph',
   'región', 'region', 'heatmap', 'heat map', 'mapa de calor',
   'por provincia', 'by province', 'por región', 'by region',
   'distribución geográfica', 'geographic distribution',
+  'estado', 'state', 'departamento', 'department',
 ];
 
 const PROVINCE_COL_PATTERNS = [
   'provincia', 'province', 'region', 'región', 'state', 'estado',
   'municipio', 'municipality', 'location', 'ubicación',
+  'department', 'departamento',
 ];
 
 // ============================================================
@@ -75,6 +68,102 @@ function classifyColumn(
 }
 
 // ============================================================
+// Multi-country geographic detection
+// ============================================================
+
+/**
+ * Detect geographic data across ALL registered countries.
+ * Returns the detected country code, region column, and value column,
+ * or null if no geographic data is found.
+ */
+function detectGeoData(
+  data: Array<Record<string, unknown>>,
+  columns: string[],
+  naturalQuery: string
+): { countryCode: string; regionColumn: string; valueColumn: string } | null {
+  if (!data || data.length === 0) return null;
+
+  const sampleRows = data.slice(0, 50);
+
+  // 1. Try the registry's multi-country detection
+  const detection = detectCountryFromData(data, columns);
+  if (detection && detection.confidence > 0.2) {
+    const valueColumn = columns.find((c) => {
+      if (c === detection.regionColumn) return false;
+      return sampleRows.some((r) => isNumeric(r[c]));
+    });
+    if (valueColumn) {
+      return {
+        countryCode: detection.countryCode,
+        regionColumn: detection.regionColumn,
+        valueColumn,
+      };
+    }
+  }
+
+  // 2. Fallback: check column names for geographic keywords
+  const lowerQuery = naturalQuery.toLowerCase();
+  const isGeoQuery = GEO_KEYWORDS.some((kw) => lowerQuery.includes(kw));
+
+  let geoColumn: string | null = null;
+  for (const col of columns) {
+    const lowerCol = col.toLowerCase();
+    if (PROVINCE_COL_PATTERNS.some((p) => lowerCol.includes(p))) {
+      geoColumn = col;
+      break;
+    }
+  }
+
+  if (geoColumn) {
+    // Try to identify the country from the column values
+    const values = sampleRows.map((r) => String(r[geoColumn] ?? '').toLowerCase().trim());
+
+    let bestCountry: string | null = null;
+    let bestMatch = 0;
+
+    for (const [countryCode, config] of Object.entries(MAP_REGISTRY)) {
+      const allIdentifiers = new Set<string>();
+      for (const region of config.regions) {
+        allIdentifiers.add(region.name.toLowerCase());
+        for (const alias of region.aliases) {
+          allIdentifiers.add(alias.toLowerCase());
+        }
+      }
+
+      const matchCount = values.filter((v) => allIdentifiers.has(v)).length;
+      if (matchCount > bestMatch) {
+        bestMatch = matchCount;
+        bestCountry = countryCode;
+      }
+    }
+
+    const valueColumn = columns.find((c) => {
+      if (c === geoColumn) return false;
+      return sampleRows.some((r) => isNumeric(r[c]));
+    });
+
+    if (bestCountry && bestMatch >= Math.max(2, values.length * 0.2) && valueColumn) {
+      return {
+        countryCode: bestCountry,
+        regionColumn: geoColumn,
+        valueColumn,
+      };
+    }
+
+    // Geo query but no country match — default to DR for backward compat
+    if (isGeoQuery && valueColumn) {
+      return {
+        countryCode: 'DO',
+        regionColumn: geoColumn,
+        valueColumn,
+      };
+    }
+  }
+
+  return null;
+}
+
+// ============================================================
 // Main heuristic function
 // ============================================================
 
@@ -86,58 +175,20 @@ export function suggestVisualizationHeuristic(
   const columns = resultData.length > 0 ? Object.keys(resultData[0]) : [];
   const sampleRows = resultData.slice(0, 50);
 
-  // ---- 1. Geographic / Heatmap detection ----
+  // ---- 1. Geographic / Heatmap detection (multi-country) ----
   const lowerQuery = naturalQuery.toLowerCase();
   const isGeoQuery = GEO_KEYWORDS.some((kw) => lowerQuery.includes(kw));
 
-  let detectedProvinceCol: string | null = null;
-  let detectedValueCol: string | null = null;
+  const geoDetection = detectGeoData(resultData, columns, naturalQuery);
 
-  for (const col of columns) {
-    const lowerCol = col.toLowerCase();
-    const isLikelyProvinceCol = PROVINCE_COL_PATTERNS.some((p) => lowerCol.includes(p));
-
-    if (isLikelyProvinceCol) {
-      const values = sampleRows.map((r) => String(r[col] ?? '').toLowerCase().trim());
-      const matchCount = values.filter((v) =>
-        DR_PROVINCES.some((p) => p.toLowerCase() === v)
-      ).length;
-      if (matchCount >= Math.max(2, values.length * 0.25)) {
-        detectedProvinceCol = col;
-        break;
-      }
-    }
-  }
-
-  // Fallback: detect by values alone
-  if (!detectedProvinceCol) {
-    for (const col of columns) {
-      const values = sampleRows.map((r) => String(r[col] ?? '').toLowerCase().trim());
-      const matchCount = values.filter((v) =>
-        DR_PROVINCES.some((p) => p.toLowerCase() === v)
-      ).length;
-      if (matchCount >= Math.max(3, values.length * 0.3)) {
-        detectedProvinceCol = col;
-        break;
-      }
-    }
-  }
-
-  if (detectedProvinceCol) {
-    detectedValueCol =
-      columns.find((c) => {
-        if (c === detectedProvinceCol) return false;
-        return sampleRows.some((r) => isNumeric(r[c]));
-      }) || null;
-  }
-
-  if ((isGeoQuery || detectedProvinceCol) && detectedProvinceCol && detectedValueCol) {
+  if ((isGeoQuery || geoDetection) && geoDetection) {
     return {
       chartType: 'heatmap',
       title: naturalQuery.slice(0, 60),
-      description: `Heat map by ${detectedProvinceCol}`,
-      provinceColumn: detectedProvinceCol,
-      valueColumn: detectedValueCol,
+      description: `Heat map by ${geoDetection.regionColumn}`,
+      provinceColumn: geoDetection.regionColumn,
+      valueColumn: geoDetection.valueColumn,
+      countryCode: geoDetection.countryCode,
     };
   }
 

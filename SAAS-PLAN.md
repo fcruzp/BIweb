@@ -1,6 +1,6 @@
 # 🚀 DataMind BI — Plan SaaS Consolidado
 
-> Última actualización: Mayo 2025 | Progreso: ✅ Fase 1-2 COMPLETADAS — ✅ Fase 3 COMPLETADA — 🔄 Fase 4 PARCIAL (Stripe Mock)
+> Última actualización: Junio 2025 | Progreso: ✅ Fase 1-3 COMPLETADAS — 🔄 Fase 4 PARCIAL (Stripe Mock) — 🔄 Fase 5 PARCIAL (Multi-Country Maps)
 
 ---
 
@@ -263,11 +263,18 @@
 
 ### Estado Actual
 
-Actualmente el sistema solo soporta mapas de República Dominicana:
-- `src/lib/dr-map-constants.ts` — Paths SVG y códigos de provincias DR
-- `src/lib/dr-map-data.json` — Datos de georreferenciación DR
-- `src/components/app/visualization/dr-map.tsx` — Componente de heatmap DR
-- Normalización de nombres de provincias DR (aliases, acentos, abreviaturas)
+El sistema ahora soporta **5 países** con detección automática:
+- `src/lib/map-registry.ts` — Registro central de mapas con tipos MapConfig, MapRegion
+- `src/lib/maps/us-map.ts` — Estados Unidos (50 estados)
+- `src/lib/maps/mx-map.ts` — México (32 estados + CDMX)
+- `src/lib/maps/co-map.ts` — Colombia (32 departamentos + Bogotá)
+- `src/lib/maps/ar-map.ts` — Argentina (23 provincias + CABA)
+- `src/components/app/visualization/geo-map.tsx` — Componente genérico GeoMap
+- `src/components/app/visualization/map-selector.tsx` — Selector de país con banderas
+- `src/components/app/visualization/dr-map.tsx` — Wrapper backward-compatible
+- Detección automática de país en `viz-heuristics.ts` y `map-registry.ts`
+- API routes: `/api/maps`, `/api/maps/upload`, `/api/maps/[id]`, `/api/maps/detect-country`
+- Modelo `MapLibrary` en Prisma para SVGs custom del usuario
 
 ### Objetivo
 
@@ -360,21 +367,21 @@ Model: MapLibrary
 
 | Tarea | Estado |
 |-------|--------|
-| Refactorizar dr-map.tsx → mapa genérico (recibe SVG + regions config) | ⬜ Pendiente |
-| Crear modelo MapLibrary en Prisma | ⬜ Pendiente |
-| API: `GET /api/maps` — Lista mapas disponibles (sistema + usuario) | ⬜ Pendiente |
-| API: `POST /api/maps/upload` — Subir SVG custom con validación | ⬜ Pendiente |
-| API: `DELETE /api/maps/[id]` — Eliminar mapa custom | ⬜ Pendiente |
-| API: `POST /api/maps/detect-country` — Detectar país de datos | ⬜ Pendiente |
-| Componente: `GeoMap` genérico (reemplaza DRHeatMap) | ⬜ Pendiente |
-| Componente: Selector de país/mapa | ⬜ Pendiente |
-| Componente: Upload de SVG custom con preview y validación | ⬜ Pendiente |
+| Refactorizar dr-map.tsx → mapa genérico (recibe SVG + regions config) | ✅ Completado — GeoMap genérico creado, dr-map.tsx = wrapper |
+| Crear modelo MapLibrary en Prisma | ✅ Completado — Con userId, countryCode, svgContent, regions, source, isPublic |
+| API: `GET /api/maps` — Lista mapas disponibles (sistema + usuario) | ✅ Completado — Combina MAP_REGISTRY + DB |
+| API: `POST /api/maps/upload` — Subir SVG custom con validación | ✅ Completado — Valida <path data-name>, max 2MB |
+| API: `DELETE /api/maps/[id]` — Eliminar mapa custom | ✅ Completado — Solo dueño puede borrar |
+| API: `POST /api/maps/detect-country` — Detectar país de datos | ✅ Completado — Usa detectCountryFromData() |
+| Componente: `GeoMap` genérico (reemplaza DRHeatMap) | ✅ Completado — geo-map.tsx |
+| Componente: Selector de país/mapa | ✅ Completado — map-selector.tsx con banderas |
+| Componente: Upload de SVG custom con preview y validación | ⬜ Pendiente — API lista, falta UI |
 | Componente: Editor de aliases de regiones | ⬜ Pendiente |
-| Integración con AI: detectar país y sugerir mapa | ⬜ Pendiente |
-| Agregar SVGs de países priorizados (US, MX, CO, AR) | ⬜ Pendiente |
-| Agregar SVGs de países secundarios | ⬜ Pendiente |
-| Migrar mapa DR existente al nuevo sistema genérico | ⬜ Pendiente |
-| Normalización de nombres por país (como PROVINCE_ALIASES pero por país) | ⬜ Pendiente |
+| Integración con AI: detectar país y sugerir mapa | ✅ Completado — viz-heuristics.ts usa detectCountryFromData() |
+| Agregar SVGs de países priorizados (US, MX, CO, AR) | ✅ Completado — Simplificados grid layout |
+| Agregar SVGs de países secundarios | ⬜ Pendiente — CL, PE, BR, ES, etc. |
+| Migrar mapa DR existente al nuevo sistema genérico | ✅ Completado — DR registrado en MAP_REGISTRY |
+| Normalización de nombres por país (como PROVINCE_ALIASES pero por país) | ✅ Completado — aliases en MapRegion por país |
 
 ### Estimación: 2-3 semanas
 
@@ -581,13 +588,14 @@ Con Z-AI (sin costo de IA):
 
 **Fase 1-3 COMPLETADAS** ✅ — Supabase PostgreSQL + Auth + Multi-Tenant + Landing + Onboarding.
 **Fase 4 PARCIAL** 🔄 — Stripe mock integrado, pendiente crear productos en Stripe Dashboard + portal UI.
+**Fase 5 PARCIAL** 🔄 — 5 países registrados (DO, US, MX, CO, AR) con detección automática. Pendiente: UI upload SVG custom, países secundarios, SVGs mejorados.
 
-### Siguiente: Fase 4 completar + Fase 5 — Stripe Live + Map Library
+### Siguiente: Fase 5 completar + Fase 6 — Custom SVG Upload + Usage Dashboard
 
-1. ✅ Onboarding flow para nuevos usuarios (demo con datos de ejemplo)
-2. ✅ Redirección post-login inteligente (onboardingCompleted check)
-3. 🔄 Crear productos/precios en Stripe Dashboard cuando VPS + dominio estén listos
-4. ✅ Integrar Stripe mock (checkout UI, webhooks, service layer)
-5. 🔄 Activar Stripe real cuando VPS nuevo + dominio estén listos (solo set STRIPE_SECRET_KEY)
-6. ⬜ Fase 5: Biblioteca de Mapas SVG (multi-país + custom uploads)
-7. ⬜ Fase 6: Dashboard de Uso + Métricas (gráficos, proyecciones, alertas)
+1. ✅ GeoMap genérico con soporte multi-país
+2. ✅ Detección automática de país en viz-heuristics
+3. ✅ MapLibrary API routes (list, upload, delete, detect-country)
+4. ✅ MapSelector component con banderas
+5. ⬜ UI para subir SVG custom con preview y validación
+6. ⬜ Agregar países secundarios (CL, PE, BR, ES)
+7. ⬜ Fase 6: Dashboard de Uso + Métricas

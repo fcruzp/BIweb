@@ -25,7 +25,7 @@ import { Loader2, Play, BarChart3, Table2, Gauge, Type, MapPin } from 'lucide-re
 import { executeWidgetQuery } from '@/hooks/use-widget-data';
 import { ChartRenderer } from '@/components/app/visualization/chart-renderer';
 import { DataTable } from '@/components/app/visualization/data-table';
-import { detectGeographicColumn } from '@/components/app/visualization/dr-map';
+import { detectGeographicColumn, detectCountryFromData } from '@/lib/map-registry';
 import type { VisualizationConfig } from '@/stores/chat-store';
 import { toast } from 'sonner';
 import { authFetch } from '@/lib/fetch-utils';
@@ -140,6 +140,9 @@ export function AddWidgetDialog({
       } else if (!visualization && widgetType === 'map' && result.data.length > 0) {
         // Auto-detect geographic columns for map
         const geoInfo = detectGeographicColumn(result.data, result.columns);
+        // Also detect the country
+        const countryDetection = detectCountryFromData(result.data, result.columns);
+        const countryCode = countryDetection?.countryCode || 'DO';
         if (geoInfo) {
           setProvinceColumn(geoInfo.provinceColumn);
           setValueColumn(geoInfo.valueColumn);
@@ -149,6 +152,7 @@ export function AddWidgetDialog({
             description: '',
             provinceColumn: geoInfo.provinceColumn,
             valueColumn: geoInfo.valueColumn,
+            countryCode,
             xAxis: geoInfo.provinceColumn,
             yAxis: [geoInfo.valueColumn],
           });
@@ -167,6 +171,7 @@ export function AddWidgetDialog({
             description: '',
             provinceColumn: provCol,
             valueColumn: valCol,
+            countryCode,
             xAxis: provCol,
             yAxis: [valCol],
           });

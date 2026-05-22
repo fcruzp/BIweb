@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.3.47';
-export const VERSION_NAME = 'Add openrouter/free as default model — auto-routes to best free model';
+export const VERSION = '0.5.1';
+export const VERSION_NAME = 'Phase 5: Multi-country map library (DO, US, MX, CO, AR) + auto-detection';

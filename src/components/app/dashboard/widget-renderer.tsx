@@ -3,7 +3,8 @@
 import { useWidgetData } from '@/hooks/use-widget-data';
 import { ChartRenderer } from '@/components/app/visualization/chart-renderer';
 import { DataTable } from '@/components/app/visualization/data-table';
-import { DRHeatMap } from '@/components/app/visualization/dr-map';
+import { GeoMap } from '@/components/app/visualization/geo-map';
+import { getMapConfig } from '@/lib/map-registry';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { WidgetConfig } from '@/stores/dashboard-store';
 import type { VisualizationConfig } from '@/stores/chat-store';
@@ -146,11 +147,12 @@ export function WidgetRenderer({ widget }: WidgetRendererProps) {
               }}
               data={result.data}
             />
-            <DRHeatMap
+            <GeoMap
               data={result.data}
-              provinceColumn={vizConfig.provinceColumn || ''}
+              regionColumn={vizConfig.provinceColumn || ''}
               valueColumn={vizConfig.valueColumn || ''}
               title={vizConfig.title}
+              mapConfig={getMapConfig(vizConfig.countryCode || 'DO') || getMapConfig('DO')!}
             />
           </div>
         );

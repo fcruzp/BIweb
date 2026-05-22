@@ -9,10 +9,12 @@ export interface VisualizationConfig {
   yAxis?: string[];
   colorBy?: string;
   metrics?: Array<{ label: string; value: number; format?: string }>;
-  /** Province column name for heatmap visualization */
+  /** Province/region column name for heatmap visualization */
   provinceColumn?: string;
   /** Value column name for heatmap visualization */
   valueColumn?: string;
+  /** ISO 3166-1 alpha-2 country code for multi-country map detection (e.g., "DO", "US", "MX") */
+  countryCode?: string;
 }
 
 export interface QueryResult {

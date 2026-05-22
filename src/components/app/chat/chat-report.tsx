@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { X, Printer, FileText } from 'lucide-react';
 import { ReportMarkdown } from './report-markdown';
 import { ChartRenderer } from '../visualization/chart-renderer';
-import { DRHeatMap } from '../visualization/dr-map';
+import { GeoMap } from '../visualization/geo-map';
+import { getMapConfig } from '@/lib/map-registry';
 import { Separator } from '@/components/ui/separator';
 import { useI18n } from '@/hooks/use-i18n';
 import { type TranslationFn } from '@/lib/i18n';
@@ -315,11 +316,12 @@ export function ChatReport({ onClose }: ChatReportProps) {
                                   }}
                                   data={msg.queryResult.data}
                                 />
-                                <DRHeatMap
+                                <GeoMap
                                   data={msg.queryResult.data}
-                                  provinceColumn={msg.visualization.provinceColumn || ''}
+                                  regionColumn={msg.visualization.provinceColumn || ''}
                                   valueColumn={msg.visualization.valueColumn || ''}
                                   title={t('drHeatMapTitle')}
+                                  mapConfig={getMapConfig(msg.visualization.countryCode || 'DO') || getMapConfig('DO')!}
                                 />
                               </div>
                             ) : (

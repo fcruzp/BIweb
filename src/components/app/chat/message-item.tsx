@@ -32,7 +32,9 @@ import {
 import { useState, useCallback } from 'react';
 import { ReportMarkdown } from './report-markdown';
 import { ChartRenderer } from '../visualization/chart-renderer';
-import { DRHeatMap } from '../visualization/dr-map';
+import { GeoMap } from '../visualization/geo-map';
+import { MapSelector } from '../visualization/map-selector';
+import { getMapConfig } from '@/lib/map-registry';
 import { DataTable } from '../visualization/data-table';
 import { useI18n } from '@/hooks/use-i18n';
 import { exportAsCSV, exportAsJSON, exportAsHTML, generateExportFilename } from '@/lib/export-utils';
@@ -314,13 +316,16 @@ export function MessageItem({ message }: MessageItemProps) {
 
                   <Separator className="bg-border/30" />
 
-                  {/* DR Heat Map */}
-                  <DRHeatMap
-                    data={message.queryResult.data}
-                    provinceColumn={message.visualization.provinceColumn || ''}
-                    valueColumn={message.visualization.valueColumn || ''}
-                    title={t('drHeatMapTitle')}
-                  />
+                  {/* Geographic Heat Map */}
+                  <div className="flex items-center justify-between">
+                    <GeoMap
+                      data={message.queryResult.data}
+                      regionColumn={message.visualization.provinceColumn || ''}
+                      valueColumn={message.visualization.valueColumn || ''}
+                      title={t('geoMapTitle')}
+                      mapConfig={getMapConfig(message.visualization.countryCode || 'DO') || getMapConfig('DO')!}
+                    />
+                  </div>
                 </div>
               ) : (
                 <ChartRenderer
