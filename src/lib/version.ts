@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.5.3';
-export const VERSION_NAME = 'Phase 5: Map Library browser — browse all maps with previews';
+export const VERSION = '0.5.4';
+export const VERSION_NAME = 'Phase 5: Real US SVG map — 50 states + territories with geographic boundaries';
