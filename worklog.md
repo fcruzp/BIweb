@@ -1001,3 +1001,37 @@ Stage Summary:
 - Recharts performance optimized: isAnimationActive={false} on all chart elements
 - Metrics Dashboard accessible from UserMenu (top-right avatar → "Dashboard de Métricas")
 - Invoice endpoint returns standalone HTML page that opens in new tab
+
+---
+Task ID: 1a
+Agent: auth-provider-agent
+Task: Update AuthProvider with refreshDbUser and extended DbUser
+
+Work Log:
+- Extended DbUser interface with phone, country, taxId fields
+- Added refreshDbUser to AuthContextValue
+- Updated syncDbUser to populate new fields from server response
+- Exposed refreshDbUser in context value
+
+Stage Summary:
+- DbUser now includes phone, country, taxId
+- Components can call refreshDbUser() to re-sync user data after profile updates
+
+---
+Task ID: 2
+Agent: backend-api-agent
+Task: Create PUT /api/user/profile endpoint
+
+Work Log:
+- Created the profile update API endpoint at src/app/api/user/profile/route.ts
+- Added validation for all fields (preferredLang: en/es, country: 2-letter ISO code)
+- Sanitizes string inputs (trim whitespace)
+- Supports partial updates — only fields present in the body are updated
+- Returns updated user data including subscription info (plan, status)
+- Proper error handling: 401 for unauthenticated, 400 for validation errors, 500 for server errors
+
+Stage Summary:
+- File created: src/app/api/user/profile/route.ts
+- Endpoint supports partial updates for: name, company, phone, country, taxId, preferredLang
+- Response includes: id, email, name, avatarUrl, role, preferredLang, company, phone, country, taxId, onboardingCompleted, interestArea, subscription
+- Lint passes with no errors

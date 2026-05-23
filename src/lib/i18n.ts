@@ -535,6 +535,25 @@ export const translations = {
     noChartDataDesc: 'Start using DataMind to see your metrics here',
     ms: 'ms',
     queriesPerDay: 'queries/day',
+
+    // Profile
+    profile: 'Profile',
+    profileDesc: 'Manage your personal information',
+    fullName: 'Full Name',
+    fullNamePlaceholder: 'Your full name',
+    company2: 'Company',
+    companyPlaceholder: 'Your company name',
+    phone2: 'Phone',
+    phonePlaceholder: '+1 809 123 4567',
+    country2: 'Country',
+    countryPlaceholder: 'DO',
+    taxId2: 'Tax ID / RNC',
+    taxIdPlaceholder: 'Your tax ID or RNC',
+    preferredLang2: 'Preferred Language',
+    profileSaved: 'Profile saved successfully',
+    profileSaveError: 'Failed to save profile',
+    subscription2: 'Subscription',
+    subscriptionDesc: 'Manage your plan and billing',
   },
 
   es: {
@@ -1066,6 +1085,25 @@ export const translations = {
     noChartDataDesc: 'Comienza a usar DataMind para ver tus métricas aquí',
     ms: 'ms',
     queriesPerDay: 'consultas/día',
+
+    // Profile
+    profile: 'Perfil',
+    profileDesc: 'Gestiona tu información personal',
+    fullName: 'Nombre Completo',
+    fullNamePlaceholder: 'Tu nombre completo',
+    company2: 'Empresa',
+    companyPlaceholder: 'Nombre de tu empresa',
+    phone2: 'Teléfono',
+    phonePlaceholder: '+1 809 123 4567',
+    country2: 'País',
+    countryPlaceholder: 'DO',
+    taxId2: 'RNC / Identificación Fiscal',
+    taxIdPlaceholder: 'Tu RNC o ID fiscal',
+    preferredLang2: 'Idioma Preferido',
+    profileSaved: 'Perfil guardado exitosamente',
+    profileSaveError: 'Error al guardar el perfil',
+    subscription2: 'Suscripción',
+    subscriptionDesc: 'Gestiona tu plan y facturación',
   },
 } as const;
 

@@ -17,6 +17,7 @@ interface AuthContextValue {
   dbUser: DbUser | null;
   showOnboarding: boolean;
   completeOnboarding: (interestArea?: string) => Promise<void>;
+  refreshDbUser: () => Promise<void>;
 }
 
 export type AuthTab = 'signin' | 'signup' | 'forgot-password';
@@ -29,6 +30,9 @@ export interface DbUser {
   role: string;
   preferredLang: string;
   company: string | null;
+  phone: string | null;
+  country: string | null;
+  taxId: string | null;
   onboardingCompleted: boolean;
   interestArea: string | null;
   subscription: {
@@ -158,6 +162,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             role: data.user.role,
             preferredLang: data.user.preferredLang,
             company: data.user.company,
+            phone: data.user.phone,
+            country: data.user.country,
+            taxId: data.user.taxId,
             onboardingCompleted: data.onboardingCompleted ?? false,
             interestArea: data.interestArea ?? null,
             subscription: data.subscription ?? null,
@@ -373,6 +380,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     dbUser,
     showOnboarding,
     completeOnboarding,
+    refreshDbUser: syncDbUser,
   };
 
   return (

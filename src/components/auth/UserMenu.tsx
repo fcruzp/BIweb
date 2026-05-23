@@ -27,6 +27,8 @@ import {
 import { useI18n } from '@/hooks/use-i18n';
 import { UsagePlanDialog } from '@/components/app/settings/usage-plan-dialog';
 import { MetricsDashboardDialog } from '@/components/app/settings/metrics-dashboard-dialog';
+import { ProfileDialog } from '@/components/app/settings/profile-dialog';
+import { SettingsDialog } from '@/components/app/settings/settings-dialog';
 
 function getInitials(name: string | undefined | null, email: string | undefined | null): string {
   if (name) {
@@ -55,11 +57,13 @@ export function UserMenu() {
   const { t } = useI18n();
   const [usagePlanOpen, setUsagePlanOpen] = React.useState(false);
   const [metricsOpen, setMetricsOpen] = React.useState(false);
+  const [profileOpen, setProfileOpen] = React.useState(false);
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
 
-  const displayName = user?.user_metadata?.full_name || user?.email || '';
+  const displayName = dbUser?.name || user?.user_metadata?.full_name || user?.email || '';
   const userEmail = user?.email ?? '';
   const avatarUrl = user?.user_metadata?.avatar_url ?? '';
-  const initials = getInitials(user?.user_metadata?.full_name, user?.email);
+  const initials = getInitials(dbUser?.name || user?.user_metadata?.full_name, user?.email);
 
   const planInfo = dbUser?.subscription
     ? PLAN_LABELS[dbUser.subscription.plan] ?? PLAN_LABELS.free
@@ -139,17 +143,27 @@ export function UserMenu() {
             <BarChart3 className="mr-2 h-4 w-4" />
             {t('usageAndPlans')}
           </DropdownMenuItem>
-          <DropdownMenuItem className="text-gray-300 focus:text-white focus:bg-gray-800 cursor-pointer">
+          <DropdownMenuSeparator className="bg-gray-800" />
+          <DropdownMenuItem
+            className="text-gray-300 focus:text-white focus:bg-gray-800 cursor-pointer"
+            onClick={() => setProfileOpen(true)}
+          >
             <UserCircle className="mr-2 h-4 w-4" />
-            Profile
+            {t('profile')}
           </DropdownMenuItem>
-          <DropdownMenuItem className="text-gray-300 focus:text-white focus:bg-gray-800 cursor-pointer">
+          <DropdownMenuItem
+            className="text-gray-300 focus:text-white focus:bg-gray-800 cursor-pointer"
+            onClick={() => setUsagePlanOpen(true)}
+          >
             <CreditCard className="mr-2 h-4 w-4" />
-            Subscription
+            {t('subscription2')}
           </DropdownMenuItem>
-          <DropdownMenuItem className="text-gray-300 focus:text-white focus:bg-gray-800 cursor-pointer">
+          <DropdownMenuItem
+            className="text-gray-300 focus:text-white focus:bg-gray-800 cursor-pointer"
+            onClick={() => setSettingsOpen(true)}
+          >
             <Settings className="mr-2 h-4 w-4" />
-            Settings
+            {t('settings')}
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator className="bg-gray-800" />
@@ -164,6 +178,8 @@ export function UserMenu() {
     </DropdownMenu>
     <UsagePlanDialog open={usagePlanOpen} onOpenChange={setUsagePlanOpen} />
     <MetricsDashboardDialog open={metricsOpen} onOpenChange={setMetricsOpen} />
+    <ProfileDialog open={profileOpen} onOpenChange={setProfileOpen} />
+    <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </>
   );
 }
