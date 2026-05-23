@@ -845,3 +845,106 @@ Stage Summary:
 - Custom SVG upload API ready for future UI
 - MapSelector component ready for visualization card integration
 - All lint checks pass (0 errors)
+
+---
+Task ID: 4
+Agent: full-stack-developer
+Task: Create secondary country map data files (CL, PE, BR, ES) + register in map-registry
+
+Work Log:
+- Read worklog.md and existing map files (us-map.ts, mx-map.ts, co-map.ts, ar-map.ts) to understand the pattern
+- Created `src/lib/maps/cl-map.ts` — Chile map with 16 regions
+  - Vertical SVG layout (ViewBox 0 0 300 1010) reflecting Chile's elongated N-S shape
+  - Regions: Arica y Parinacota, Tarapacá, Antofagasta, Atacama, Coquimbo, Valparaíso, Región Metropolitana, O'Higgins, Maule, Ñuble, Biobío, La Araucanía, Los Ríos, Los Lagos, Aysén, Magallanes
+  - IDs use ISO 3166-2:CL codes (CL-AP, CL-TA, CL-AN, CL-AT, CL-CO, CL-VS, CL-RM, CL-LI, CL-ML, CL-NB, CL-BI, CL-AR, CL-LR, CL-LL, CL-AI, CL-MG)
+  - Fixed ID conflict: Task spec listed CL-AR for both Arica y Parinacota and La Araucanía — used CL-AP for Arica (correct ISO code)
+  - Aliases: roman numerals (i-xvi), common abbreviations (rm, santiago, valpo, etc.), accent-free versions
+- Created `src/lib/maps/pe-map.ts` — Peru map with 26 regions (25 departments + Callao)
+  - Three-band SVG layout (ViewBox 0 0 700 700): coast (left), highland (center), jungle (right)
+  - Regions include Lima (metropolitana) and Lima Provincias as separate entries
+  - IDs use ISO 3166-2:PE codes (PE-AMA, PE-ANC, PE-APU, etc.)
+  - Aliases: accent-free versions, abbreviations (aq, aqp, cz, etc.), city names (iquitos, trujillo, chiclayo, etc.)
+- Created `src/lib/maps/br-map.ts` — Brazil map with 27 regions (26 states + DF)
+  - Five-zone SVG layout (ViewBox 0 0 960 700): Far North, North, Northeast, Center-West, Southeast, South
+  - All 27 units with ISO 3166-2:BR codes (BR-AC through BR-TO)
+  - Aliases: common abbreviations (sp, rj, mg, ba, rs, pr, etc.), accent-free versions (ceara, amapa, sao paulo, etc.)
+- Created `src/lib/maps/es-map.ts` — Spain map with 19 regions (17 communities + 2 cities)
+  - Geographic SVG layout (ViewBox 0 0 700 600): NW (Galicia, Asturias, etc.), NE (Aragón, Cataluña), Center, East, South, Islands (Baleares, Canarias inset), Cities (Ceuta, Melilla)
+  - IDs use ISO 3166-2:ES codes (ES-AN through ES-ML)
+  - Comprehensive aliases: cataluña/catalunya/catalonia, país vasco/euskadi/pais vasco, comunidad valenciana/comunitat valenciana/valencia, castilla y león/castilla leon/castilla-león, etc.
+- Registered all 4 countries in `src/lib/map-registry.ts`:
+  - Added imports for CL_REGIONS/CL_PATHS, PE_REGIONS/PE_PATHS, BR_REGIONS/BR_PATHS, ES_REGIONS/ES_PATHS
+  - Added entries to MAP_REGISTRY with countryCode, name, nameEn, regionLabel, regionLabelEn
+  - CL: regiones/regions, PE: departamentos/departments, BR: estados/states, ES: comunidades autónomas/autonomous communities
+- Added country flags to COUNTRY_FLAGS in `src/components/app/visualization/map-selector.tsx`:
+  - CL: '🇨🇱', PE: '🇵🇪', BR: '🇧🇷', ES: '🇪🇸'
+- Ran `bun run lint` — 0 errors, 1 pre-existing TanStack Table warning
+- Dev server running, GET / 200
+
+Stage Summary:
+- 4 new map data files created: cl-map.ts, pe-map.ts, br-map.ts, es-map.ts
+- MAP_REGISTRY now has 9 countries: DO, US, MX, CO, AR, CL, PE, BR, ES
+- MapSelector dropdown shows all 9 countries with flags and region counts
+- Auto-detection (detectCountryFromData) works across all 9 countries
+- All region names exactly match PATHS keys (required by GeoMap lookup)
+- All aliases lowercase, include common misspellings and accent-free versions
+- Lint passes (0 errors)
+
+---
+Task ID: 2
+Agent: full-stack-developer
+Task: Create Custom SVG Upload dialog component
+
+Work Log:
+- Read worklog.md and existing project files (map-selector.tsx, fetch-utils.ts, i18n.ts, dialog.tsx, scroll-area.tsx, textarea.tsx, map-registry.ts, use-i18n.ts)
+- Created `src/components/app/visualization/custom-svg-upload-dialog.tsx` — full 3-step dialog component:
+  - Step 1 (SVG Input): Textarea for pasting SVG + drag-and-drop file upload zone that reads .svg files as text
+  - Step 2 (Validation & Preview): Client-side validation (2MB size, data-name regex), SVG preview via dangerouslySetInnerHTML with sanitization, region list with editable comma-separated aliases using ScrollArea
+  - Step 3 (Name & Upload): Map name (required), country code (optional, 2 letters), submit via authFetch POST /api/maps/upload, loading state, success/error toasts
+  - Step indicators at top showing progress (1-2-3 with checkmarks for completed steps)
+  - State fully resets when dialog closes
+  - Uses sanitizeSvg() to strip script tags and event handlers before rendering preview
+- Updated `src/components/app/visualization/map-selector.tsx`:
+  - Added `Upload` icon import from lucide-react
+  - Added `CustomSvgUploadDialog` import
+  - Added `onUploadCustom` optional callback prop
+  - Added `customUploadOpen` state
+  - Added "Upload Custom Map" button at bottom of popover with emerald styling, Upload icon, and `mapCustomSvg` i18n key
+  - Button closes popover and opens CustomSvgUploadDialog
+  - Dialog placed outside PopoverContent but inside Popover to maintain proper z-ordering
+- Lint passes on changed files (0 new errors; pre-existing error in message-item.tsx is unrelated)
+
+Stage Summary:
+- CustomSvgUploadDialog component created with 3-step flow: Input → Preview → Upload
+- Supports both paste and drag-and-drop file upload for SVG input
+- Client-side validation: 2MB size limit, <path data-name="..."> element check via regex
+- SVG preview rendered with XSS sanitization (strips scripts and event handlers)
+- Region aliases editor with comma-separated input for each detected region
+- MapSelector now has "Upload Custom Map" button at bottom of country list
+- All text uses useI18n hook with existing translation keys
+- API calls use authFetch, notifications use sonner toast
+---
+Task ID: 5-Phase5-Complete
+Agent: Main
+Task: Complete Phase 5 — Multi-country map library + Custom SVG upload + Map switching
+
+Work Log:
+- Added MapSelector to heatmap visualization in message-item.tsx with country switching capability
+- Added i18n keys for all Phase 5 UI elements (40+ new keys in EN + ES): country names for CL/PE/BR/ES, custom SVG upload dialog strings, map switching labels
+- Created custom-svg-upload-dialog.tsx with 3-step wizard: SVG input (paste/drag-drop), preview with region alias editor, name & upload
+- Updated GeoMap to support custom SVG content via `customSvgContent` and `customRegions` props — parses SVG client-side using DOMParser
+- Updated MapSelector to show custom maps from DB API, with delete capability and upload button
+- Integrated custom map selection flow: MapSelector → API fetch → GeoMap with custom SVG
+- Added secondary country maps (via subagent): CL (16 regions), PE (26 regions), BR (27 regions), ES (19 regions)
+- Registered all 9 countries in MAP_REGISTRY and added flags to MapSelector
+- Updated version to 0.5.2, updated SAAS-PLAN.md to mark Phase 5 as COMPLETED
+- Fixed React hooks rules violation: moved useState declarations before early return in message-item.tsx
+- Lint passes: 0 errors (1 pre-existing TanStack Table warning)
+
+Stage Summary:
+- **Phase 5 COMPLETED**: 9-country map library (DO, US, MX, CO, AR, CL, PE, BR, ES)
+- Custom SVG upload dialog with 3-step wizard (paste/upload → preview with aliases → name & upload)
+- MapSelector integrated into chat heatmap visualization for real-time country switching
+- Custom user maps from DB displayed in MapSelector with delete capability
+- GeoMap supports both system maps and custom SVG content
+- Version: 0.5.2 — "Phase 5: 9-country map library + custom SVG upload + map switching"

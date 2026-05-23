@@ -9,6 +9,10 @@ import { US_REGIONS, US_PATHS } from '@/lib/maps/us-map';
 import { MX_REGIONS, MX_PATHS } from '@/lib/maps/mx-map';
 import { CO_REGIONS, CO_PATHS } from '@/lib/maps/co-map';
 import { AR_REGIONS, AR_PATHS } from '@/lib/maps/ar-map';
+import { CL_REGIONS, CL_PATHS } from '@/lib/maps/cl-map';
+import { PE_REGIONS, PE_PATHS } from '@/lib/maps/pe-map';
+import { BR_REGIONS, BR_PATHS } from '@/lib/maps/br-map';
+import { ES_REGIONS, ES_PATHS } from '@/lib/maps/es-map';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -126,6 +130,42 @@ export const MAP_REGISTRY: Record<string, MapConfig> = {
     regionLabelEn: 'provinces',
     regions: AR_REGIONS,
     paths: AR_PATHS,
+  },
+  CL: {
+    countryCode: 'CL',
+    name: 'Chile',
+    nameEn: 'Chile',
+    regionLabel: 'regiones',
+    regionLabelEn: 'regions',
+    regions: CL_REGIONS,
+    paths: CL_PATHS,
+  },
+  PE: {
+    countryCode: 'PE',
+    name: 'Perú',
+    nameEn: 'Peru',
+    regionLabel: 'departamentos',
+    regionLabelEn: 'departments',
+    regions: PE_REGIONS,
+    paths: PE_PATHS,
+  },
+  BR: {
+    countryCode: 'BR',
+    name: 'Brasil',
+    nameEn: 'Brazil',
+    regionLabel: 'estados',
+    regionLabelEn: 'states',
+    regions: BR_REGIONS,
+    paths: BR_PATHS,
+  },
+  ES: {
+    countryCode: 'ES',
+    name: 'España',
+    nameEn: 'Spain',
+    regionLabel: 'comunidades autónomas',
+    regionLabelEn: 'autonomous communities',
+    regions: ES_REGIONS,
+    paths: ES_PATHS,
   },
 };
 

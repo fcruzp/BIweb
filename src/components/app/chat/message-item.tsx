@@ -34,7 +34,8 @@ import { ReportMarkdown } from './report-markdown';
 import { ChartRenderer } from '../visualization/chart-renderer';
 import { GeoMap } from '../visualization/geo-map';
 import { MapSelector } from '../visualization/map-selector';
-import { getMapConfig } from '@/lib/map-registry';
+import { getMapConfig, MAP_REGISTRY } from '@/lib/map-registry';
+import type { MapConfig, MapRegion } from '@/lib/map-registry';
 import { DataTable } from '../visualization/data-table';
 import { useI18n } from '@/hooks/use-i18n';
 import { exportAsCSV, exportAsJSON, exportAsHTML, generateExportFilename } from '@/lib/export-utils';
@@ -55,7 +56,15 @@ export function MessageItem({ message }: MessageItemProps) {
   const [copiedSQL, setCopiedSQL] = useState(false);
   const [copiedContent, setCopiedContent] = useState(false);
   const [showTable, setShowTable] = useState(false);
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+
+  // Heatmap state — must be declared before early returns (React hooks rule)
+  const [heatmapCountry, setHeatmapCountry] = useState(message.visualization?.countryCode || 'DO');
+  const [customSvgContent, setCustomSvgContent] = useState<string | undefined>(undefined);
+  const [customRegions, setCustomRegions] = useState<MapRegion[]>([]);
+
+  const isHeatmap = message.visualization?.chartType === 'heatmap';
+  const heatmapConfig = getMapConfig(heatmapCountry.startsWith('custom-') ? 'DO' : heatmapCountry) || getMapConfig('DO')!;
 
   const copyToClipboard = useCallback(async (text: string, setCopied: (v: boolean) => void) => {
     try {
@@ -122,8 +131,6 @@ export function MessageItem({ message }: MessageItemProps) {
       </div>
     );
   }
-
-  const isHeatmap = message.visualization?.chartType === 'heatmap';
 
   // Assistant message — report style
   return (
@@ -316,14 +323,36 @@ export function MessageItem({ message }: MessageItemProps) {
 
                   <Separator className="bg-border/30" />
 
-                  {/* Geographic Heat Map */}
-                  <div className="flex items-center justify-between">
+                  {/* Geographic Heat Map with country selector */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <MapSelector
+                        value={heatmapCountry}
+                        onChange={setHeatmapCountry}
+                        autoDetected={!!message.visualization?.countryCode && heatmapCountry === message.visualization.countryCode}
+                        onCustomMapSelect={(svg, regions) => {
+                          setCustomSvgContent(svg);
+                          setCustomRegions(regions);
+                        }}
+                        onSystemMapSelect={() => {
+                          setCustomSvgContent(undefined);
+                          setCustomRegions([]);
+                        }}
+                      />
+                      {heatmapConfig && !heatmapCountry.startsWith('custom-') && (
+                        <span className="text-[11px] text-muted-foreground">
+                          {heatmapConfig.regions.length} {locale === 'es' ? heatmapConfig.regionLabel : heatmapConfig.regionLabelEn}
+                        </span>
+                      )}
+                    </div>
                     <GeoMap
                       data={message.queryResult.data}
                       regionColumn={message.visualization.provinceColumn || ''}
                       valueColumn={message.visualization.valueColumn || ''}
                       title={t('geoMapTitle')}
-                      mapConfig={getMapConfig(message.visualization.countryCode || 'DO') || getMapConfig('DO')!}
+                      mapConfig={heatmapConfig}
+                      customSvgContent={customSvgContent}
+                      customRegions={customRegions}
                     />
                   </div>
                 </div>

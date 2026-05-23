@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { MapPin } from 'lucide-react';
 import { useI18n } from '@/hooks/use-i18n';
-import type { MapConfig } from '@/lib/map-registry';
+import type { MapConfig, MapRegion } from '@/lib/map-registry';
 import { normalizeRegionName } from '@/lib/map-registry';
 
 // ============================================================
@@ -28,6 +28,58 @@ function formatValue(value: number): string {
 }
 
 // ============================================================
+// Custom SVG Parsing
+// ============================================================
+
+interface ParsedCustomMap {
+  regions: MapRegion[];
+  paths: Record<string, string>;
+  viewBox: string;
+}
+
+/**
+ * Parse a custom SVG string and extract regions + paths.
+ * Expects <path data-name="Region Name" d="M ... Z" /> elements.
+ */
+function parseCustomSvg(svgContent: string): ParsedCustomMap | null {
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(svgContent, 'image/svg+xml');
+    const svgEl = doc.querySelector('svg');
+
+    if (!svgEl) return null;
+
+    // Extract viewBox
+    const viewBox = svgEl.getAttribute('viewBox') || '0 0 500 500';
+
+    // Extract paths
+    const pathElements = svgEl.querySelectorAll('path[data-name]');
+    const regions: MapRegion[] = [];
+    const paths: Record<string, string> = {};
+
+    pathElements.forEach((pathEl) => {
+      const name = pathEl.getAttribute('data-name')?.trim();
+      const d = pathEl.getAttribute('d');
+
+      if (name && d) {
+        // Avoid duplicates
+        if (!paths[name]) {
+          paths[name] = d;
+          const id = pathEl.getAttribute('data-id') || undefined;
+          regions.push({ name, id, aliases: [] });
+        }
+      }
+    });
+
+    if (regions.length === 0) return null;
+
+    return { regions, paths, viewBox };
+  } catch {
+    return null;
+  }
+}
+
+// ============================================================
 // GeoMap Component
 // ============================================================
 
@@ -40,8 +92,12 @@ interface GeoMapProps {
   valueColumn: string;
   /** Optional title displayed above the map */
   title?: string;
-  /** Map configuration (regions, paths, aliases) */
+  /** Map configuration (regions, paths, aliases) — used for system maps */
   mapConfig: MapConfig;
+  /** Optional custom SVG content — overrides mapConfig when provided */
+  customSvgContent?: string;
+  /** Custom map regions with aliases — used with customSvgContent */
+  customRegions?: MapRegion[];
 }
 
 interface TooltipInfo {
@@ -51,23 +107,52 @@ interface TooltipInfo {
   y: number;
 }
 
-export function GeoMap({ data, regionColumn, valueColumn, title, mapConfig }: GeoMapProps) {
+export function GeoMap({ data, regionColumn, valueColumn, title, mapConfig, customSvgContent, customRegions }: GeoMapProps) {
   const { t, locale } = useI18n();
   const [tooltip, setTooltip] = useState<TooltipInfo | null>(null);
   const [hoveredRegion, setHoveredRegion] = useState<string | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
-  const [viewBox, setViewBox] = useState('0 0 500 500');
+
+  // Parse custom SVG if provided
+  const parsedCustom = useMemo(() => {
+    if (!customSvgContent) return null;
+    return parseCustomSvg(customSvgContent);
+  }, [customSvgContent]);
+
+  // Determine which config to use
+  const effectiveConfig = useMemo(() => {
+    if (parsedCustom) {
+      // Merge custom regions with any provided aliases
+      const mergedRegions = customRegions && customRegions.length > 0
+        ? parsedCustom.regions.map((r) => {
+            const customMatch = customRegions.find((cr) => cr.name === r.name);
+            return customMatch ? { ...r, aliases: customMatch.aliases } : r;
+          })
+        : parsedCustom.regions;
+
+      return {
+        ...mapConfig,
+        regions: mergedRegions,
+        paths: parsedCustom.paths,
+      } as MapConfig;
+    }
+    return mapConfig;
+  }, [parsedCustom, customRegions, mapConfig]);
+
+  const effectiveViewBox = parsedCustom?.viewBox || '0 0 500 500';
 
   // Calculate auto viewBox from actual path bounds
+  const [autoViewBox, setAutoViewBox] = useState(effectiveViewBox);
+
   useEffect(() => {
     if (svgRef.current) {
       const bbox = svgRef.current.getBBox();
       if (bbox.width > 0 && bbox.height > 0) {
         const padding = 10;
-        setViewBox(`${bbox.x - padding} ${bbox.y - padding} ${bbox.width + padding * 2} ${bbox.height + padding * 2}`);
+        setAutoViewBox(`${bbox.x - padding} ${bbox.y - padding} ${bbox.width + padding * 2} ${bbox.height + padding * 2}`);
       }
     }
-  }, []);
+  }, [effectiveConfig, effectiveViewBox]);
 
   // Build region value map from data
   const regionValues = useMemo(() => {
@@ -75,7 +160,7 @@ export function GeoMap({ data, regionColumn, valueColumn, title, mapConfig }: Ge
     if (!Array.isArray(data)) return map;
     for (const row of data) {
       const rawRegion = String(row[regionColumn] ?? '');
-      const normalized = normalizeRegionName(rawRegion, mapConfig);
+      const normalized = normalizeRegionName(rawRegion, effectiveConfig);
       if (!normalized) continue;
 
       const rawValue = row[valueColumn];
@@ -86,32 +171,24 @@ export function GeoMap({ data, regionColumn, valueColumn, title, mapConfig }: Ge
       map[normalized] = (map[normalized] ?? 0) + numValue;
     }
     return map;
-  }, [data, regionColumn, valueColumn, mapConfig]);
+  }, [data, regionColumn, valueColumn, effectiveConfig]);
 
   const values = Object.values(regionValues);
   const minVal = values.length > 0 ? Math.min(...values) : 0;
   const maxVal = values.length > 0 ? Math.max(...values) : 0;
 
-  const handleMouseEnter = (region: string) => {
+  const handleMouseEnter = useCallback((region: string) => {
     setHoveredRegion(region);
-    if (regionValues[region] !== undefined) {
-      setTooltip({
-        region,
-        value: regionValues[region],
-        x: 0,
-        y: 0,
-      });
-    } else {
-      setTooltip({
-        region,
-        value: 0,
-        x: 0,
-        y: 0,
-      });
-    }
-  };
+    const value = regionValues[region];
+    setTooltip({
+      region,
+      value: value !== undefined ? value : 0,
+      x: 0,
+      y: 0,
+    });
+  }, [regionValues]);
 
-  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+  const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     if (tooltip) {
       const svgRect = e.currentTarget.getBoundingClientRect();
       setTooltip(prev =>
@@ -124,19 +201,19 @@ export function GeoMap({ data, regionColumn, valueColumn, title, mapConfig }: Ge
           : null
       );
     }
-  };
+  }, [tooltip]);
 
-  const handleMouseLeave = () => {
+  const handleMouseLeave = useCallback(() => {
     setHoveredRegion(null);
     setTooltip(null);
-  };
+  }, []);
 
   // Count how many regions matched
   const matchedCount = Object.keys(regionValues).length;
-  const totalRegions = mapConfig.regions.length;
+  const totalRegions = effectiveConfig.regions.length;
 
   // Choose region label based on locale
-  const regionLabel = locale === 'es' ? mapConfig.regionLabel : mapConfig.regionLabelEn;
+  const regionLabel = locale === 'es' ? effectiveConfig.regionLabel : effectiveConfig.regionLabelEn;
 
   return (
     <div className="space-y-3">
@@ -152,14 +229,14 @@ export function GeoMap({ data, regionColumn, valueColumn, title, mapConfig }: Ge
       <div className="relative w-full bg-muted/10 border border-border/30 rounded-lg p-4">
         <svg
           ref={svgRef}
-          viewBox={viewBox}
+          viewBox={autoViewBox}
           className="w-full h-auto max-h-[450px] mx-auto"
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
         >
           {/* Region paths */}
-          {mapConfig.regions.map((region) => {
-            const path = mapConfig.paths[region.name];
+          {effectiveConfig.regions.map((region) => {
+            const path = effectiveConfig.paths[region.name];
             if (!path) return null;
 
             const value = regionValues[region.name];

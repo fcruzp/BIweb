@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.5.1';
-export const VERSION_NAME = 'Phase 5: Multi-country map library (DO, US, MX, CO, AR) + auto-detection';
+export const VERSION = '0.5.2';
+export const VERSION_NAME = 'Phase 5: 9-country map library + custom SVG upload + map switching';
