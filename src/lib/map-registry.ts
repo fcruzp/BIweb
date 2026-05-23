@@ -91,7 +91,7 @@ const DR_MAP_CONFIG: MapConfig = {
   regionLabelEn: 'provinces',
   regions: DR_REGIONS,
   paths: DR_PATHS,
-  viewBox: '0 0 500 500',
+  viewBox: '-25 -25 730 585',
 };
 
 // ── Registry ─────────────────────────────────────────────────
