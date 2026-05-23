@@ -99,14 +99,9 @@ function MapThumbnail({ config, isCustom, svgContent }: {
   const effectivePaths = customPaths?.paths || config.paths;
   const effectiveViewBox = customPaths?.viewBox || config.viewBox || '0 0 500 500';
 
-  // Pick a subset of regions to show (max ~20 for performance in thumbnails)
-  const displayRegions = useMemo(() => {
-    const regions = config.regions;
-    if (regions.length <= 25) return regions;
-    // Take every Nth region for a representative sample
-    const step = Math.ceil(regions.length / 20);
-    return regions.filter((_, i) => i % step === 0);
-  }, [config.regions]);
+  // Show ALL regions so the country silhouette is complete
+  // Rendering ~50-60 paths is trivial for SVG
+  const displayRegions = config.regions;
 
   return (
     <div className="w-full aspect-[4/3] bg-emerald-50/50 dark:bg-emerald-950/10 rounded-lg border border-border/30 overflow-hidden flex items-center justify-center p-2">
@@ -119,10 +114,12 @@ function MapThumbnail({ config, isCustom, svgContent }: {
           const path = effectivePaths[region.name];
           if (!path) return null;
 
-          // Assign a gradient of emerald colors for visual appeal
+          // Assign a gradient of emerald/teal colors so every region is visible
+          // Use golden-ratio-based hue offset for pleasant variety while staying in green-teal range
           const ratio = config.regions.length > 1 ? idx / (config.regions.length - 1) : 0;
-          const lightness = 80 - ratio * 35;
-          const saturation = 30 + ratio * 30;
+          const hue = 150 + ratio * 30; // 150–180 (green to teal)
+          const lightness = 72 - ratio * 22; // 72% → 50%
+          const saturation = 35 + ratio * 30; // 35% → 65%
 
           // Calculate stroke width relative to viewBox
           const vbParts = effectiveViewBox.split(' ');
@@ -133,10 +130,10 @@ function MapThumbnail({ config, isCustom, svgContent }: {
             <path
               key={region.name}
               d={path}
-              fill={`hsl(160, ${saturation}%, ${lightness}%)`}
-              stroke="hsl(0, 0%, 70%)"
+              fill={`hsl(${hue}, ${saturation}%, ${lightness}%)`}
+              stroke="hsl(0, 0%, 60%)"
               strokeWidth={strokeW}
-              opacity={0.85}
+              opacity={0.92}
             />
           );
         })}

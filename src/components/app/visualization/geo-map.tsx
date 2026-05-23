@@ -253,7 +253,7 @@ export function GeoMap({ data, regionColumn, valueColumn, title, mapConfig, cust
 
             const fillColor = hasData
               ? getHeatColor(value, minVal, maxVal)
-              : 'hsl(0, 0%, 92%)';
+              : 'hsl(160, 12%, 88%)'; // Light emerald tint — visible but clearly "no data"
 
             // Calculate stroke width relative to viewBox size for consistent appearance
             // For Mercator coords (millions), strokes must be proportionally larger
@@ -272,7 +272,7 @@ export function GeoMap({ data, regionColumn, valueColumn, title, mapConfig, cust
                 onMouseEnter={() => handleMouseEnter(region.name)}
                 style={{
                   filter: isHovered ? 'brightness(1.15) drop-shadow(0 1px 3px rgba(0,0,0,0.2))' : 'none',
-                  opacity: hasData ? 1 : 0.4,
+                  opacity: hasData ? 1 : 0.65,
                 }}
               />
             );
