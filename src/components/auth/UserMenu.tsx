@@ -22,9 +22,11 @@ import {
   UserCircle,
   CreditCard,
   BarChart3,
+  Activity,
 } from 'lucide-react';
 import { useI18n } from '@/hooks/use-i18n';
 import { UsagePlanDialog } from '@/components/app/settings/usage-plan-dialog';
+import { MetricsDashboardDialog } from '@/components/app/settings/metrics-dashboard-dialog';
 
 function getInitials(name: string | undefined | null, email: string | undefined | null): string {
   if (name) {
@@ -52,6 +54,7 @@ export function UserMenu() {
   const { user, isAuthenticated, isLoading, openAuthModal, signOut, dbUser } = useAuth();
   const { t } = useI18n();
   const [usagePlanOpen, setUsagePlanOpen] = React.useState(false);
+  const [metricsOpen, setMetricsOpen] = React.useState(false);
 
   const displayName = user?.user_metadata?.full_name || user?.email || '';
   const userEmail = user?.email ?? '';
@@ -122,9 +125,12 @@ export function UserMenu() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator className="bg-gray-800" />
         <DropdownMenuGroup>
-          <DropdownMenuItem className="text-gray-300 focus:text-white focus:bg-gray-800 cursor-pointer">
-            <UserCircle className="mr-2 h-4 w-4" />
-            Profile
+          <DropdownMenuItem
+            className="text-gray-300 focus:text-white focus:bg-gray-800 cursor-pointer"
+            onClick={() => setMetricsOpen(true)}
+          >
+            <Activity className="mr-2 h-4 w-4" />
+            {t('metricsDashboard')}
           </DropdownMenuItem>
           <DropdownMenuItem
             className="text-gray-300 focus:text-white focus:bg-gray-800 cursor-pointer"
@@ -132,6 +138,10 @@ export function UserMenu() {
           >
             <BarChart3 className="mr-2 h-4 w-4" />
             {t('usageAndPlans')}
+          </DropdownMenuItem>
+          <DropdownMenuItem className="text-gray-300 focus:text-white focus:bg-gray-800 cursor-pointer">
+            <UserCircle className="mr-2 h-4 w-4" />
+            Profile
           </DropdownMenuItem>
           <DropdownMenuItem className="text-gray-300 focus:text-white focus:bg-gray-800 cursor-pointer">
             <CreditCard className="mr-2 h-4 w-4" />
@@ -153,6 +163,7 @@ export function UserMenu() {
       </DropdownMenuContent>
     </DropdownMenu>
     <UsagePlanDialog open={usagePlanOpen} onOpenChange={setUsagePlanOpen} />
+    <MetricsDashboardDialog open={metricsOpen} onOpenChange={setMetricsOpen} />
     </>
   );
 }

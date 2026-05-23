@@ -1,6 +1,6 @@
 # 🚀 DataMind BI — Plan SaaS Consolidado
 
-> Última actualización: Junio 2025 | Progreso: ✅ Fase 1-3 COMPLETADAS — 🔄 Fase 4 PARCIAL (Stripe Mock) — ✅ Fase 5 COMPLETADA
+> Última actualización: Junio 2025 | Progreso: ✅ Fase 1-3 COMPLETADAS — 🔄 Fase 4 PARCIAL (Stripe Mock) — ✅ Fase 5 COMPLETADA — ✅ Fase 6 COMPLETADA
 
 ---
 
@@ -425,14 +425,14 @@ Model: MapLibrary
 | Tarea | Estado |
 |-------|--------|
 | Tabla `UsageEvent` (registrar cada query, upload, acción con metadata) | ✅ Modelo creado en Prisma schema |
-| API de métricas (queries este mes, restantes, storage, etc.) | ⬜ Pendiente |
-| Gráfico de uso diario/semanal (Recharts) | ⬜ Pendiente |
-| Proyección de uso | ⬜ Pendiente |
-| Alertas por email (80% queries, 90% storage) | ⬜ Pendiente |
-| Notificaciones in-app (toast al alcanzar límite) | ⬜ Pendiente |
-| Bloqueo al alcanzar límite (no permitir más queries) | ⬜ Pendiente |
-| Historial de facturación (tabla + descarga PDF) | ⬜ Pendiente |
-| Sección en Settings (plan actual, uso, facturas, cambiar plan) | ⬜ Pendiente |
+| API de métricas (queries este mes, restantes, storage, etc.) | ✅ `GET /api/usage/metrics` con datos diarios, semanales, proyección |
+| Gráfico de uso diario/semanal (Recharts) | ✅ AreaChart + BarChart en MetricsDashboardDialog |
+| Proyección de uso | ✅ "Alcanzarás tu límite el día X" en Overview tab |
+| Alertas por email (80% queries, 90% storage) | ⬜ No implementado (sin servicio de email) |
+| Notificaciones in-app (toast al alcanzar límite) | ✅ Ya implementado en Fase 3 (limit-banner, toasts) |
+| Bloqueo al alcanzar límite (no permitir más queries) | ✅ Ya implementado en Fase 3 (403 + frontend guards) |
+| Historial de facturación (tabla + descarga PDF) | ✅ Mock invoices + `GET /api/usage/invoice?month=YYYY-MM` (HTML/PDF) |
+| Sección en Settings (plan actual, uso, facturas, cambiar plan) | ✅ MetricsDashboardDialog con 3 tabs (Overview, Activity, Billing) |
 
 ### Estimación: 1.5 semanas
 
@@ -597,7 +597,7 @@ Con Z-AI (sin costo de IA):
 **Fase 4 PARCIAL** 🔄 — Stripe mock integrado, pendiente crear productos en Stripe Dashboard + portal UI.
 **Fase 5 COMPLETADA** ✅ — 9 países registrados (DO, US, MX, CO, AR, CL, PE, BR, ES) con detección automática + custom SVG upload + map switching.
 
-### Siguiente: Fase 4 completar + Fase 6 — Stripe Portal + Usage Dashboard
+### Siguiente: Fase 4 completar + Fase 7 — Stripe Portal + Admin Panel
 
 1. ✅ GeoMap genérico con soporte multi-país
 2. ✅ Detección automática de país en viz-heuristics
@@ -605,5 +605,6 @@ Con Z-AI (sin costo de IA):
 4. ✅ MapSelector component con banderas + custom maps
 5. ✅ UI para subir SVG custom con preview y validación
 6. ✅ Países secundarios (CL, PE, BR, ES)
-7. ⬜ Fase 4 completar: Stripe portal UI + crear productos en Stripe Dashboard
-8. ⬜ Fase 6: Dashboard de Uso + Métricas
+7. ✅ Fase 6: Dashboard de Métricas con Recharts + Facturación
+8. ⬜ Fase 4 completar: Stripe portal UI + crear productos en Stripe Dashboard
+9. ⬜ Fase 7: Panel de Admin
