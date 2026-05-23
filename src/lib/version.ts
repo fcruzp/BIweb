@@ -5,5 +5,5 @@
  * - PHASE: Development phase number
  * - PUSH: Number of pushes in this phase
  */
-export const VERSION = '0.5.2';
-export const VERSION_NAME = 'Phase 5: 9-country map library + custom SVG upload + map switching';
+export const VERSION = '0.5.3';
+export const VERSION_NAME = 'Phase 5: Map Library browser — browse all maps with previews';

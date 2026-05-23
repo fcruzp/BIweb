@@ -26,6 +26,7 @@ import {
   Lock,
   WifiOff,
   Loader2,
+  Globe,
 } from 'lucide-react';
 import { useAppStore, type AppView } from '@/stores/app-store';
 import { useChatStore } from '@/stores/chat-store';
@@ -40,6 +41,7 @@ import { authFetch } from '@/lib/fetch-utils';
 import { useUsageLimits, useUsageLimitsInit } from '@/hooks/use-usage-limits';
 import { useAIStatus } from '@/hooks/use-ai-status';
 import { SettingsDialog } from '@/components/app/settings/settings-dialog';
+import { MapLibraryDialog } from '@/components/app/visualization/map-library-dialog';
 import { toast } from 'sonner';
 
 export function AppSidebar() {
@@ -63,6 +65,7 @@ export function AppSidebar() {
 
   // Settings dialog state
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [mapLibraryOpen, setMapLibraryOpen] = useState(false);
 
   const navItems: Array<{ view: AppView; icon: React.ReactNode; label: string }> = [
     { view: 'chat', icon: <MessageSquare className="h-4 w-4" />, label: t('chat') },
@@ -243,6 +246,16 @@ export function AppSidebar() {
         <PlanUsageWidget />
 
         <SidebarMenu>
+          {/* Map Library */}
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              tooltip={t('mapLibraryTitle')}
+              onClick={() => setMapLibraryOpen(true)}
+            >
+              <Globe className="h-4 w-4 text-emerald-500" />
+              <span>{t('mapLibraryTitle')}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           {/* Settings with AI status indicator */}
           <SidebarMenuItem>
             <SidebarMenuButton
@@ -293,6 +306,7 @@ export function AppSidebar() {
 
       <DataSourceUpload open={uploadDialogOpen} onOpenChange={setUploadDialogOpen} />
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <MapLibraryDialog open={mapLibraryOpen} onOpenChange={setMapLibraryOpen} />
     </Sidebar>
   );
 }

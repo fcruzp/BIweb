@@ -137,6 +137,13 @@ export const translations = {
     mapCustomSvgSaveAliases: 'Save Aliases',
     mapCustom: 'Custom Map',
     mapSystem: 'System Map',
+    mapLibraryTitle: 'Map Library',
+    mapLibraryDesc: 'Browse all available geographic maps. These maps are used to create heat map visualizations when your data contains geographic columns.',
+    mapLibrarySearch: 'Search maps by name, country, or region...',
+    mapLibraryNoResults: 'No maps match your search',
+    mapLibraryNoCustom: 'No custom maps yet',
+    mapLibraryNoCustomDesc: 'Upload your own SVG map with regions to visualize data for countries or areas not covered by the built-in maps.',
+    mapSystemMaps: 'System Maps',
 
     // Chat Report
     chatReport: 'Chat Report',
@@ -637,6 +644,13 @@ export const translations = {
     mapCustomSvgSaveAliases: 'Guardar Aliases',
     mapCustom: 'Mapa Personalizado',
     mapSystem: 'Mapa del Sistema',
+    mapLibraryTitle: 'Biblioteca de Mapas',
+    mapLibraryDesc: 'Explora todos los mapas geográficos disponibles. Estos mapas se usan para crear visualizaciones de mapa de calor cuando tus datos contienen columnas geográficas.',
+    mapLibrarySearch: 'Buscar mapas por nombre, país o región...',
+    mapLibraryNoResults: 'Ningún mapa coincide con tu búsqueda',
+    mapLibraryNoCustom: 'Sin mapas personalizados aún',
+    mapLibraryNoCustomDesc: 'Sube tu propio mapa SVG con regiones para visualizar datos de países o áreas no cubiertos por los mapas incluidos.',
+    mapSystemMaps: 'Mapas del Sistema',
 
     // Chat Report
     chatReport: 'Reporte de Chat',

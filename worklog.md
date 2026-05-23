@@ -948,3 +948,30 @@ Stage Summary:
 - Custom user maps from DB displayed in MapSelector with delete capability
 - GeoMap supports both system maps and custom SVG content
 - Version: 0.5.2 — "Phase 5: 9-country map library + custom SVG upload + map switching"
+---
+Task ID: 5.3
+Agent: Main
+Task: Create Map Library Browser — browsable map gallery with SVG previews
+
+Work Log:
+- Created `src/components/app/visualization/map-library-dialog.tsx` — Full map gallery dialog with:
+  - Two tabs: "System Maps" (9 countries) and "My Custom Maps" (user-uploaded)
+  - SVG thumbnail previews for each map with gradient emerald coloring
+  - Search/filter by name, country code, or region names
+  - Expandable region list per map card (click to see all regions)
+  - Custom map cards with delete button
+  - Upload Custom Map button integrated
+  - Empty state with upload CTA when no custom maps exist
+- Added i18n keys: mapLibraryTitle, mapLibraryDesc, mapLibrarySearch, mapLibraryNoResults, mapLibraryNoCustom, mapLibraryNoCustomDesc, mapSystemMaps (EN + ES)
+- Added MapLibraryDialog to sidebar footer (Globe icon, "Map Library" button)
+- Added Globe icon import to app-sidebar.tsx
+- Version bumped to 0.5.3
+- Lint passes: 0 errors (1 pre-existing TanStack Table warning)
+- Dev server compiles successfully
+
+Stage Summary:
+- Users can now browse all 9 system maps + custom maps without running queries
+- Map Library accessible from sidebar with 🌐 Globe icon
+- Each map card shows SVG preview, region count, and expandable region list
+- Searchable by name, country, or region
+- Custom maps can be deleted from the gallery
