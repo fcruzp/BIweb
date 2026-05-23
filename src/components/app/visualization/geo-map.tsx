@@ -139,20 +139,28 @@ export function GeoMap({ data, regionColumn, valueColumn, title, mapConfig, cust
     return mapConfig;
   }, [parsedCustom, customRegions, mapConfig]);
 
-  const effectiveViewBox = parsedCustom?.viewBox || '0 0 500 500';
+  const effectiveViewBox = parsedCustom?.viewBox || mapConfig.viewBox || '0 0 500 500';
 
-  // Calculate auto viewBox from actual path bounds
-  const [autoViewBox, setAutoViewBox] = useState(effectiveViewBox);
+  // For system maps with pre-calculated viewBox, use it directly.
+  // For custom maps or legacy maps without viewBox, calculate from rendered paths.
+  const [computedViewBox, setComputedViewBox] = useState<string | null>(null);
+
+  // Use config viewBox if available, otherwise fall back to computed
+  const autoViewBox = mapConfig.viewBox && !parsedCustom
+    ? mapConfig.viewBox
+    : (computedViewBox || effectiveViewBox);
 
   useEffect(() => {
+    // Only compute viewBox from DOM if we don't have one from config
+    if (mapConfig.viewBox && !parsedCustom) return;
     if (svgRef.current) {
       const bbox = svgRef.current.getBBox();
       if (bbox.width > 0 && bbox.height > 0) {
-        const padding = 10;
-        setAutoViewBox(`${bbox.x - padding} ${bbox.y - padding} ${bbox.width + padding * 2} ${bbox.height + padding * 2}`);
+        const padding = Math.max(bbox.width, bbox.height) * 0.02;
+        setComputedViewBox(`${bbox.x - padding} ${bbox.y - padding} ${bbox.width + padding * 2} ${bbox.height + padding * 2}`);
       }
     }
-  }, [effectiveConfig, effectiveViewBox]);
+  }, [effectiveConfig, effectiveViewBox, mapConfig.viewBox, parsedCustom]);
 
   // Build region value map from data
   const regionValues = useMemo(() => {
@@ -247,13 +255,19 @@ export function GeoMap({ data, regionColumn, valueColumn, title, mapConfig, cust
               ? getHeatColor(value, minVal, maxVal)
               : 'hsl(0, 0%, 92%)';
 
+            // Calculate stroke width relative to viewBox size for consistent appearance
+            // For Mercator coords (millions), strokes must be proportionally larger
+            const vbParts = autoViewBox.split(' ');
+            const vbWidth = vbParts.length >= 3 ? parseFloat(vbParts[2]) : 500;
+            const baseStrokeWidth = vbWidth * (isHovered ? 0.003 : 0.001);
+
             return (
               <path
                 key={region.name}
                 d={path}
                 fill={fillColor}
                 stroke={isHovered ? '#059669' : 'hsl(0, 0%, 70%)'}
-                strokeWidth={isHovered ? 1.5 : 0.5}
+                strokeWidth={baseStrokeWidth}
                 className="cursor-pointer transition-all duration-150"
                 onMouseEnter={() => handleMouseEnter(region.name)}
                 style={{

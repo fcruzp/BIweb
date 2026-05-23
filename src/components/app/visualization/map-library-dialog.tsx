@@ -97,7 +97,7 @@ function MapThumbnail({ config, isCustom, svgContent }: {
   }, [svgContent]);
 
   const effectivePaths = customPaths?.paths || config.paths;
-  const effectiveViewBox = customPaths?.viewBox || '0 0 500 500';
+  const effectiveViewBox = customPaths?.viewBox || config.viewBox || '0 0 500 500';
 
   // Pick a subset of regions to show (max ~20 for performance in thumbnails)
   const displayRegions = useMemo(() => {
@@ -115,15 +115,19 @@ function MapThumbnail({ config, isCustom, svgContent }: {
         className="w-full h-full"
         style={{ maxWidth: '100%', maxHeight: '100%' }}
       >
-        {displayRegions.map((region) => {
+        {displayRegions.map((region, idx) => {
           const path = effectivePaths[region.name];
           if (!path) return null;
 
           // Assign a gradient of emerald colors for visual appeal
-          const idx = config.regions.indexOf(region);
           const ratio = config.regions.length > 1 ? idx / (config.regions.length - 1) : 0;
           const lightness = 80 - ratio * 35;
           const saturation = 30 + ratio * 30;
+
+          // Calculate stroke width relative to viewBox
+          const vbParts = effectiveViewBox.split(' ');
+          const vbWidth = vbParts.length >= 3 ? parseFloat(vbParts[2]) : 500;
+          const strokeW = vbWidth * 0.001;
 
           return (
             <path
@@ -131,7 +135,7 @@ function MapThumbnail({ config, isCustom, svgContent }: {
               d={path}
               fill={`hsl(160, ${saturation}%, ${lightness}%)`}
               stroke="hsl(0, 0%, 70%)"
-              strokeWidth={0.5}
+              strokeWidth={strokeW}
               opacity={0.85}
             />
           );

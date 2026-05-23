@@ -5,14 +5,14 @@
 // for auto-detecting which country a dataset refers to.
 
 import { drawPath, stateCode } from '@/lib/dr-map-constants';
-import { US_REGIONS, US_PATHS } from '@/lib/maps/us-map';
-import { MX_REGIONS, MX_PATHS } from '@/lib/maps/mx-map';
-import { CO_REGIONS, CO_PATHS } from '@/lib/maps/co-map';
-import { AR_REGIONS, AR_PATHS } from '@/lib/maps/ar-map';
-import { CL_REGIONS, CL_PATHS } from '@/lib/maps/cl-map';
-import { PE_REGIONS, PE_PATHS } from '@/lib/maps/pe-map';
-import { BR_REGIONS, BR_PATHS } from '@/lib/maps/br-map';
-import { ES_REGIONS, ES_PATHS } from '@/lib/maps/es-map';
+import { US_REGIONS, US_PATHS, US_VIEWBOX } from '@/lib/maps/us-map';
+import { MX_REGIONS, MX_PATHS, MX_VIEWBOX } from '@/lib/maps/mx-map';
+import { CO_REGIONS, CO_PATHS, CO_VIEWBOX } from '@/lib/maps/co-map';
+import { AR_REGIONS, AR_PATHS, AR_VIEWBOX } from '@/lib/maps/ar-map';
+import { CL_REGIONS, CL_PATHS, CL_VIEWBOX } from '@/lib/maps/cl-map';
+import { PE_REGIONS, PE_PATHS, PE_VIEWBOX } from '@/lib/maps/pe-map';
+import { BR_REGIONS, BR_PATHS, BR_VIEWBOX } from '@/lib/maps/br-map';
+import { ES_REGIONS, ES_PATHS, ES_VIEWBOX } from '@/lib/maps/es-map';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -40,6 +40,8 @@ export interface MapConfig {
   regions: MapRegion[];
   /** Region name → SVG path data */
   paths: Record<string, string>;
+  /** SVG viewBox string (e.g., "0 0 500 500") */
+  viewBox?: string;
 }
 
 // ── DR Map Config ────────────────────────────────────────────
@@ -89,6 +91,7 @@ const DR_MAP_CONFIG: MapConfig = {
   regionLabelEn: 'provinces',
   regions: DR_REGIONS,
   paths: DR_PATHS,
+  viewBox: '0 0 500 500',
 };
 
 // ── Registry ─────────────────────────────────────────────────
@@ -103,6 +106,7 @@ export const MAP_REGISTRY: Record<string, MapConfig> = {
     regionLabelEn: 'states',
     regions: US_REGIONS,
     paths: US_PATHS,
+    viewBox: US_VIEWBOX,
   },
   MX: {
     countryCode: 'MX',
@@ -112,6 +116,7 @@ export const MAP_REGISTRY: Record<string, MapConfig> = {
     regionLabelEn: 'states',
     regions: MX_REGIONS,
     paths: MX_PATHS,
+    viewBox: MX_VIEWBOX,
   },
   CO: {
     countryCode: 'CO',
@@ -121,6 +126,7 @@ export const MAP_REGISTRY: Record<string, MapConfig> = {
     regionLabelEn: 'departments',
     regions: CO_REGIONS,
     paths: CO_PATHS,
+    viewBox: CO_VIEWBOX,
   },
   AR: {
     countryCode: 'AR',
@@ -130,6 +136,7 @@ export const MAP_REGISTRY: Record<string, MapConfig> = {
     regionLabelEn: 'provinces',
     regions: AR_REGIONS,
     paths: AR_PATHS,
+    viewBox: AR_VIEWBOX,
   },
   CL: {
     countryCode: 'CL',
@@ -139,6 +146,7 @@ export const MAP_REGISTRY: Record<string, MapConfig> = {
     regionLabelEn: 'regions',
     regions: CL_REGIONS,
     paths: CL_PATHS,
+    viewBox: CL_VIEWBOX,
   },
   PE: {
     countryCode: 'PE',
@@ -148,6 +156,7 @@ export const MAP_REGISTRY: Record<string, MapConfig> = {
     regionLabelEn: 'departments',
     regions: PE_REGIONS,
     paths: PE_PATHS,
+    viewBox: PE_VIEWBOX,
   },
   BR: {
     countryCode: 'BR',
@@ -157,6 +166,7 @@ export const MAP_REGISTRY: Record<string, MapConfig> = {
     regionLabelEn: 'states',
     regions: BR_REGIONS,
     paths: BR_PATHS,
+    viewBox: BR_VIEWBOX,
   },
   ES: {
     countryCode: 'ES',
@@ -166,6 +176,7 @@ export const MAP_REGISTRY: Record<string, MapConfig> = {
     regionLabelEn: 'autonomous communities',
     regions: ES_REGIONS,
     paths: ES_PATHS,
+    viewBox: ES_VIEWBOX,
   },
 };
 

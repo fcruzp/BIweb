@@ -9,6 +9,8 @@
 
 import type { MapRegion } from '@/lib/map-registry';
 
+export const US_VIEWBOX = "-2 130.75 964 698.5";
+
 export const US_REGIONS: MapRegion[] = [
   { name: 'Wyoming', id: 'US-WY', aliases: ["wy"] },
   { name: 'West Virginia', id: 'US-WV', aliases: ["wv"] },
