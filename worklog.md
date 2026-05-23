@@ -975,3 +975,29 @@ Stage Summary:
 - Each map card shows SVG preview, region count, and expandable region list
 - Searchable by name, country, or region
 - Custom maps can be deleted from the gallery
+
+---
+Task ID: 1
+Agent: Main
+Task: Fix DR map viewBox + Implement Phase 6 — Metrics Dashboard + Billing
+
+Work Log:
+- Fixed DR map viewBox: Was '0 0 500 500' but paths span (-15,-12) to (696,554). Changed to '-25 -25 730 585'
+- Installed Recharts v3.8.1 (tree-shakable, animations disabled for performance)
+- Created GET /api/usage/metrics: Daily queries with avg duration, weekly aggregation, projection calculation, event breakdown
+- Created GET /api/usage/invoice?month=YYYY-MM: Professional HTML invoice with bilingual support, format=pdf for print dialog
+- Created MetricsDashboardDialog with 3 tabs:
+  - Overview: 4 summary cards + usage progress bars + projection warning banner
+  - Activity: Recharts AreaChart (daily queries, emerald gradient) + BarChart (event breakdown) + avg response time
+  - Billing: Current plan card + 6 mock invoices + download PDF button → /api/usage/invoice
+- Updated UserMenu: Added "Dashboard de Métricas" as first menu option with Activity icon
+- Added 22 new i18n keys for EN + ES
+- Updated SAAS-PLAN.md: Phase 6 marked as COMPLETED
+- Version: 0.6.1 pushed to origin/master
+
+Stage Summary:
+- Phase 6 COMPLETE ✅: Metrics Dashboard + Recharts + Billing invoices
+- DR map now shows full country silhouette in both library and queries
+- Recharts performance optimized: isAnimationActive={false} on all chart elements
+- Metrics Dashboard accessible from UserMenu (top-right avatar → "Dashboard de Métricas")
+- Invoice endpoint returns standalone HTML page that opens in new tab
