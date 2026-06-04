@@ -1,0 +1,236 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// User & Auth Models
+// ============================================
+
+model User {
+  id             String         @id @default(cuid())
+  supabaseId     String         @unique
+  email          String         @unique
+  name           String?
+  avatarUrl      String?
+  company        String?
+  phone          String?
+  role           String         @default("user")
+  country        String?
+  taxId          String?
+  preferredLang  String         @default("es")
+  openRouterKey  String?
+  onboardingCompleted Boolean   @default(false)
+  interestArea   String?
+
+  // Relationships
+  dataSources    DataSource[]
+  chatSessions   ChatSession[]
+  dashboards     Dashboard[]
+  subscription   Subscription?
+  usageEvents    UsageEvent[]
+  mapLibrary     MapLibrary[]
+
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+model Subscription {
+  id                    String    @id @default(cuid())
+  userId                String    @unique
+  plan                  String    @default("free")
+  stripeCustomerId      String?   @unique
+  stripeSubscriptionId  String?   @unique
+  stripePriceId         String?
+  status                String    @default("active")
+  currentPeriodStart    DateTime?
+  currentPeriodEnd      DateTime?
+  cancelAtPeriodEnd     Boolean   @default(false)
+
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model UsageEvent {
+  id            String    @id @default(cuid())
+  userId        String
+  eventType     String
+  metadata      String    @default("{}")
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime  @default(now())
+}
+
+// ============================================
+// Data Source Models
+// ============================================
+
+model DataSource {
+  id           String         @id @default(cuid())
+  userId       String?
+  name         String
+  fileName     String
+  fileSize     Int
+  filePath     String
+  fileType     String         @default("sqlite")
+  status       String         @default("uploaded")
+  errorMessage String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  schemas      SourceSchema[]
+  contexts     SourceContext[]
+  queries      QueryHistory[]
+  sessions     ChatSession[]
+
+  user         User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SourceSchema {
+  id           String     @id @default(cuid())
+  dataSourceId String
+  tableName    String
+  columns      String
+  rowCount     Int        @default(0)
+  sampleData   String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  dataSource   DataSource @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+}
+
+model SourceContext {
+  id               String     @id @default(cuid())
+  dataSourceId     String
+  semanticContext  String
+  businessGlossary String
+  relationships    String
+  summary          String
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  dataSource       DataSource @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+}
+
+// ============================================
+// Chat Models
+// ============================================
+
+model ChatSession {
+  id           String         @id @default(cuid())
+  userId       String?
+  dataSourceId String
+  title        String         @default("New Chat")
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  messages     ChatMessage[]
+  queries      QueryHistory[]
+
+  user         User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dataSource   DataSource     @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+}
+
+model ChatMessage {
+  id            String      @id @default(cuid())
+  sessionId     String
+  role          String
+  content       String
+  sqlQuery      String?
+  queryResult   String?
+  visualization String?
+  createdAt     DateTime    @default(now())
+  session       ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+// ============================================
+// Query History
+// ============================================
+
+model QueryHistory {
+  id            String        @id @default(cuid())
+  dataSourceId  String
+  sessionId     String?
+  naturalQuery  String
+  sqlQuery      String
+  resultData    String
+  rowCount      Int           @default(0)
+  executionTime Int           @default(0)
+  status        String        @default("success")
+  errorMessage  String?
+  createdAt     DateTime      @default(now())
+  dataSource    DataSource    @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+  session       ChatSession?  @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+}
+
+// ============================================
+// AI Configuration
+// ============================================
+
+model AiConfig {
+  id           String    @id @default("global")
+  apiKey       String?
+  model        String    @default("openrouter/free")
+  baseUrl      String    @default("https://openrouter.ai/api/v1")
+  isActive     Boolean   @default(true)
+  lastVerified DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+// ============================================
+// Map Library Models
+// ============================================
+
+model MapLibrary {
+  id          String    @id @default(cuid())
+  userId      String?
+  name        String
+  countryCode String?
+  svgContent  String
+  regions     String
+  source      String    @default("system")
+  isPublic    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============================================
+// Dashboard Models
+// ============================================
+
+model Dashboard {
+  id          String           @id @default(cuid())
+  userId      String?
+  name        String
+  description String?
+  layout      String
+  widgets     DashboardWidget[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  user        User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model DashboardWidget {
+  id            String    @id @default(cuid())
+  dashboardId   String
+  title         String
+  widgetType    String
+  dataSourceId  String?
+  sqlQuery      String?
+  visualization String?
+  config        String
+  positionX     Int       @default(0)
+  positionY     Int       @default(0)
+  width         Int       @default(6)
+  height        Int       @default(4)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  dashboard     Dashboard @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+}

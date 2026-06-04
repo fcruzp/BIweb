@@ -1,0 +1,175 @@
+'use client';
+
+import { useState } from 'react';
+import { Crown, BarChart3, Lock, AlertTriangle, Loader2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
+import { useUsageLimits } from '@/hooks/use-usage-limits';
+import { useI18n } from '@/hooks/use-i18n';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { PLANS, getPlan, type PlanId } from '@/lib/plans';
+import { UsagePlanDialog } from '@/components/app/settings/usage-plan-dialog';
+
+const PLAN_BADGE_COLORS: Record<PlanId, string> = {
+  free: 'bg-gray-500/10 text-gray-500 border-gray-500/20',
+  supporter: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
+  starter: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
+  pro: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+  business: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
+};
+
+function getProgressColor(pct: number): string {
+  if (pct >= 100) return '[&>div]:bg-red-500';
+  if (pct >= 80) return '[&>div]:bg-amber-500';
+  return '[&>div]:bg-emerald-500';
+}
+
+/**
+ * Compact widget shown in the sidebar footer.
+ * Displays: Plan badge + most critical usage bar + upgrade prompt.
+ * ALWAYS renders at least the plan badge — never hides completely.
+ */
+export function PlanUsageWidget() {
+  const { limits, usageData, loading } = useUsageLimits();
+  const { dbUser, isAuthenticated } = useAuth();
+  const { t, locale } = useI18n();
+  const [plansOpen, setPlansOpen] = useState(false);
+
+  // Don't render anything if not authenticated (guest mode)
+  if (!isAuthenticated) return null;
+
+  // Derive plan from usageData (primary) or dbUser (fallback) or default
+  const planId = (usageData?.plan?.id || dbUser?.subscription?.plan || 'free') as PlanId;
+  const plan = getPlan(planId);
+  const planName = locale === 'es' ? plan.nameEs : plan.name;
+
+  // Find the most critical limit (highest percentage, excluding unlimited)
+  let mostCritical: { key: string; label: string; limit: { used: number; limit: number | null; percentage: number; unlimited: boolean; atLimit: boolean; nearLimit: boolean } } | null = null;
+
+  try {
+    const allLimits = [
+      { key: 'queries', limit: limits.queries, label: t('queriesUsed') },
+      { key: 'dataSources', limit: limits.dataSources, label: t('dataSourcesUsed') },
+      { key: 'dashboards', limit: limits.dashboards, label: t('dashboardsUsed') },
+      { key: 'chatSessions', limit: limits.chatSessions, label: t('chatSessions') },
+      { key: 'storage', limit: limits.storage, label: t('storageUsed') },
+    ];
+
+    const criticalLimits = allLimits
+      .filter(l => !l.limit.unlimited && l.limit.limit !== null)
+      .sort((a, b) => b.limit.percentage - a.limit.percentage);
+
+    mostCritical = criticalLimits[0] || null;
+  } catch {
+    // If limit computation fails, just don't show the usage bar
+  }
+
+  const hasAnyAtLimit = (() => {
+    try {
+      return [limits.queries, limits.dataSources, limits.dashboards, limits.chatSessions, limits.storage]
+        .some(l => l.atLimit);
+    } catch { return false; }
+  })();
+
+  const hasAnyNearLimit = (() => {
+    try {
+      return [limits.queries, limits.dataSources, limits.dashboards, limits.chatSessions, limits.storage]
+        .some(l => l.nearLimit && !l.atLimit);
+    } catch { return false; }
+  })();
+
+  return (
+    <>
+      {/* Separator above widget */}
+      <div className="border-t border-border/50 mx-1 group-data-[collapsible=icon]:hidden" />
+
+      <div className="px-2 py-2 space-y-1.5 group-data-[collapsible=icon]:hidden">
+        {/* Plan badge row — ALWAYS visible */}
+        <button
+          onClick={() => setPlansOpen(true)}
+          className="flex items-center justify-between w-full hover:bg-muted/50 rounded px-1 py-0.5 transition-colors"
+        >
+          <div className="flex items-center gap-1.5">
+            <Crown className="h-3 w-3 text-muted-foreground" />
+            <span className="text-[10px] text-muted-foreground">{t('currentPlan')}</span>
+          </div>
+          <Badge variant="outline" className={`${PLAN_BADGE_COLORS[planId] || PLAN_BADGE_COLORS.free} text-[9px] px-1.5 h-4`}>
+            {planName}
+          </Badge>
+        </button>
+
+        {/* Loading state */}
+        {loading && !usageData && (
+          <div className="flex items-center justify-center py-1">
+            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+          </div>
+        )}
+
+        {/* Most critical usage bar — only when we have data */}
+        {usageData && mostCritical && !mostCritical.limit.unlimited && (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+              <span className="truncate">{mostCritical.label}</span>
+              <span className="tabular-nums shrink-0 ml-1">
+                {mostCritical.limit.used}/{mostCritical.limit.limit}
+              </span>
+            </div>
+            <Progress
+              value={Math.min(100, mostCritical.limit.percentage)}
+              className={`h-1.5 ${getProgressColor(mostCritical.limit.percentage)}`}
+            />
+          </div>
+        )}
+
+        {/* At-limit alert */}
+        {hasAnyAtLimit && (
+          <button
+            onClick={() => setPlansOpen(true)}
+            className="flex items-center gap-1.5 w-full text-[10px] text-red-600 dark:text-red-400 bg-red-500/5 hover:bg-red-500/10 rounded px-2 py-1 transition-colors"
+          >
+            <Lock className="h-3 w-3 shrink-0" />
+            <span className="truncate">{t('limitReached')}</span>
+          </button>
+        )}
+
+        {/* Near-limit warning */}
+        {hasAnyNearLimit && !hasAnyAtLimit && (
+          <button
+            onClick={() => setPlansOpen(true)}
+            className="flex items-center gap-1.5 w-full text-[10px] text-amber-600 dark:text-amber-400 bg-amber-500/5 hover:bg-amber-500/10 rounded px-2 py-1 transition-colors"
+          >
+            <AlertTriangle className="h-3 w-3 shrink-0" />
+            <span className="truncate">{t('upgradeRequired')}</span>
+          </button>
+        )}
+
+        {/* View Plans link */}
+        {planId !== 'business' && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full h-6 text-[10px] gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/5"
+            onClick={() => setPlansOpen(true)}
+          >
+            <BarChart3 className="h-3 w-3" />
+            {t('viewPlans')}
+          </Button>
+        )}
+      </div>
+
+      {/* Collapsed sidebar: just show a crown icon that opens the dialog */}
+      <div className="hidden group-data-[collapsible=icon]:flex items-center justify-center py-1">
+        <button
+          onClick={() => setPlansOpen(true)}
+          className="p-2 rounded-md hover:bg-muted/50 transition-colors"
+          title={`${t('currentPlan')}: ${planName}`}
+        >
+          <Crown className="h-4 w-4 text-muted-foreground" />
+        </button>
+      </div>
+
+      <UsagePlanDialog open={plansOpen} onOpenChange={setPlansOpen} />
+    </>
+  );
+}
