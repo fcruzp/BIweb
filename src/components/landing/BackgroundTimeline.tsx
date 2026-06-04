@@ -451,7 +451,7 @@ export function BackgroundTimeline({ scrollProgress, scrollY }: BackgroundTimeli
           }}
         >
           <img
-            src="/hero/datamind_charts_bg.png"
+            src="/hero/datamind_charts_bg.webp"
             alt="Data Charts Background"
             className="w-full h-full object-cover"
             loading="lazy"
