@@ -46,9 +46,9 @@ export const metadata: Metadata = {
     siteName: "DataMind BI",
     images: [
       {
-        url: "/og-image.png",
-        width: 1672,
-        height: 941,
+        url: "https://datamind.bi/og-image.jpg",
+        width: 1200,
+        height: 630,
         alt: "DataMind BI - AI-Powered Business Intelligence Platform",
       },
     ],
@@ -59,7 +59,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "DataMind BI - AI-Powered Business Intelligence",
     description: "Upload databases, ask questions in natural language, and get instant AI-powered insights with visualizations.",
-    images: ["/og-image.png"],
+    images: ["https://datamind.bi/og-image.jpg"],
   },
 };
 
