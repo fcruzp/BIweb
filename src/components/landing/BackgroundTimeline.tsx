@@ -427,7 +427,7 @@ export function BackgroundTimeline({ scrollProgress, scrollY }: BackgroundTimeli
           }}
         >
           <img
-            src="/hero/datamind_sql_bg.png"
+            src="/hero/datamind_sql_bg.webp"
             alt="SQL Database Background"
             className="w-full h-full object-cover"
             loading="eager"
