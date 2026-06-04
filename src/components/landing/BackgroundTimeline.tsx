@@ -117,7 +117,7 @@ export function BackgroundTimeline({ scrollProgress, scrollY }: BackgroundTimeli
       if (scrollDiff > maxFrameDiff) scrollDiff = maxFrameDiff;
       if (scrollDiff < -maxFrameDiff) scrollDiff = -maxFrameDiff;
       lastScrollY = currentScrollY;
-      scrollVelocity = scrollVelocity * 0.94 + scrollDiff * 0.06;
+      scrollVelocity = scrollVelocity * 0.7 + scrollDiff * 0.015;
 
       // Update dynamic box-shadow glow and border energy on sci-fi panels based on scroll speed
       const panel1 = document.querySelector('.js-sys-panel-1') as HTMLElement;
@@ -252,7 +252,7 @@ export function BackgroundTimeline({ scrollProgress, scrollY }: BackgroundTimeli
 
       // Render standard floating data flows
       packets.forEach((p) => {
-        const scrollOffsetEffect = scrollVelocity * 0.003;
+        const scrollOffsetEffect = scrollVelocity * 0.0005;
         p.x += Math.cos(p.angle) * p.speed;
         p.y += Math.sin(p.angle) * p.speed - scrollOffsetEffect;
 
@@ -279,7 +279,7 @@ export function BackgroundTimeline({ scrollProgress, scrollY }: BackgroundTimeli
 
       // Render interactive particles
       interactiveParticles.forEach((part) => {
-        const scrollOffsetEffect = scrollVelocity * 0.002;
+        const scrollOffsetEffect = scrollVelocity * 0.0003;
         const dx = mouseX - part.x;
         const dy = mouseY - part.y;
         const distSq = dx * dx + dy * dy;
