@@ -252,7 +252,7 @@ export function BackgroundTimeline({ scrollProgress, scrollY }: BackgroundTimeli
 
       // Render standard floating data flows
       packets.forEach((p) => {
-        const scrollOffsetEffect = scrollVelocity * 0.015;
+        const scrollOffsetEffect = scrollVelocity * 0.003;
         p.x += Math.cos(p.angle) * p.speed;
         p.y += Math.sin(p.angle) * p.speed - scrollOffsetEffect;
 
@@ -279,7 +279,7 @@ export function BackgroundTimeline({ scrollProgress, scrollY }: BackgroundTimeli
 
       // Render interactive particles
       interactiveParticles.forEach((part) => {
-        const scrollOffsetEffect = scrollVelocity * 0.008;
+        const scrollOffsetEffect = scrollVelocity * 0.002;
         const dx = mouseX - part.x;
         const dy = mouseY - part.y;
         const distSq = dx * dx + dy * dy;
