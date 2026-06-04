@@ -6,11 +6,12 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY package.json bun.lock* package-lock.json* yarn.lock* ./
+
 RUN \
-  if [ -f yarn.lock ]; then yarn --frozen-lockfile; \
-  elif [ -f package-lock.json ]; then npm ci; \
-  elif [ -f bun.lock ]; then npm ci; \
-  else npm i; \
+  if [ -f package-lock.json ]; then npm ci; \
+  elif [ -f bun.lock ]; then npm install; \
+  elif [ -f yarn.lock ]; then yarn --frozen-lockfile; \
+  else npm install; \
   fi
 
 # Rebuild the source code only when needed
@@ -21,15 +22,6 @@ COPY . .
 
 # Next.js collects completely anonymous telemetry data - disable it
 ENV NEXT_TELEMETRY_DISABLED=1
-
-# Build args for environment variables needed at build time
-ARG NEXT_PUBLIC_SUPABASE_URL
-ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-ARG NEXT_PUBLIC_APP_URL
-
-ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
-ENV NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 
 # Generate Prisma client
 RUN npx prisma generate
@@ -56,7 +48,7 @@ RUN chown nextjs:nodejs .next
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Copy Prisma schema and migrations for runtime
+# Copy Prisma schema and runtime dependencies
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
