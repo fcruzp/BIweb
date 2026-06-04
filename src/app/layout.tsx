@@ -42,11 +42,11 @@ export const metadata: Metadata = {
   openGraph: {
     title: "DataMind BI - AI-Powered Business Intelligence",
     description: "Upload databases, ask questions in natural language, and get instant AI-powered insights with visualizations.",
-    url: "https://datamind.bi",
+    url: "https://datamind.mooo.com",
     siteName: "DataMind BI",
     images: [
       {
-        url: "https://datamind.bi/og-image.jpg",
+        url: "https://datamind.mooo.com/og-image.jpg",
         width: 1200,
         height: 630,
         alt: "DataMind BI - AI-Powered Business Intelligence Platform",
@@ -59,7 +59,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "DataMind BI - AI-Powered Business Intelligence",
     description: "Upload databases, ask questions in natural language, and get instant AI-powered insights with visualizations.",
-    images: ["https://datamind.bi/og-image.jpg"],
+    images: ["https://datamind.mooo.com/og-image.jpg"],
   },
 };
 
