@@ -39,6 +39,28 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon.ico",
   },
+  openGraph: {
+    title: "DataMind BI - AI-Powered Business Intelligence",
+    description: "Upload databases, ask questions in natural language, and get instant AI-powered insights with visualizations.",
+    url: "https://datamind.bi",
+    siteName: "DataMind BI",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1672,
+        height: 941,
+        alt: "DataMind BI - AI-Powered Business Intelligence Platform",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "DataMind BI - AI-Powered Business Intelligence",
+    description: "Upload databases, ask questions in natural language, and get instant AI-powered insights with visualizations.",
+    images: ["/og-image.png"],
+  },
 };
 
 export default function RootLayout({
