@@ -470,7 +470,7 @@ export function BackgroundTimeline({ scrollProgress, scrollY }: BackgroundTimeli
           }}
         >
           <img
-            src="/hero/datamind_heatmap_bg.png"
+            src="/hero/datamind_heatmap_bg.webp"
             alt="Heatmap Background"
             className="w-full h-full object-cover"
             loading="lazy"
