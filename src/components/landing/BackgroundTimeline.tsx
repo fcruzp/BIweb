@@ -10,6 +10,10 @@ interface BackgroundTimelineProps {
 export function BackgroundTimeline({ scrollProgress, scrollY }: BackgroundTimelineProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number | null>(null);
+  const scrollProgressRef = useRef(scrollProgress);
+
+  // Keep ref in sync with prop (without re-running the main animation effect)
+  useEffect(() => { scrollProgressRef.current = scrollProgress; });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -111,6 +115,9 @@ export function BackgroundTimeline({ scrollProgress, scrollY }: BackgroundTimeli
     const tick = () => {
       ctx.clearRect(0, 0, width, height);
 
+      // Read latest scrollProgress from ref (updated by React re-renders, but won't restart this animation loop)
+      const currentScrollProgress = scrollProgressRef.current;
+
       const currentScrollY = window.scrollY;
       let scrollDiff = currentScrollY - lastScrollY;
       const maxFrameDiff = 8;
@@ -150,8 +157,8 @@ export function BackgroundTimeline({ scrollProgress, scrollY }: BackgroundTimeli
       }
 
       // PHASE 1: Relational Schema Connector Nodes
-      if (scrollProgress <= 0.45) {
-        const factor = scrollProgress <= 0.3 ? 1 : (0.45 - scrollProgress) / 0.15;
+      if (currentScrollProgress <= 0.45) {
+        const factor = currentScrollProgress <= 0.3 ? 1 : (0.45 - currentScrollProgress) / 0.15;
         ctx.strokeStyle = `rgba(100, 210, 255, ${0.05 * factor})`;
         ctx.lineWidth = 1;
 
@@ -176,12 +183,12 @@ export function BackgroundTimeline({ scrollProgress, scrollY }: BackgroundTimeli
       }
 
       // PHASE 2: Live Metrics Graph Stream Overlay
-      if (scrollProgress > 0.3 && scrollProgress <= 0.8) {
+      if (currentScrollProgress > 0.3 && currentScrollProgress <= 0.8) {
         let factor = 1;
-        if (scrollProgress <= 0.45) {
-          factor = (scrollProgress - 0.3) / 0.15;
-        } else if (scrollProgress > 0.65) {
-          factor = (0.8 - scrollProgress) / 0.15;
+        if (currentScrollProgress <= 0.45) {
+          factor = (currentScrollProgress - 0.3) / 0.15;
+        } else if (currentScrollProgress > 0.65) {
+          factor = (0.8 - currentScrollProgress) / 0.15;
         }
 
         ctx.strokeStyle = `rgba(168, 85, 247, ${0.08 * factor})`;
@@ -217,8 +224,8 @@ export function BackgroundTimeline({ scrollProgress, scrollY }: BackgroundTimeli
       }
 
       // PHASE 3: Heatmap Topographical Wave Grid
-      if (scrollProgress > 0.65) {
-        const factor = scrollProgress >= 0.8 ? 1 : (scrollProgress - 0.65) / 0.15;
+      if (currentScrollProgress > 0.65) {
+        const factor = currentScrollProgress >= 0.8 ? 1 : (currentScrollProgress - 0.65) / 0.15;
         ctx.strokeStyle = `rgba(6, 182, 212, ${0.12 * factor})`;
         ctx.lineWidth = 1;
 
@@ -386,7 +393,7 @@ export function BackgroundTimeline({ scrollProgress, scrollY }: BackgroundTimeli
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('mousemove', handleMouseMove);
     };
-  }, [scrollProgress]);
+  }, []); // Empty dependency — animation loop runs once; reads scrollProgress/scrollY via refs
 
   return (
     <div
