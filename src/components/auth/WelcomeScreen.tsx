@@ -11,6 +11,7 @@ import { ProgressIndicator } from '@/components/landing/ProgressIndicator';
 import { BackgroundTimeline } from '@/components/landing/BackgroundTimeline';
 import { Card3D } from '@/components/landing/Card3D';
 import { FeaturesBento } from '@/components/landing/FeaturesBento';
+import { useScrollVelocityBlur } from '@/hooks/use-scroll-velocity-blur';
 import {
     Brain,
     BarChart3,
@@ -817,6 +818,9 @@ export function WelcomeScreen() {
     const [scrollProgress, setScrollProgress] = useState(0);
     const [showScrollTop, setShowScrollTop] = useState(false);
 
+    // Scroll velocity-based motion blur effect
+    useScrollVelocityBlur();
+
     useEffect(() => {
         const handleScroll = () => {
             const currentY = window.scrollY;
@@ -849,7 +853,11 @@ export function WelcomeScreen() {
             />
             <BackgroundTimeline scrollProgress={scrollProgress} scrollY={scrollY} />
 
-            <div className="relative z-10 w-full pointer-events-none select-none">
+            <div
+                id="pageRoot"
+                className="relative z-10 w-full pointer-events-none select-none"
+                style={{ willChange: 'backdrop-filter' }}
+            >
                 <HeroSection openAuthModal={openAuthModal} t={t} />
                 <FeaturesBento t={t} />
                 <HowItWorksSection t={t} />
