@@ -1,83 +1,30 @@
-/**
- * Mock Supabase server client for local development.
- * Returns the same demo user as the client-side mock.
- */
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 
-const DEMO_SUPABASE_ID = 'demo-user-00000001';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-function createMockServerAuth() {
-  return {
-    getUser: async () => {
-      // Always return the demo user for server-side operations
-      return {
-        data: {
-          user: {
-            id: DEMO_SUPABASE_ID,
-            email: 'demo@datamind.local',
-            user_metadata: {
-              full_name: 'Demo User',
-              avatar_url: null,
-            },
-            app_metadata: {},
-            aud: 'authenticated',
-            created_at: new Date().toISOString(),
-            role: 'authenticated',
-          },
+export const createClient = async () => {
+  const cookieStore = await cookies();
+
+  return createServerClient(
+    supabaseUrl!,
+    supabaseKey!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
         },
-        error: null,
-      };
-    },
-    getSession: async () => {
-      return {
-        data: {
-          session: {
-            access_token: 'mock-server-token',
-            user: {
-              id: DEMO_SUPABASE_ID,
-              email: 'demo@datamind.local',
-            },
-          },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
+          } catch {
+            // The `setAll` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+          }
         },
-        error: null,
-      };
+      },
     },
-    exchangeCodeForSession: async (code: string) => {
-      // Mock code exchange - just return a session
-      return {
-        data: {
-          session: {
-            access_token: 'mock-server-token-' + code,
-            user: {
-              id: DEMO_SUPABASE_ID,
-              email: 'demo@datamind.local',
-              user_metadata: {
-                full_name: 'Demo User',
-                avatar_url: null,
-              },
-            },
-          },
-          user: {
-            id: DEMO_SUPABASE_ID,
-            email: 'demo@datamind.local',
-            user_metadata: {
-              full_name: 'Demo User',
-              avatar_url: null,
-            },
-          },
-        },
-        error: null,
-      };
-    },
-  };
-}
-
-function createMockServerClient() {
-  return {
-    auth: createMockServerAuth(),
-    from: () => ({
-      select: () => ({ eq: () => ({ single: async () => ({ data: null, error: null }) }) }),
-    }),
-  };
-}
-
-export const createClient = async () => createMockServerClient();
+  );
+};

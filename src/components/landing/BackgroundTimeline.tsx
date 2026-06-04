@@ -416,11 +416,74 @@ export function BackgroundTimeline({ scrollProgress, scrollY }: BackgroundTimeli
         </div>
       </div>
 
+      {/* ─── Scroll-Driven Background Images: Zoom + Fade ─── */}
+      <div className="absolute inset-0 z-[1] pointer-events-none overflow-hidden">
+        {/* Image 1: SQL (visible at scroll 0% → fades out by ~35%) */}
+        <div
+          className="absolute inset-0 transition-[opacity,transform] duration-100 will-change-[opacity,transform]"
+          style={{
+            opacity: Math.max(0, 1 - scrollProgress * 2.8),
+            transform: `scale(${1 + scrollProgress * 0.25})`,
+          }}
+        >
+          <img
+            src="/hero/datamind_sql_bg.png"
+            alt="SQL Database Background"
+            className="w-full h-full object-cover"
+            loading="eager"
+          />
+          {/* Dark overlay for readability */}
+          <div className="absolute inset-0 bg-[#060910]/60" />
+        </div>
+
+        {/* Image 2: Charts (fades in at ~30%, full at 50%, fades out by ~70%) */}
+        <div
+          className="absolute inset-0 transition-[opacity,transform] duration-100 will-change-[opacity,transform]"
+          style={{
+            opacity: scrollProgress <= 0.3
+              ? 0
+              : scrollProgress <= 0.5
+                ? (scrollProgress - 0.3) / 0.2
+                : scrollProgress <= 0.7
+                  ? 1
+                  : Math.max(0, 1 - (scrollProgress - 0.7) / 0.15),
+            transform: `scale(${1.05 + (scrollProgress - 0.3) * 0.3})`,
+          }}
+        >
+          <img
+            src="/hero/datamind_charts_bg.png"
+            alt="Data Charts Background"
+            className="w-full h-full object-cover"
+            loading="lazy"
+          />
+          <div className="absolute inset-0 bg-[#060910]/60" />
+        </div>
+
+        {/* Image 3: Heatmap (fades in at ~65%, full at 85%+) */}
+        <div
+          className="absolute inset-0 transition-[opacity,transform] duration-100 will-change-[opacity,transform]"
+          style={{
+            opacity: scrollProgress <= 0.65
+              ? 0
+              : Math.min(1, (scrollProgress - 0.65) / 0.2),
+            transform: `scale(${1.05 + (scrollProgress - 0.65) * 0.35})`,
+          }}
+        >
+          <img
+            src="/hero/datamind_heatmap_bg.png"
+            alt="Heatmap Background"
+            className="w-full h-full object-cover"
+            loading="lazy"
+          />
+          <div className="absolute inset-0 bg-[#060910]/55" />
+        </div>
+      </div>
+
       {/* Subtle vignette layer */}
-      <div className="absolute inset-0 w-full h-full pointer-events-none bg-[radial-gradient(ellipse_at_center,rgba(6,9,16,0.1)_0%,rgba(6,9,16,0.85)_100%)]" />
+      <div className="absolute inset-0 w-full h-full pointer-events-none bg-[radial-gradient(ellipse_at_center,rgba(6,9,16,0.1)_0%,rgba(6,9,16,0.85)_100%)] z-[2]" />
 
       {/* Canvas for dynamic effects */}
-      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
+      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-[3]" />
 
       {/* Panel 1: Core System Monitor Panel */}
       <div className="js-sys-panel-1 absolute left-[3%] top-[34%] z-20 pointer-events-none select-none animate-sys-float-1 hidden xl:flex flex-col w-56 rounded-xl border border-cyan-500/10 bg-[#060910]/20 backdrop-blur-[1px] p-3.5 font-mono text-[9px] text-cyan-400/30 shadow-[0_4px_30px_rgba(3,7,18,0.15)]">

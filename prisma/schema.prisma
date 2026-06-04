@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ============================================
@@ -13,19 +14,19 @@ datasource db {
 
 model User {
   id             String         @id @default(cuid())
-  supabaseId     String         @unique
+  supabaseId     String         @unique @map("supabase_id") // Maps to auth.uid() in Supabase Auth
   email          String         @unique
   name           String?
-  avatarUrl      String?
+  avatarUrl      String?        @map("avatar_url")
   company        String?
   phone          String?
-  role           String         @default("user")
-  country        String?
-  taxId          String?
-  preferredLang  String         @default("es")
-  openRouterKey  String?
-  onboardingCompleted Boolean   @default(false)
-  interestArea   String?
+  role           String         @default("user") // admin, user
+  country        String?        // For ITBIS detection (e.g., "DO" for Dominican Republic)
+  taxId          String?        @map("tax_id") // NCF / RNC for Dominican companies
+  preferredLang      String         @default("es") @map("preferred_lang") // es, en
+  openRouterKey      String?        @map("open_router_key") // User's own OpenRouter API key
+  onboardingCompleted Boolean       @default(false) @map("onboarding_completed") // Whether user completed the onboarding flow
+  interestArea      String?        @map("interest_area") // ventas, marketing, finanzas, operaciones, rrhh, otro
 
   // Relationships
   dataSources    DataSource[]
@@ -35,37 +36,46 @@ model User {
   usageEvents    UsageEvent[]
   mapLibrary     MapLibrary[]
 
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  @@map("users")
 }
 
 model Subscription {
   id                    String    @id @default(cuid())
-  userId                String    @unique
-  plan                  String    @default("free")
-  stripeCustomerId      String?   @unique
-  stripeSubscriptionId  String?   @unique
-  stripePriceId         String?
-  status                String    @default("active")
-  currentPeriodStart    DateTime?
-  currentPeriodEnd      DateTime?
-  cancelAtPeriodEnd     Boolean   @default(false)
+  userId                String    @unique @map("user_id")
+  plan                  String    @default("free") // free, supporter, starter, pro, business
+  stripeCustomerId      String?   @unique @map("stripe_customer_id")
+  stripeSubscriptionId  String?   @unique @map("stripe_subscription_id")
+  stripePriceId         String?   @map("stripe_price_id")
+  status                String    @default("active") // active, past_due, canceled, incomplete
+  currentPeriodStart    DateTime? @map("current_period_start")
+  currentPeriodEnd      DateTime? @map("current_period_end")
+  cancelAtPeriodEnd     Boolean   @default(false) @map("cancel_at_period_end")
 
   user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@map("subscriptions")
 }
 
 model UsageEvent {
   id            String    @id @default(cuid())
-  userId        String
-  eventType     String
-  metadata      String    @default("{}")
+  userId        String    @map("user_id")
+  eventType     String    @map("event_type") // query_executed, file_uploaded, dashboard_created, etc.
+  metadata      String    @default("{}") // JSON string with event details
 
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  createdAt     DateTime  @default(now())
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@map("usage_events")
 }
 
 // ============================================
@@ -74,46 +84,56 @@ model UsageEvent {
 
 model DataSource {
   id           String         @id @default(cuid())
-  userId       String?
+  userId       String?        @map("user_id") // Multi-tenant: owner (nullable until Phase 2 Auth)
   name         String
-  fileName     String
-  fileSize     Int
-  filePath     String
-  fileType     String         @default("sqlite")
-  status       String         @default("uploaded")
-  errorMessage String?
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  fileName     String         @map("file_name")
+  fileSize     Int            @map("file_size")
+  filePath     String         @map("file_path")
+  fileType     String         @default("sqlite") @map("file_type")
+  status       String         @default("uploaded") // uploaded, analyzing, ready, error
+  errorMessage String?        @map("error_message")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
   schemas      SourceSchema[]
   contexts     SourceContext[]
   queries      QueryHistory[]
   sessions     ChatSession[]
 
   user         User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("data_sources")
 }
 
 model SourceSchema {
   id           String     @id @default(cuid())
-  dataSourceId String
-  tableName    String
-  columns      String
-  rowCount     Int        @default(0)
-  sampleData   String
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  dataSourceId String     @map("data_source_id")
+  tableName    String     @map("table_name")
+  columns      String     // JSON string of column definitions
+  rowCount     Int        @default(0) @map("row_count")
+  sampleData   String     @map("sample_data") // JSON string of sample rows
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
   dataSource   DataSource @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+
+  @@index([dataSourceId])
+  @@map("source_schemas")
 }
 
 model SourceContext {
   id               String     @id @default(cuid())
-  dataSourceId     String
-  semanticContext  String
-  businessGlossary String
-  relationships    String
-  summary          String
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
+  dataSourceId     String     @map("data_source_id")
+  semanticContext  String     @map("semantic_context") // Rich semantic metadata generated by AI
+  businessGlossary String     @map("business_glossary") // JSON string of business terms
+  relationships    String     // JSON string of inferred relationships
+  summary          String     // Human-readable summary
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
   dataSource       DataSource @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+
+  @@index([dataSourceId])
+  @@map("source_contexts")
 }
 
 // ============================================
@@ -122,28 +142,35 @@ model SourceContext {
 
 model ChatSession {
   id           String         @id @default(cuid())
-  userId       String?
-  dataSourceId String
+  userId       String?        @map("user_id") // Multi-tenant: owner (nullable until Phase 2 Auth)
+  dataSourceId String         @map("data_source_id")
   title        String         @default("New Chat")
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
   messages     ChatMessage[]
   queries      QueryHistory[]
 
   user         User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
   dataSource   DataSource     @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([dataSourceId])
+  @@map("chat_sessions")
 }
 
 model ChatMessage {
   id            String      @id @default(cuid())
-  sessionId     String
-  role          String
+  sessionId     String      @map("session_id")
+  role          String      // user, assistant, system
   content       String
-  sqlQuery      String?
-  queryResult   String?
-  visualization String?
-  createdAt     DateTime    @default(now())
+  sqlQuery      String?     @map("sql_query") // If assistant generated SQL
+  queryResult   String?     @map("query_result") // JSON string of query results
+  visualization String?     // JSON string of visualization config
+  createdAt     DateTime    @default(now()) @map("created_at")
   session       ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("chat_messages")
 }
 
 // ============================================
@@ -152,18 +179,22 @@ model ChatMessage {
 
 model QueryHistory {
   id            String        @id @default(cuid())
-  dataSourceId  String
-  sessionId     String?
-  naturalQuery  String
-  sqlQuery      String
-  resultData    String
-  rowCount      Int           @default(0)
-  executionTime Int           @default(0)
-  status        String        @default("success")
-  errorMessage  String?
-  createdAt     DateTime      @default(now())
+  dataSourceId  String        @map("data_source_id")
+  sessionId     String?       @map("session_id")
+  naturalQuery  String        @map("natural_query") // The user's natural language question
+  sqlQuery      String        @map("sql_query") // The generated SQL
+  resultData    String        @map("result_data") // JSON string of results
+  rowCount      Int           @default(0) @map("row_count")
+  executionTime Int           @default(0) @map("execution_time") // milliseconds
+  status        String        @default("success") // success, error
+  errorMessage  String?       @map("error_message")
+  createdAt     DateTime      @default(now()) @map("created_at")
   dataSource    DataSource    @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
   session       ChatSession?  @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([dataSourceId])
+  @@index([sessionId])
+  @@map("query_histories")
 }
 
 // ============================================
@@ -172,13 +203,15 @@ model QueryHistory {
 
 model AiConfig {
   id           String    @id @default("global")
-  apiKey       String?
+  apiKey       String?   @map("api_key")
   model        String    @default("openrouter/free")
-  baseUrl      String    @default("https://openrouter.ai/api/v1")
-  isActive     Boolean   @default(true)
-  lastVerified DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  baseUrl      String    @default("https://openrouter.ai/api/v1") @map("base_url")
+  isActive     Boolean   @default(true) @map("is_active")
+  lastVerified DateTime? @map("last_verified")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("ai_config")
 }
 
 // ============================================
@@ -187,17 +220,21 @@ model AiConfig {
 
 model MapLibrary {
   id          String    @id @default(cuid())
-  userId      String?
-  name        String
-  countryCode String?
-  svgContent  String
-  regions     String
-  source      String    @default("system")
-  isPublic    Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  userId      String?   @map("user_id") // null = system map, String = user's custom map
+  name        String    // "México - Estados", "Rep. Dominicana - Provincias"
+  countryCode String?   @map("country_code") // ISO 3166-1 alpha-2 (e.g., "DO", "US", "MX")
+  svgContent  String    @map("svg_content") // Full SVG markup stored as text
+  regions     String    // JSON array of { name, id, aliases[] }
+  source      String    @default("system") // "system" | "user"
+  isPublic    Boolean   @default(false) @map("is_public") // future: share with other users
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
   user        User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([countryCode])
+  @@map("map_library")
 }
 
 // ============================================
@@ -206,31 +243,37 @@ model MapLibrary {
 
 model Dashboard {
   id          String           @id @default(cuid())
-  userId      String?
+  userId      String?          @map("user_id") // Multi-tenant: owner (nullable until Phase 2 Auth)
   name        String
   description String?
-  layout      String
+  layout      String           // JSON string of layout config
   widgets     DashboardWidget[]
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
 
   user        User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("dashboards")
 }
 
 model DashboardWidget {
   id            String    @id @default(cuid())
-  dashboardId   String
+  dashboardId   String    @map("dashboard_id")
   title         String
-  widgetType    String
-  dataSourceId  String?
-  sqlQuery      String?
-  visualization String?
-  config        String
-  positionX     Int       @default(0)
-  positionY     Int       @default(0)
+  widgetType    String    @map("widget_type") // chart, table, metric, text, map
+  dataSourceId  String?   @map("data_source_id")
+  sqlQuery      String?   @map("sql_query")
+  visualization String?   // JSON string of visualization config
+  config        String    // JSON string of widget config
+  positionX     Int       @default(0) @map("position_x")
+  positionY     Int       @default(0) @map("position_y")
   width         Int       @default(6)
   height        Int       @default(4)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
   dashboard     Dashboard @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+
+  @@index([dashboardId])
+  @@map("dashboard_widgets")
 }

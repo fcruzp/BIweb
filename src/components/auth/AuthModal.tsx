@@ -139,7 +139,7 @@ function SignInForm({ onForgotPassword }: { onForgotPassword: () => void }) {
       });
 
       if (authError) {
-        setError((authError as any).message || 'Auth failed');
+        setError(authError.message);
         return;
       }
 
@@ -165,7 +165,7 @@ function SignInForm({ onForgotPassword }: { onForgotPassword: () => void }) {
       });
 
       if (authError) {
-        setError((authError as any).message || 'Auth failed');
+        setError(authError.message);
         setIsLoading(false);
       }
     } catch {
@@ -320,8 +320,8 @@ function SignUpForm() {
       });
 
       if (authError) {
-        console.error('[SignUp] Auth error:', (authError as any).message);
-        setError((authError as any).message || 'Auth failed');
+        console.error('[SignUp] Auth error:', authError.message);
+        setError(authError.message);
         return;
       }
 
@@ -329,10 +329,10 @@ function SignUpForm() {
       console.log('[SignUp] Result:', {
         hasUser: !!data.user,
         hasSession: !!data.session,
-        userId: (data.user as any)?.id,
-        email: (data.user as any)?.email,
-        emailConfirmed: (data.user as any)?.email_confirmed_at,
-        confirmedAt: (data.user as any)?.confirmed_at,
+        userId: data.user?.id,
+        email: data.user?.email,
+        emailConfirmed: data.user?.email_confirmed_at,
+        confirmedAt: data.user?.confirmed_at,
       });
 
       // Check if the user was immediately signed in (email confirmation disabled)
@@ -373,7 +373,7 @@ function SignUpForm() {
       });
 
       if (authError) {
-        setError((authError as any).message || 'Auth failed');
+        setError(authError.message);
         setIsLoading(false);
       }
     } catch {
@@ -526,7 +526,7 @@ function ForgotPasswordForm({ onBackToSignIn }: { onBackToSignIn: () => void }) 
       });
 
       if (authError) {
-        setError((authError as any).message || 'Auth failed');
+        setError(authError.message);
         return;
       }
 

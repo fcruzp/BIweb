@@ -1,18 +1,20 @@
-import { type NextRequest, NextResponse } from 'next/server'
-
-/**
- * Simplified proxy for local development.
- * No auth required - all routes are accessible.
- */
+import { type NextRequest } from 'next/server'
+import { updateSession } from '@/utils/supabase/middleware'
 
 export async function proxy(request: NextRequest) {
-  return NextResponse.next({
-    request: { headers: request.headers },
-  })
+  return await updateSession(request)
 }
 
 export const config = {
   matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - Static assets: images, video, audio, fonts (served from /public)
+     * Feel free to modify this pattern to include more paths.
+     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|mp4|webm|ogg|mp3|wav|ico|woff|woff2|ttf|eot)$).*)',
   ],
 }
