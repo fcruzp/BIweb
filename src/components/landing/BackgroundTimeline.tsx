@@ -117,7 +117,7 @@ export function BackgroundTimeline({ scrollProgress, scrollY }: BackgroundTimeli
       if (scrollDiff > maxFrameDiff) scrollDiff = maxFrameDiff;
       if (scrollDiff < -maxFrameDiff) scrollDiff = -maxFrameDiff;
       lastScrollY = currentScrollY;
-      scrollVelocity = scrollVelocity * 0.7 + scrollDiff * 0.015;
+      scrollVelocity = scrollVelocity * 0.7 + scrollDiff * 0.01;
 
       // Update dynamic box-shadow glow and border energy on sci-fi panels based on scroll speed
       const panel1 = document.querySelector('.js-sys-panel-1') as HTMLElement;
