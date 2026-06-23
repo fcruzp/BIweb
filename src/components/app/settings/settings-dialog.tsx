@@ -22,6 +22,7 @@ import {
   Crown,
   Globe,
   Shield,
+  KeyRound,
 } from 'lucide-react';
 import { useI18n } from '@/hooks/use-i18n';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -31,6 +32,7 @@ import { Button } from '@/components/ui/button';
 import { LocaleSwitcher } from '@/components/app/locale-switcher';
 import { UsagePlanDialog } from '@/components/app/settings/usage-plan-dialog';
 import { AdminAIConfig } from '@/components/app/settings/admin-ai-config';
+import { ApiKeysManager } from '@/components/app/settings/api-keys/api-keys-manager';
 import { getPlan, type PlanId } from '@/lib/plans';
 
 const PLAN_BADGE_COLORS: Record<PlanId, string> = {
@@ -51,6 +53,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const { user, dbUser } = useAuth();
   const { status: aiStatus, errorMessage: aiError, check: checkAI } = useAIStatus();
   const [usagePlanOpen, setUsagePlanOpen] = useState(false);
+  const [apiKeysOpen, setApiKeysOpen] = useState(false);
 
   const planId = (dbUser?.subscription?.plan || 'free') as PlanId;
   const plan = getPlan(planId);
@@ -187,6 +190,30 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
 
             {dbUser?.role === 'admin' && <Separator className="opacity-20" />}
 
+            {/* ── Developer / API Keys ─────────────────── */}
+            <section className="space-y-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <KeyRound className="h-3 w-3" />
+                {locale === 'es' ? 'Desarrollador' : 'Developer'}
+              </h3>
+              <p className="text-[11px] text-muted-foreground leading-relaxed -mt-1">
+                {locale === 'es'
+                  ? 'Claves de API para integrar herramientas externas (OpenFN, N8N).'
+                  : 'API keys to integrate external tools (OpenFN, N8N).'}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full gap-2 text-sm border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/5 hover:text-emerald-700"
+                onClick={() => setApiKeysOpen(true)}
+              >
+                <KeyRound className="h-4 w-4" />
+                {locale === 'es' ? 'Gestionar claves de API' : 'Manage API Keys'}
+              </Button>
+            </section>
+
+            <Separator className="opacity-20" />
+
             {/* ── Language ────────────────────────────── */}
             <section className="space-y-3">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
@@ -220,6 +247,13 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
 
       {/* Usage & Plans full dialog */}
       <UsagePlanDialog open={usagePlanOpen} onOpenChange={setUsagePlanOpen} />
+
+      {/* API Keys manager dialog */}
+      <ApiKeysManager
+        open={apiKeysOpen}
+        onOpenChange={setApiKeysOpen}
+        locale={locale === 'es' ? 'es' : 'en'}
+      />
     </>
   );
 }

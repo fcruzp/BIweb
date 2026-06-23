@@ -35,11 +35,56 @@ model User {
   subscription   Subscription?
   usageEvents    UsageEvent[]
   mapLibrary     MapLibrary[]
+  apiKeys        ApiKey[]
 
   createdAt      DateTime       @default(now()) @map("created_at")
   updatedAt      DateTime       @updatedAt @map("updated_at")
 
   @@map("users")
+}
+
+// ============================================
+// API Keys — Third-party integrations (OpenFN, N8N, etc.)
+// ============================================
+
+/// API Keys for third-party integrations (OpenFN, N8N, etc.)
+model ApiKey {
+  id          String    @id @default(cuid())
+  userId      String    @map("user_id")
+  keyHash     String    @unique @map("key_hash") // SHA-256 hash (NEVER the plaintext)
+  keyPrefix   String    @map("key_prefix") // "dm_live_a1B2" for display
+  label       String // "OpenFN - Sync nocturno"
+  scopes      String    @default("[]") @map("scopes") // JSON: ["read","execute","admin"]
+  revokedAt   DateTime? @map("revoked_at") // soft delete
+  lastUsedAt  DateTime? @map("last_used_at")
+  lastUsedIp  String?   @map("last_used_ip")
+  expiresAt   DateTime? @map("expires_at") // null = no expiry
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requestLogs ApiRequestLog[]
+
+  @@index([userId])
+  @@index([keyHash])
+  @@map("api_keys")
+}
+
+model ApiRequestLog {
+  id          String   @id @default(cuid())
+  apiKeyId    String   @map("api_key_id")
+  endpoint    String // "/api/public/v1/queries"
+  method      String // "POST"
+  statusCode  Int      @map("status_code")
+  durationMs  Int      @map("duration_ms")
+  rowCount    Int?     @map("row_count")
+  ip          String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  apiKey      ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+
+  @@index([apiKeyId, createdAt])
+  @@index([createdAt])
+  @@map("api_request_logs")
 }
 
 model Subscription {

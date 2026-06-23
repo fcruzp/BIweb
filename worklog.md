@@ -87,3 +87,26 @@ These are type-level issues that don't affect runtime:
 6. `/home/z/my-project/src/components/auth/AuthModal.tsx` — Fixed type errors
 7. `/home/z/my-project/src/components/app/settings/metrics-dashboard-dialog.tsx` — Added locale param
 8. `/home/z/my-project/src/components/auth/WelcomeScreen.tsx` — Fixed ease tuple types
+
+---
+Task ID: api-keys-1
+Agent: Z.ai Code (continuation session)
+Task: Implement per-user API Keys system for DataMind BI (OpenFN/N8N integration)
+
+Work Log:
+- Cloned BIweb repo into /home/z/my-project (replaced sandbox template, preserved .zscripts)
+- Read existing architecture: prisma schema (postgresql + Supabase), auth-utils (getCurrentUser/ensureUser), settings-dialog, supabase server/client, middleware
+- Added ApiKey + ApiRequestLog models to prisma/schema.prisma, plus User.apiKeys relation (postgresql provider preserved)
+- Implemented src/lib/api-auth.ts: generateApiKey, hashApiKey (SHA-256), authenticateApiKey (Bearer), requireScope/hasScope (admin=read+execute), parseScopes/serializeScopes, maskApiKey, getClientIp, logApiRequest, unauthorizedResponse
+- Built session-auth endpoints: GET/POST /api/settings/api-keys (list + create), DELETE /api/settings/api-keys/[id] (soft-revoke, ownership check, idempotent). Zod validation, per-user cap (25)
+- Built public Bearer-auth endpoint: GET /api/public/v1/me (requires read scope, returns user+apiKey+capabilities+subscription, logs every request)
+- Added /api/public/v1/ to middleware PUBLIC_API_ROUTES (skip Supabase getUser for API-key endpoints)
+- Built UI: dict.ts (en/es local i18n + scope metadata), new-key-reveal-dialog.tsx (one-time reveal, blocks outside-click/escape, copy + curl example), create-api-key-dialog.tsx (label + scope checkboxes + expiry select), api-keys-manager.tsx (table with masked keys, scope badges, status, last-used, request count, revoke confirmation, empty state, security note)
+- Integrated "Developer / API Keys" section into settings-dialog.tsx (opens ApiKeysManager dialog)
+- LOCAL sandbox testing (uncommitted): switched prisma to sqlite, added TEST_AUTH_EMAIL bypass in getCurrentUser, seeded test user + keys, ran full CRUD + scope + revoke + validation tests via curl — all passing. Reverted all sandbox-only changes before commit.
+
+Stage Summary:
+- Backend fully verified end-to-end: valid key 200, missing/invalid/revoked 401, scope enforcement 403, Zod validation 400, ownership 404, request logging to ApiRequestLog
+- Landing page renders cleanly via agent-browser (no console errors); settings UI behind auth (mock Supabase) — verified via lint + compile + identical patterns to existing dialogs
+- Committed feature only (postgresql schema, no test bypass, no seed scripts). db/custom.db reverted. .env gitignored.
+- Pushed to main + master (Coolify auto-deploys from master)

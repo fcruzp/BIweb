@@ -26,6 +26,7 @@ const PUBLIC_API_ROUTES = [
   '/api/test-ai',
   '/api/test-sse',
   '/api/chat/sse-test',
+  '/api/public/v1/', // Public API — authenticated via Bearer API key, not session
 ]
 
 /**
